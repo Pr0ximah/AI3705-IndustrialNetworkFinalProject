@@ -102,6 +102,16 @@
             :id="'block-' + block.category"
           ></div>
         </div>
+        <!-- 删除区域 -->
+        <div
+          v-if="draggingBlock"
+          ref="deleteZoneRef"
+          class="delete-zone"
+          :class="{ active: isOverDelete }"
+        >
+          <Delete class="icon" />
+          <span>拖拽到此处删除</span>
+        </div>
       </div>
     </ElMain>
   </ElContainer>
@@ -187,6 +197,10 @@ const isSnapped = ref(false);
 
 // 画布容器引用
 const canvasContainerRef = ref(null);
+
+// 删除区域引用和状态
+const deleteZoneRef = ref(null);
+const isOverDelete = ref(false);
 
 // 检查并限制画布位置在可视区域内
 function checkBoundaries() {
@@ -479,19 +493,44 @@ function onMouseMove(event) {
   }
 
   // 处理块拖拽
-  if (!draggingBlock.value) return;
+  if (!draggingBlock.value) {
+    isOverDelete.value = false; // 确保在没有拖动时重置
+    return;
+  }
+
+  // 检查是否悬停在删除区域
+  if (deleteZoneRef.value) {
+    const deleteRect = deleteZoneRef.value.getBoundingClientRect();
+    const mouseX = event.clientX;
+    const mouseY = event.clientY;
+
+    if (
+      mouseX >= deleteRect.left &&
+      mouseX <= deleteRect.right &&
+      mouseY >= deleteRect.top &&
+      mouseY <= deleteRect.bottom
+    ) {
+      isOverDelete.value = true;
+    } else {
+      isOverDelete.value = false;
+    }
+  } else {
+    isOverDelete.value = false;
+  }
 
   const rect = canvasContainerRef.value.getBoundingClientRect();
 
   // 计算鼠标在画布坐标系中的位置（考虑缩放和偏移）
-  let mouseX = (event.clientX - rect.left - offsetX.value) / scale.value;
-  let mouseY = (event.clientY - rect.top - offsetY.value) / scale.value;
+  let mouseXInCanvas =
+    (event.clientX - rect.left - offsetX.value) / scale.value;
+  let mouseYInCanvas = (event.clientY - rect.top - offsetY.value) / scale.value;
 
   // 初始坐标（带网格吸附）
   let newX =
-    Math.round((mouseX - BLOCK_PARAMS.width / 2) / gridSize) * gridSize;
+    Math.round((mouseXInCanvas - BLOCK_PARAMS.width / 2) / gridSize) * gridSize;
   let newY =
-    Math.round((mouseY - BLOCK_PARAMS.height / 2) / gridSize) * gridSize;
+    Math.round((mouseYInCanvas - BLOCK_PARAMS.height / 2) / gridSize) *
+    gridSize;
 
   // 限制拖动边界，确保块不会超出画布
   newX = Math.max(0, Math.min(canvasWidth - BLOCK_PARAMS.width, newX));
@@ -500,13 +539,13 @@ function onMouseMove(event) {
   // 检查初始移动位置是否合法
   let initialMoveValid = isMoveValid(newX, newY, draggingBlock.value, false);
 
-  isSnapped.value = false;
+  isSnapped.value = false; // 在检测吸附前重置
 
   let finalX = newX;
   let finalY = newY;
 
-  // 只有初始位置合法时才尝试吸附
-  if (initialMoveValid) {
+  // 只有初始位置合法时才尝试吸附 (并且没有在删除区域上方)
+  if (initialMoveValid && !isOverDelete.value) {
     let draggingBlockCenter = calCenter(finalX, finalY);
     let snapBlockList = [];
 
@@ -550,13 +589,13 @@ function onMouseMove(event) {
         }
 
         // 检查这个吸附位置是否会导致与任何其他块重叠
-        let potentialMoveValid = isMoveValid(
+        let potentialMoveValidForSnap = isMoveValid(
           potentialFinalX,
           potentialFinalY,
           draggingBlock.value
         );
 
-        if (willSnap && potentialMoveValid) {
+        if (willSnap && potentialMoveValidForSnap) {
           isSnapped.value = true;
           snapBlockList.push({
             actualDist: Math.sqrt(
@@ -571,25 +610,49 @@ function onMouseMove(event) {
     }
 
     // 选择距离最近的块
-    let minDist = Number.MAX_VALUE;
-    for (const snapBlock of snapBlockList) {
-      if (snapBlock.actualDist < minDist) {
-        minDist = snapBlock.actualDist;
-        finalX = snapBlock.finalX;
-        finalY = snapBlock.finalY;
+    if (snapBlockList.length > 0) {
+      let minDist = Number.MAX_VALUE;
+      for (const snapBlock of snapBlockList) {
+        if (snapBlock.actualDist < minDist) {
+          minDist = snapBlock.actualDist;
+          finalX = snapBlock.finalX;
+          finalY = snapBlock.finalY;
+        }
       }
+    } else {
+      isSnapped.value = false; // 如果没有可吸附的块，确保isSnapped为false
     }
   }
 
-  // 最终检查确保移动合法
-  if (isMoveValid(finalX, finalY, draggingBlock.value)) {
+  // 最终检查确保移动合法 (如果不在删除区域上)
+  if (!isOverDelete.value && isMoveValid(finalX, finalY, draggingBlock.value)) {
     // 更新块的位置
     draggingBlock.value.x = finalX;
     draggingBlock.value.y = finalY;
+  } else if (isOverDelete.value) {
+    draggingBlock.value.x = newX;
+    draggingBlock.value.y = newY;
   }
 }
 
 function onMouseUp() {
+  if (draggingBlock.value && isOverDelete.value) {
+    // 删除块
+    const index = placedBlocks.value.findIndex(
+      (b) => b === draggingBlock.value
+    );
+    if (index !== -1) {
+      placedBlocks.value.splice(index, 1);
+    }
+    if (selectedBlock.value === draggingBlock.value) {
+      selectedBlock.value = null;
+    }
+    draggingBlock.value = null;
+    isOverDelete.value = false;
+    isSnapped.value = false;
+    return; // 操作完成
+  }
+
   // 停止平移
   if (isPanning.value) {
     isPanning.value = false;
@@ -598,6 +661,7 @@ function onMouseUp() {
   // 停止拖拽
   draggingBlock.value = null;
   isSnapped.value = false;
+  isOverDelete.value = false; // 确保重置
 }
 
 // 处理鼠标离开窗口事件
@@ -607,6 +671,7 @@ function onMouseLeave() {
     isPanning.value = false;
     draggingBlock.value = null;
     isSnapped.value = false;
+    isOverDelete.value = false; // 添加重置
   }
 }
 
@@ -687,5 +752,12 @@ onUnmounted(() => {
   flex: 1;
   z-index: 1;
   overflow: hidden;
+  position: relative;
+}
+
+.delete-zone .icon {
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
 }
 </style>

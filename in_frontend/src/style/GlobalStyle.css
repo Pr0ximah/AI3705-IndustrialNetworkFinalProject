@@ -163,3 +163,30 @@ body {
   height: 16px;
   padding-bottom: 2px;
 }
+
+.delete-zone {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  height: 60px;
+  background-color: var(--color-important-light);
+  opacity: 0.75;
+  border: 2px dashed #cc0000;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  z-index: 5;
+  transition: all 0.2s ease;
+  pointer-events: none;
+}
+
+.delete-zone.active {
+  background-color: var(--color-important);
+  opacity: 0.9;
+  border-color: #cc0000;
+}
