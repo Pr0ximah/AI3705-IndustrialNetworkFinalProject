@@ -35,8 +35,12 @@
             cursor: draggingBlock === block ? 'grabbing' : 'grab',
           }"
           @mousedown="startDrag(block, $event)"
+          @click.stop="selectBlock(block, $event)"
           class="drag-block"
-          :class="{ snap: isSnapped && draggingBlock === block }"
+          :class="{
+            snap: isSnapped && draggingBlock === block,
+            selected: selectedBlock === block,
+          }"
         ></div>
       </div>
 
@@ -52,6 +56,7 @@
               height: canvasHeight + 'px',
             },
           ]"
+          @click="clearSelection"
         >
           <!-- 所有可拖拽的块统一渲染 -->
           <div
@@ -65,12 +70,18 @@
               backgroundColor: block.color,
               position: 'absolute',
               cursor: draggingBlock === block ? 'grabbing' : 'grab',
-              zIndex: draggingBlock === block ? 2 : 0,
+              zIndex:
+                draggingBlock === block ? 2 : selectedBlock === block ? 1 : 0,
               transition: isSnapped ? 'all 0.05s' : 'none',
             }"
             @mousedown="startDrag(block, $event)"
+            @click.stop="selectBlock(block, $event)"
             class="drag-block"
-            :class="{ snap: isSnapped && draggingBlock === block }"
+            :class="{
+              snap: isSnapped && draggingBlock === block,
+              selected: selectedBlock === block,
+              dragging: draggingBlock === block,
+            }"
           ></div>
         </div>
       </div>
@@ -79,7 +90,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { ElContainer, ElHeader, ElMain } from "element-plus";
 
 // 可拖动块的放置状态
@@ -120,18 +131,12 @@ const canvasStyle = computed(() => {
 
 // 创建块的函数
 function createBlock(x, y, place_state, category = "1") {
-  const colors = ["#FF5733", "#33FF57", "#3357FF", "#F1C40F", "#8E44AD"];
-  let type_id = 0;
-  switch (category) {
-    default:
-      type_id = 0;
-  }
   return {
     x: x,
     y: y,
     width: BLOCK_PARAMS.width,
     height: BLOCK_PARAMS.height,
-    color: colors[type_id],
+    category: category,
     place_state: place_state,
   };
 }
@@ -147,6 +152,9 @@ const allBlocks = computed(() => [...originalBlocks, ...placedBlocks.value]);
 
 // 当前正在拖动的块
 const draggingBlock = ref(null);
+
+// 当前选中的块
+const selectedBlock = ref(null);
 
 // 是否触发了吸附
 const isSnapped = ref(false);
@@ -298,15 +306,32 @@ function onMouseDown(event) {
 
   // 左键按下
   if (event.button === 0) {
-    // 如果按住Shift键或鼠标不在任何块上，则开始平移画布
-    if (event.shiftKey || !isMouseOverBlock(event)) {
-      isPanning.value = true;
-      lastMouseX.value = event.clientX;
-      lastMouseY.value = event.clientY;
-      event.preventDefault();
+    // 如果点击画布空白区域，清除选中
+    if (!isMouseOverBlock(event)) {
+      selectedBlock.value = null;
+
+      // 如果按住Shift键，则开始平移画布
+      if (event.shiftKey) {
+        isPanning.value = true;
+        lastMouseX.value = event.clientX;
+        lastMouseY.value = event.clientY;
+        event.preventDefault();
+      }
     }
     // 否则让块的mousedown事件处理（会触发startDrag）
   }
+}
+
+// 选中块
+function selectBlock(block, event) {
+  // 阻止事件冒泡，防止触发画布的click事件
+  event.stopPropagation();
+  selectedBlock.value = block;
+}
+
+// 清除选中
+function clearSelection() {
+  selectedBlock.value = null;
 }
 
 function startDrag(block, event) {
@@ -320,8 +345,10 @@ function startDrag(block, event) {
     const newBlock = createBlock(block.x, block.y, BLOCK_PLACE_STATE.placed);
     placedBlocks.value.push(newBlock);
     draggingBlock.value = newBlock;
+    selectedBlock.value = newBlock; // 选中新的块
   } else {
     draggingBlock.value = block;
+    selectedBlock.value = block; // 选中正在拖拽的块
   }
   event.stopPropagation(); // 防止触发画布拖拽
 }
@@ -522,6 +549,38 @@ function onMouseLeave() {
     isSnapped.value = false;
   }
 }
+
+// 添加键盘事件处理函数
+function handleKeyDown(event) {
+  // 如果按下Delete或Backspace键，并且有选中的块
+  if (
+    (event.key === "Delete" || event.key === "Backspace") &&
+    selectedBlock.value
+  ) {
+    // 只有已放置的块可以删除，原始模板不能删除
+    if (selectedBlock.value.place_state === BLOCK_PLACE_STATE.placed) {
+      // 从已放置块数组中移除选中的块
+      const index = placedBlocks.value.findIndex(
+        (block) => block === selectedBlock.value
+      );
+      if (index !== -1) {
+        placedBlocks.value.splice(index, 1);
+      }
+      // 清除选中状态
+      selectedBlock.value = null;
+    }
+  }
+}
+
+// 在组件挂载时添加键盘事件监听器
+onMounted(() => {
+  window.addEventListener("keydown", handleKeyDown);
+});
+
+// 在组件卸载时移除键盘事件监听器
+onUnmounted(() => {
+  window.removeEventListener("keydown", handleKeyDown);
+});
 </script>
 
 <style scoped>
@@ -566,17 +625,6 @@ function onMouseLeave() {
     ),
     linear-gradient(to bottom, rgba(150, 150, 150, 0.1) 1px, transparent 1px);
   background-color: white; /* 确保画布有背景颜色 */
-}
-
-.drag-block {
-  transition: none;
-  border-radius: 4px;
-  user-select: none;
-}
-
-/* 吸附样式 */
-.drag-block.snap {
-  outline: 2px dashed red;
 }
 
 /* 当平移时改变鼠标样式 */
