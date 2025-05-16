@@ -1,0 +1,41 @@
+html {
+    --color-light-0: #99d6d6;
+    --color-light-1: #bae8e8;
+    --color-light-2: #e0f7fa;
+    --color-light-3: #ffffff;
+    --color-dark-0: #3e82a9;
+    --color-dark-1: #2c698d;
+    --color-dark-2: #264653;
+    --color-dark-3: #272643;
+}
+
+body {
+    margin: 0;
+
+}
+
+#app {
+    font-family: Avenir, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-align: center;
+    height: 100vh;
+    width: 100vw;
+}
+
+.container-header {
+    flex: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 2px solid var(--color-dark-0);
+}
+
+.container-main {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
