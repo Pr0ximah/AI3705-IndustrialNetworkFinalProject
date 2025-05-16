@@ -1,12 +1,31 @@
 <template>
   <ElContainer class="home-container">
-    <ElHeader height="20px" class="container-header">
+    <ElHeader class="container-header">
       <div>Home</div>
       <div class="canvas-controls">
-        <button @click="resetCanvas">重置视图</button>
-        <button @click="zoomIn">放大</button>
-        <button @click="zoomOut">缩小</button>
-        <span>缩放: {{ Math.round(scale * 100) }}%</span>
+        <button @click="resetCanvas">
+          重置视图
+          <House class="icon" />
+        </button>
+        <button @click="zoomIn">
+          放大
+          <Plus class="icon" />
+        </button>
+        <button @click="zoomOut">
+          缩小
+          <Minus class="icon" />
+        </button>
+        <button
+          :class="[placedBlocks.length > 0 ? 'valid' : 'invalid']"
+          @click="clearWorkspace"
+          class="clear-btn"
+        >
+          清空工作区
+          <Delete class="icon" />
+        </button>
+        <span style="font-size: 15px; padding: 0 10px"
+          >缩放: {{ Math.round(scale * 100) }}%</span
+        >
       </div>
     </ElHeader>
 
@@ -26,12 +45,9 @@
           v-for="(block, index) in originalBlocks"
           :key="'block-' + index"
           :style="{
-            left: block.x + 'px',
-            top: block.y + 'px',
             width: block.width + 'px',
             height: block.height + 'px',
             backgroundColor: block.color,
-            position: 'absolute',
             cursor: draggingBlock === block ? 'grabbing' : 'grab',
           }"
           @mousedown="startDrag(block, $event)"
@@ -41,6 +57,7 @@
             snap: isSnapped && draggingBlock === block,
             selected: selectedBlock === block,
           }"
+          :id="'block-' + block.category"
         ></div>
       </div>
 
@@ -82,6 +99,7 @@
               selected: selectedBlock === block,
               dragging: draggingBlock === block,
             }"
+            :id="'block-' + block.category"
           ></div>
         </div>
       </div>
@@ -90,8 +108,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
-import { ElContainer, ElHeader, ElMain } from "element-plus";
+import { ref, computed, onMounted, onUnmounted, markRaw } from "vue";
+import { ElContainer, ElHeader, ElMain, ElMessageBox } from "element-plus";
+import { Delete, Plus, Minus, House } from "@element-plus/icons-vue";
 
 // 可拖动块的放置状态
 const BLOCK_PLACE_STATE = {
@@ -101,13 +120,20 @@ const BLOCK_PLACE_STATE = {
 
 // 块原始参数
 const BLOCK_PARAMS = {
-  width: 80,
+  width: 120,
   height: 80,
 };
 
+// 网格大小
+const gridSize = 20;
+
 // 吸附参数
 const snap_threshold = 30; // 吸附阈值
-const snap_spacing = 5; // 吸附间距
+const snap_spacing = gridSize; // 吸附间距
+
+// 画布尺寸常量
+const canvasWidth = 1000;
+const canvasHeight = 1000;
 
 // 画布状态
 const scale = ref(1); // 缩放比例
@@ -116,10 +142,6 @@ const offsetY = ref(0); // Y轴偏移
 const isPanning = ref(false); // 是否正在平移画布
 const lastMouseX = ref(0); // 上次鼠标X位置
 const lastMouseY = ref(0); // 上次鼠标Y位置
-
-// 画布尺寸常量
-const canvasWidth = 1000;
-const canvasHeight = 500;
 
 // 画布样式计算属性
 const canvasStyle = computed(() => {
@@ -142,7 +164,11 @@ function createBlock(x, y, place_state, category = "1") {
 }
 
 // 原始块
-const originalBlocks = [createBlock(0, 0, BLOCK_PLACE_STATE.original)];
+const originalBlocks = [
+  createBlock(0, 0, BLOCK_PLACE_STATE.original, "1"),
+  createBlock(0, 0, BLOCK_PLACE_STATE.original, "2"),
+  createBlock(0, 0, BLOCK_PLACE_STATE.original, "3"),
+];
 
 // 已放置的块
 const placedBlocks = ref([]);
@@ -161,9 +187,6 @@ const isSnapped = ref(false);
 
 // 画布容器引用
 const canvasContainerRef = ref(null);
-
-// 网格大小
-const gridSize = 20;
 
 // 检查并限制画布位置在可视区域内
 function checkBoundaries() {
@@ -244,6 +267,34 @@ function zoomOut() {
   const centerX = window.innerWidth / 2;
   const centerY = window.innerHeight / 2;
   zoom(-0.1, centerX, centerY);
+}
+
+// 清空工作区函数
+function clearWorkspace() {
+  // 显示确认对话框
+  if (placedBlocks.value.length > 0) {
+    ElMessageBox.confirm("确定要清空工作区吗？", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+      icon: markRaw(Delete),
+      showClose: false,
+      closeOnClickModal: false,
+      closeOnPressEscape: false,
+      cancelButtonClass: "cancel-btn",
+      confirmButtonClass: "confirm-btn",
+      customClass: "clear-workspace-dialog",
+    })
+      .then(() => {
+        // 清空已放置的块
+        placedBlocks.value = [];
+        // 清除选中状态
+        selectedBlock.value = null;
+      })
+      .catch(() => {
+        // 取消操作
+      });
+  }
 }
 
 // 处理鼠标滚轮事件
@@ -342,7 +393,16 @@ function startDrag(block, event) {
   if (event.button !== 0) return;
 
   if (block.place_state === BLOCK_PLACE_STATE.original) {
-    const newBlock = createBlock(block.x, block.y, BLOCK_PLACE_STATE.placed);
+    // 计算鼠标在画布坐标系中的位置（考虑缩放和偏移）
+    const rect = canvasContainerRef.value.getBoundingClientRect();
+    let mouseX = (event.clientX - rect.left - offsetX.value) / scale.value;
+    let mouseY = (event.clientY - rect.top - offsetY.value) / scale.value;
+    const newBlock = createBlock(
+      mouseX,
+      mouseY,
+      BLOCK_PLACE_STATE.placed,
+      block.category
+    );
     placedBlocks.value.push(newBlock);
     draggingBlock.value = newBlock;
     selectedBlock.value = newBlock; // 选中新的块
@@ -597,18 +657,6 @@ onUnmounted(() => {
   align-items: center;
 }
 
-.canvas-controls {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.canvas-controls button {
-  padding: 2px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
 .container-main {
   position: relative;
   overflow: hidden;
@@ -620,23 +668,17 @@ onUnmounted(() => {
   /* 添加网格背景 */
   background-image: linear-gradient(
       to right,
-      rgba(150, 150, 150, 0.1) 1px,
+      rgba(150, 150, 150, 0.2) 1px,
       transparent 1px
     ),
-    linear-gradient(to bottom, rgba(150, 150, 150, 0.1) 1px, transparent 1px);
+    linear-gradient(to bottom, rgba(150, 150, 150, 0.2) 1px, transparent 1px);
   background-color: white; /* 确保画布有背景颜色 */
+  box-shadow: 0 0 2px gray;
 }
 
 /* 当平移时改变鼠标样式 */
 .container-main:active {
   cursor: grabbing;
-}
-
-.home-aside {
-  z-index: 1;
-  width: 20%;
-  height: 100%;
-  background-color: antiquewhite;
 }
 
 .canvas-container {

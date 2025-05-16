@@ -1,13 +1,18 @@
 html {
-  --color-light-0: #99d6d6;
-  --color-light-1: #bae8e8;
-  --color-light-2: #e0f7fa;
-  --color-light-3: #ffffff;
+  --color-light-0: #ffffd2;
+  --color-light-1: #ffffcc;
+  --color-light-2: #ffffe8;
+  --color-light-3: #fffff4;
   --color-dark-0: #3e82a9;
   --color-dark-1: #2c698d;
   --color-dark-2: #264653;
   --color-dark-3: #272643;
-  --color-important: #ff6682;
+  --color-important: #ff4b4b;
+  --color-important-light: #ff7b7b;
+  --color-important-dark: #ff0000;
+  --color-drag-block-type-1: #6fc900;
+  --color-drag-block-type-2: #f1bd00;
+  --color-drag-block-type-3: #0061c9;
 }
 
 body {
@@ -19,8 +24,8 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
-  height: 100vh;
-  width: 100vw;
+  /* height: 100vh;
+  width: 100vw; */
 }
 
 .container-header {
@@ -45,7 +50,18 @@ body {
   transition: none;
   border-radius: 4px;
   user-select: none;
-  background-color: #99d6d6;
+}
+
+.drag-block#block-1 {
+  background-color: var(--color-drag-block-type-1);
+}
+
+.drag-block#block-2 {
+  background-color: var(--color-drag-block-type-2);
+}
+
+.drag-block#block-3 {
+  background-color: var(--color-drag-block-type-3);
 }
 
 /* 拖拽中的样式 */
@@ -65,4 +81,85 @@ body {
 .drag-block.selected:not(.snap):not(.dragging) {
   transform: scale(1.01);
   box-shadow: 0px 0px 0px 2px var(--color-dark-0);
+}
+
+.el-message-box.clear-workspace-dialog {
+  border-radius: 12px;
+  padding: 20px 25px;
+}
+
+.clear-workspace-dialog .el-button {
+  border-radius: 8px;
+}
+
+.clear-workspace-dialog .el-button.cancel-btn {
+  background-color: #ffffff;
+  border-color: gray;
+}
+
+.clear-workspace-dialog .el-button.cancel-btn:hover {
+  background-color: var(--color-light-3);
+  color: black;
+  border-color: black;
+}
+
+.clear-workspace-dialog .el-button.confirm-btn {
+  background-color: var(--color-important);
+  border-color: var(--color-important-dark);
+}
+
+.clear-workspace-dialog .el-button.confirm-btn:hover {
+  background-color: var(--color-important-dark);
+}
+
+.canvas-controls .clear-btn {
+  background-color: var(--color-important);
+  color: white;
+  border-color: var(--color-important-dark);
+}
+
+.canvas-controls .clear-btn:hover {
+  background-color: var(--color-important-dark);
+}
+
+.canvas-controls .clear-btn.invalid {
+  background-color: gainsboro;
+  cursor: auto;
+}
+
+.home-aside {
+  z-index: 1;
+  height: 100%;
+  background-color: var(--color-light-3);
+  border-right: 1px solid var(--color-dark-2);
+  display: flex;
+  flex-direction: column;
+  align-self: center;
+  justify-content: center;
+  padding: 20px;
+  gap: 10px;
+}
+
+.canvas-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.canvas-controls button {
+  padding: 4px 8px;
+  cursor: pointer;
+  border-width: 1px;
+  border-radius: 8px;
+  background-color: white;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.canvas-controls button .icon {
+  width: 16px;
+  height: 16px;
+  padding-bottom: 2px;
 }
