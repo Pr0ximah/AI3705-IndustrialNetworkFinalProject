@@ -136,7 +136,7 @@ body {
   flex-direction: column;
   align-self: center;
   justify-content: center;
-  padding: 20px;
+  /* padding: 20px; */
   gap: 10px;
 }
 
@@ -189,4 +189,28 @@ body {
   background-color: var(--color-important);
   opacity: 0.9;
   border-color: #cc0000;
+}
+
+.aside-toggle-button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 60px;
+  background-color: #f0f2f5;
+  /* border: 2px solid #dcdfe6; */
+  border-left: none;
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: left 0.3s ease-in-out;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.3);
+}
+
+.aside-toggle-button:hover {
+  background-color: #e4e7ed;
 }

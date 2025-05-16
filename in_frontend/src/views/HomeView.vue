@@ -39,15 +39,15 @@
       class="container-main"
       style="position: relative; overflow: hidden"
     >
-      <div class="home-aside" style="position: relative">
-        <!-- 侧边栏 -->
+      <div class="home-aside" :style="asideStyle">
+        <!-- 侧边栏内容 -->
         <div
           v-for="(block, index) in originalBlocks"
           :key="'block-' + index"
           :style="{
             width: block.width + 'px',
             height: block.height + 'px',
-            backgroundColor: block.color,
+            backgroundColor: block.color, // 假设 block.color 已定义
             cursor: draggingBlock === block ? 'grabbing' : 'grab',
           }"
           @mousedown="startDrag(block, $event)"
@@ -59,6 +59,18 @@
           }"
           :id="'block-' + block.category"
         ></div>
+      </div>
+
+      <!-- 侧边栏切换按钮 -->
+      <div
+        class="aside-toggle-button"
+        @click="toggleAside"
+        :style="toggleButtonStyle"
+      >
+        <component
+          :is="isAsideCollapsed ? DArrowRight : DArrowLeft"
+          class="icon"
+        />
       </div>
 
       <!-- 可拖拽块的容器 -->
@@ -120,7 +132,14 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, markRaw } from "vue";
 import { ElContainer, ElHeader, ElMain, ElMessageBox } from "element-plus";
-import { Delete, Plus, Minus, House } from "@element-plus/icons-vue";
+import {
+  Delete,
+  Plus,
+  Minus,
+  House,
+  DArrowLeft,
+  DArrowRight,
+} from "@element-plus/icons-vue";
 
 // 可拖动块的放置状态
 const BLOCK_PLACE_STATE = {
@@ -201,6 +220,24 @@ const canvasContainerRef = ref(null);
 // 删除区域引用和状态
 const deleteZoneRef = ref(null);
 const isOverDelete = ref(false);
+
+// 侧边栏状态
+const isAsideCollapsed = ref(false);
+const asidePadding = 20;
+const expandedAsideWidthPx = BLOCK_PARAMS.width + 2 * asidePadding; // 定义侧边栏展开时的固定宽度
+
+const asideStyle = computed(() => ({
+  width: isAsideCollapsed.value ? "0px" : `${expandedAsideWidthPx}px`,
+  padding: isAsideCollapsed.value ? "0" : asidePadding + "px",
+}));
+
+const toggleButtonStyle = computed(() => ({
+  left: isAsideCollapsed.value ? "1px" : `${expandedAsideWidthPx}px`,
+}));
+
+function toggleAside() {
+  isAsideCollapsed.value = !isAsideCollapsed.value;
+}
 
 // 检查并限制画布位置在可视区域内
 function checkBoundaries() {
@@ -723,10 +760,30 @@ onUnmounted(() => {
 }
 
 .container-main {
-  position: relative;
+  position: relative; /* 保持 relative 以便绝对定位的子元素（如toggle button）*/
   overflow: hidden;
   flex: 1;
   padding: 0;
+  display: flex; /* 使 home-aside 和 canvas-container 水平排列 */
+}
+
+.home-aside {
+  /* width: 20%; */ /* 由 asideStyle 动态控制 */
+  height: 100%;
+  background-color: antiquewhite;
+  z-index: 2; /* 高于 canvas-container 内的 delete-zone (如果需要) */
+  position: relative; /* 确保其内部绝对定位的块正确 */
+  transition: width 0.3s ease-in-out, padding 0.3s ease-in-out,
+    box-shadow 0.3s ease-in-out; /* 添加 box-shadow 到过渡 */
+  overflow: hidden; /* 折叠时隐藏内容 */
+  flex-shrink: 0; /* 防止在空间不足时被压缩 */
+  box-sizing: border-box; /* 如果添加了 padding */
+}
+
+.aside-toggle-button .icon {
+  width: 14px; /* 调整图标大小 */
+  height: 14px;
+  color: #606266;
 }
 
 .canvas-content {
@@ -737,7 +794,7 @@ onUnmounted(() => {
       transparent 1px
     ),
     linear-gradient(to bottom, rgba(150, 150, 150, 0.2) 1px, transparent 1px);
-  background-color: white; /* 确保画布有背景颜色 */
+  background-color: white;
   box-shadow: 0 0 2px gray;
 }
 
@@ -747,17 +804,43 @@ onUnmounted(() => {
 }
 
 .canvas-container {
-  width: 100%;
+  /* width: 100%; */ /* flex: 1 会处理宽度 */
   height: 100%;
-  flex: 1;
+  flex: 1; /* 占据剩余空间 */
   z-index: 1;
   overflow: hidden;
   position: relative;
+  /* transition: margin-left 0.3s ease-in-out; */ /* 如果侧边栏使用 transform, 这里可能需要 margin */
+}
+
+.delete-zone {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 60px;
+  background-color: rgba(255, 77, 79, 0.7);
+  border: 2px dashed #cc0000;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  z-index: 5;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+  pointer-events: none;
 }
 
 .delete-zone .icon {
   width: 20px;
   height: 20px;
   margin-right: 8px;
+}
+
+.delete-zone.active {
+  background-color: rgba(204, 0, 0, 0.9);
+  border-color: #a70000;
 }
 </style>
