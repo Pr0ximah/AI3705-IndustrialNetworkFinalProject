@@ -2,7 +2,8 @@
   <ElContainer class="home-container">
     <ElHeader class="container-header">
       <div>Home</div>
-      <button @click="test">Test</button>
+      <button @click="test1">Test1</button>
+      <button @click="test2">Test2</button>
       <CanvasControl />
     </ElHeader>
     <ElMain class="container-main">
@@ -29,8 +30,12 @@ provide("blockCanvasRef", blockCanvasRef);
 provide("clearWorkspaceValid", clearWorkspaceValid);
 provide("scale", scale);
 
-function test() {
+function test1() {
   console.log(blockCanvasRef.value.getPlacedBlockList());
+}
+
+function test2() {
+  blockCanvasRef.value.safeLoadFromBlockList();
 }
 </script>
 

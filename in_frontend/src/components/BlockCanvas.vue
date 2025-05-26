@@ -960,6 +960,184 @@ onUnmounted(() => {
   window.removeEventListener("keydown", handleKeyDown);
 });
 
+// 根据placedBlockList重新生成工作区
+function loadFromBlockList(blockList) {
+  try {
+    // 清空当前工作区
+    placedBlocks.value = [];
+    selectedBlock.value = null;
+    draggingBlock.value = null;
+
+    // 重置块ID计数器，避免ID冲突
+    const maxId = blockList.reduce((max, blockData) => {
+      const idMatch = blockData.id.match(/block_(\d+)_/);
+      if (idMatch) {
+        const idNumber = parseInt(idMatch[1]);
+        return Math.max(max, idNumber);
+      }
+      return max;
+    }, 0);
+
+    // 更新计数器，确保新创建的块不会有ID冲突
+    Block._idCounter = maxId;
+
+    // 创建块映射表，用于后续建立连接关系
+    const blockMap = new Map();
+
+    // 第一步：创建所有块（不建立连接）
+    blockList.forEach((blockData) => {
+      const newBlock = new Block(
+        blockData.x,
+        blockData.y,
+        Block.PLACE_STATE.placed,
+        blockData.category
+      );
+
+      // 手动设置块的ID以保持一致性
+      newBlock.id = blockData.id;
+
+      // 清空默认连接
+      newBlock.breakAllConnections();
+
+      // 添加到工作区
+      placedBlocks.value.push(newBlock);
+
+      // 添加到映射表
+      blockMap.set(blockData.id, newBlock);
+    });
+
+    // 第二步：根据连接信息建立块之间的连接关系
+    blockList.forEach((blockData) => {
+      const block = blockMap.get(blockData.id);
+      if (block && blockData.connections) {
+        // 恢复每个方向的连接
+        Object.keys(blockData.connections).forEach((direction) => {
+          const connectedBlockId = blockData.connections[direction];
+          if (connectedBlockId && blockMap.has(connectedBlockId)) {
+            block.establishConnection(direction, connectedBlockId);
+          }
+        });
+      }
+    });
+
+    // 验证和修复连接关系（确保双向连接的一致性）
+    validateAndFixConnections();
+    return true;
+  } catch (error) {
+    console.error("加载工作区失败:", error);
+
+    // 发生错误时清空工作区
+    placedBlocks.value = [];
+    selectedBlock.value = null;
+    draggingBlock.value = null;
+
+    return false;
+  }
+}
+
+// 验证和修复连接关系，确保双向连接的一致性
+function validateAndFixConnections() {
+  const connectionMap = {
+    top: "bottom",
+    bottom: "top",
+    left: "right",
+    right: "left",
+  };
+
+  placedBlocks.value.forEach((block) => {
+    Object.keys(block.connections).forEach((direction) => {
+      const connectedBlockId = block.connections[direction];
+
+      if (connectedBlockId) {
+        // 找到连接的目标块
+        const targetBlock = placedBlocks.value.find(
+          (b) => b.id === connectedBlockId
+        );
+
+        if (targetBlock) {
+          const reverseDirection = connectionMap[direction];
+
+          // 检查目标块是否有对应的反向连接
+          if (targetBlock.connections[reverseDirection] !== block.id) {
+            console.warn(
+              `修复连接不一致: ${block.id}(${direction}) -> ${connectedBlockId}`
+            );
+            // 建立反向连接
+            targetBlock.establishConnection(reverseDirection, block.id);
+          }
+        } else {
+          // 目标块不存在，清除这个连接
+          console.warn(
+            `清除无效连接: ${block.id}(${direction}) -> ${connectedBlockId}`
+          );
+          block.breakConnection(direction);
+        }
+      }
+    });
+  });
+}
+
+// 检查工作区数据的有效性
+function validateWorkspaceData(blockList) {
+  if (!Array.isArray(blockList)) {
+    throw new Error("块列表必须是数组");
+  }
+
+  const requiredFields = ["id", "x", "y", "category"];
+  const blockIds = new Set();
+
+  blockList.forEach((blockData, index) => {
+    // 检查必需字段
+    requiredFields.forEach((field) => {
+      if (!(field in blockData)) {
+        throw new Error(`块 ${index} 缺少必需字段: ${field}`);
+      }
+    });
+
+    // 检查ID唯一性
+    if (blockIds.has(blockData.id)) {
+      throw new Error(`重复的块ID: ${blockData.id}`);
+    }
+    blockIds.add(blockData.id);
+
+    // 检查坐标有效性
+    if (typeof blockData.x !== "number" || typeof blockData.y !== "number") {
+      throw new Error(`块 ${blockData.id} 的坐标必须是数字`);
+    }
+
+    // 检查坐标范围
+    if (
+      blockData.x < 0 ||
+      blockData.y < 0 ||
+      blockData.x > CANVAS_WIDTH - Block.PARAMS.width ||
+      blockData.y > CANVAS_HEIGHT - Block.PARAMS.height
+    ) {
+      throw new Error(`块 ${blockData.id} 的坐标超出画布范围`);
+    }
+
+    // 检查类别有效性
+    if (!["1", "2", "3"].includes(blockData.category)) {
+      throw new Error(`块 ${blockData.id} 的类别无效: ${blockData.category}`);
+    }
+  });
+
+  return true;
+}
+
+// 安全的工作区加载函数（带验证）
+function safeLoadFromBlockList(blockList) {
+  try {
+    // 先验证数据
+    validateWorkspaceData(blockList);
+
+    // 加载数据
+    return loadFromBlockList(blockList);
+  } catch (error) {
+    console.error("工作区数据验证失败:", error.message);
+    return false;
+  }
+}
+
 // 暴露接口
 defineExpose({
   resetCanvas,
@@ -967,6 +1145,7 @@ defineExpose({
   zoomOut,
   clearWorkspace,
   getPlacedBlockList,
+  safeLoadFromBlockList,
   clearWorkspaceValid,
   scale,
 });
