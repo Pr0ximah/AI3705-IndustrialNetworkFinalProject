@@ -2,6 +2,7 @@
   <ElContainer class="home-container">
     <ElHeader class="container-header">
       <div>Home</div>
+      <button @click="test">Test</button>
       <CanvasControl />
     </ElHeader>
     <ElMain class="container-main">
@@ -27,6 +28,10 @@ const scale = computed(() => {
 provide("blockCanvasRef", blockCanvasRef);
 provide("clearWorkspaceValid", clearWorkspaceValid);
 provide("scale", scale);
+
+function test() {
+  console.log(blockCanvasRef.value.getPlacedBlockList());
+}
 </script>
 
 <style scoped>

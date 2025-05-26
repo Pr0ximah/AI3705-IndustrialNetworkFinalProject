@@ -127,8 +127,12 @@ class Block {
     height: 80,
   };
 
+  // 静态计数器用于生成唯一ID
+  static _idCounter = 0;
+
   // 构造函数
   constructor(x, y, placeState, category = "1") {
+    this.id = Block._generateUniqueId(); // 生成唯一ID
     this.x = x;
     this.y = y;
     this.width = Block.PARAMS.width;
@@ -136,6 +140,19 @@ class Block {
     this.category = category;
     this.place_state = placeState;
     this.color = this.getColorByCategory();
+
+    // 连接信息：存储相邻块的ID
+    this.connections = {
+      top: null, // 上方连接的块ID
+      bottom: null, // 下方连接的块ID
+      left: null, // 左侧连接的块ID
+      right: null, // 右侧连接的块ID
+    };
+  }
+
+  // 生成唯一ID的静态方法
+  static _generateUniqueId() {
+    return `block_${++Block._idCounter}_${Date.now()}`;
   }
 
   // 根据类别获取颜色
@@ -207,6 +224,7 @@ class Block {
     let newX = this.x;
     let newY = this.y;
     let willSnap = false;
+    let connectionDirection = null; // 记录连接方向
 
     if (
       Math.abs(diffX) < this.width + SNAP_THRESHOLD &&
@@ -216,8 +234,10 @@ class Block {
         // 水平吸附（左或右）
         if (diffX > 0) {
           newX = otherBlock.x + otherBlock.width + SNAP_SPACING;
+          connectionDirection = "horizontal-right"; // 当前块在目标块右侧
         } else {
           newX = otherBlock.x - this.width - SNAP_SPACING;
+          connectionDirection = "horizontal-left"; // 当前块在目标块左侧
         }
         newY = otherBlock.y; // 水平对齐
         willSnap = true;
@@ -225,8 +245,10 @@ class Block {
         // 垂直吸附（上或下）
         if (diffY > 0) {
           newY = otherBlock.y + otherBlock.height + SNAP_SPACING;
+          connectionDirection = "vertical-bottom"; // 当前块在目标块下方
         } else {
           newY = otherBlock.y - this.height - SNAP_SPACING;
+          connectionDirection = "vertical-top"; // 当前块在目标块上方
         }
         newX = otherBlock.x; // 垂直对齐
         willSnap = true;
@@ -239,11 +261,46 @@ class Block {
           y: newY,
           distance: Math.sqrt(Math.pow(diffX, 2) + Math.pow(diffY, 2)),
           snapped: true,
+          connectionDirection: connectionDirection,
+          targetBlockId: otherBlock.id,
         };
       }
     }
 
     return { x: this.x, y: this.y, distance: Infinity, snapped: false };
+  }
+
+  // 建立与其他块的连接
+  establishConnection(direction, targetBlockId) {
+    // 清除当前方向的连接
+    this.connections[direction] = targetBlockId;
+  }
+
+  // 断开连接
+  breakConnection(direction) {
+    this.connections[direction] = null;
+  }
+
+  // 断开所有连接
+  breakAllConnections() {
+    this.connections = {
+      top: null,
+      bottom: null,
+      left: null,
+      right: null,
+    };
+  }
+
+  // 获取连接信息
+  getConnections() {
+    return { ...this.connections };
+  }
+
+  // 检查是否有连接
+  hasConnections() {
+    return Object.values(this.connections).some(
+      (connection) => connection !== null
+    );
   }
 
   // 创建块的静态方法
@@ -253,7 +310,14 @@ class Block {
 
   // 创建块的深拷贝
   clone() {
-    return new Block(this.x, this.y, this.place_state, this.category);
+    const clonedBlock = new Block(
+      this.x,
+      this.y,
+      this.place_state,
+      this.category
+    );
+    // 注意：clone会自动生成新的ID，这通常是我们想要的行为
+    return clonedBlock;
   }
 }
 
@@ -630,6 +694,7 @@ function onMouseMove(event) {
 
   let finalX = newX;
   let finalY = newY;
+  let snapConnection = null; // 存储吸附连接信息
 
   // 只有初始位置合法时才尝试吸附 (并且没有在删除区域上方)
   if (initialMoveValid && !isOverDelete.value) {
@@ -666,6 +731,7 @@ function onMouseMove(event) {
         finalX = bestSnapResult.x;
         finalY = bestSnapResult.y;
         isSnapped.value = true;
+        snapConnection = bestSnapResult; // 保存连接信息
       }
     }
   }
@@ -678,6 +744,51 @@ function onMouseMove(event) {
     // 更新块的位置
     draggingBlock.value.x = finalX;
     draggingBlock.value.y = finalY;
+
+    // 如果发生了吸附，建立连接关系
+    if (snapConnection && snapConnection.snapped) {
+      // 先断开当前块的所有连接（因为位置改变了）
+      draggingBlock.value.breakAllConnections();
+
+      // 根据连接方向建立新连接
+      let currentBlockDirection, targetBlockDirection;
+
+      switch (snapConnection.connectionDirection) {
+        case "horizontal-right":
+          currentBlockDirection = "left";
+          targetBlockDirection = "right";
+          break;
+        case "horizontal-left":
+          currentBlockDirection = "right";
+          targetBlockDirection = "left";
+          break;
+        case "vertical-bottom":
+          currentBlockDirection = "top";
+          targetBlockDirection = "bottom";
+          break;
+        case "vertical-top":
+          currentBlockDirection = "bottom";
+          targetBlockDirection = "top";
+          break;
+      }
+
+      // 建立双向连接
+      draggingBlock.value.establishConnection(
+        currentBlockDirection,
+        snapConnection.targetBlockId
+      );
+
+      // 找到目标块并建立反向连接
+      const targetBlock = placedBlocks.value.find(
+        (b) => b.id === snapConnection.targetBlockId
+      );
+      if (targetBlock) {
+        targetBlock.establishConnection(
+          targetBlockDirection,
+          draggingBlock.value.id
+        );
+      }
+    }
   } else if (isOverDelete.value) {
     draggingBlock.value.x = newX;
     draggingBlock.value.y = newY;
@@ -686,6 +797,18 @@ function onMouseMove(event) {
 
 function onMouseUp() {
   if (draggingBlock.value && isOverDelete.value) {
+    // 删除块时需要断开所有相关连接
+    const blockToDelete = draggingBlock.value;
+
+    // 断开其他块与该块的连接
+    placedBlocks.value.forEach((block) => {
+      Object.keys(block.connections).forEach((direction) => {
+        if (block.connections[direction] === blockToDelete.id) {
+          block.breakConnection(direction);
+        }
+      });
+    });
+
     // 删除块
     const index = placedBlocks.value.findIndex(
       (b) => b === draggingBlock.value
@@ -699,7 +822,15 @@ function onMouseUp() {
     draggingBlock.value = null;
     isOverDelete.value = false;
     isSnapped.value = false;
-    return; // 操作完成
+    return;
+  }
+
+  // 拖拽结束后更新所有连接关系
+  if (draggingBlock.value) {
+    // 延迟更新连接，确保位置已经最终确定
+    setTimeout(() => {
+      updateAllConnections();
+    }, 10);
   }
 
   // 停止平移
@@ -710,22 +841,77 @@ function onMouseUp() {
   // 停止拖拽
   draggingBlock.value = null;
   isSnapped.value = false;
-  isOverDelete.value = false; // 确保重置
+  isOverDelete.value = false;
 }
 
 function getPlacedBlockList() {
-  return null;
+  return placedBlocks.value.map((block) => ({
+    id: block.id,
+    x: block.x,
+    y: block.y,
+    category: block.category,
+    connections: block.getConnections(),
+  }));
 }
 
-// 处理鼠标离开窗口事件
-function onMouseLeave() {
-  // 如果正在拖动或平移，自动取消操作
-  if (isPanning.value || draggingBlock.value) {
-    isPanning.value = false;
-    draggingBlock.value = null;
-    isSnapped.value = false;
-    isOverDelete.value = false; // 添加重置
+// 更新所有块之间的连接关系
+function updateAllConnections() {
+  // 先清除所有连接
+  placedBlocks.value.forEach((block) => {
+    block.breakAllConnections();
+  });
+
+  // 重新计算所有连接
+  placedBlocks.value.forEach((block) => {
+    placedBlocks.value.forEach((otherBlock) => {
+      if (block === otherBlock) return;
+
+      // 检查是否相邻并建立连接
+      const isAdjacent = checkIfAdjacent(block, otherBlock);
+      if (isAdjacent.adjacent) {
+        block.establishConnection(isAdjacent.direction, otherBlock.id);
+      }
+    });
+  });
+}
+
+// 检查两个块是否相邻
+function checkIfAdjacent(block1, block2) {
+  const tolerance = SNAP_SPACING + 1; // 允许的误差范围
+
+  // 检查水平相邻（左右）
+  if (Math.abs(block1.y - block2.y) < tolerance) {
+    // 块1在块2右侧 - 块1的左侧连接块2，块2的右侧连接块1
+    if (
+      Math.abs(block1.x - (block2.x + block2.width + SNAP_SPACING)) < tolerance
+    ) {
+      return { adjacent: true, direction: "left" }; // 块1连接块2的方向是左侧
+    }
+    // 块1在块2左侧 - 块1的右侧连接块2，块2的左侧连接块1
+    if (
+      Math.abs(block1.x + block1.width + SNAP_SPACING - block2.x) < tolerance
+    ) {
+      return { adjacent: true, direction: "right" }; // 块1连接块2的方向是右侧
+    }
   }
+
+  // 检查垂直相邻（上下）
+  if (Math.abs(block1.x - block2.x) < tolerance) {
+    // 块1在块2下方 - 块1的上侧连接块2，块2的下侧连接块1
+    if (
+      Math.abs(block1.y - (block2.y + block2.height + SNAP_SPACING)) < tolerance
+    ) {
+      return { adjacent: true, direction: "top" }; // 块1连接块2的方向是上方
+    }
+    // 块1在块2上方 - 块1的下侧连接块2，块2的上侧连接块1
+    if (
+      Math.abs(block1.y + block1.height + SNAP_SPACING - block2.y) < tolerance
+    ) {
+      return { adjacent: true, direction: "bottom" }; // 块1连接块2的方向是下方
+    }
+  }
+
+  return { adjacent: false, direction: null };
 }
 
 // 添加键盘事件处理函数
@@ -737,6 +923,17 @@ function handleKeyDown(event) {
   ) {
     // 只有已放置的块可以删除，原始模板不能删除
     if (selectedBlock.value.place_state === Block.PLACE_STATE.placed) {
+      const blockToDelete = selectedBlock.value;
+
+      // 断开其他块与该块的连接
+      placedBlocks.value.forEach((block) => {
+        Object.keys(block.connections).forEach((direction) => {
+          if (block.connections[direction] === blockToDelete.id) {
+            block.breakConnection(direction);
+          }
+        });
+      });
+
       // 从已放置块数组中移除选中的块
       const index = placedBlocks.value.findIndex(
         (block) => block === selectedBlock.value
@@ -746,6 +943,9 @@ function handleKeyDown(event) {
       }
       // 清除选中状态
       selectedBlock.value = null;
+
+      // 更新剩余块的连接关系
+      updateAllConnections();
     }
   }
 }
