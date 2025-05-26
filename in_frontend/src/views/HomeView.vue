@@ -35,7 +35,56 @@ function test1() {
 }
 
 function test2() {
-  blockCanvasRef.value.safeLoadFromBlockList();
+  blockCanvasRef.value.safeLoadFromBlockList([
+    {
+      id: "block_5_1748228674476",
+      x: 20,
+      y: 20,
+      category: "1",
+      connections: {
+        top: null,
+        bottom: null,
+        left: null,
+        right: "block_6_1748228676137",
+      },
+    },
+    {
+      id: "block_6_1748228676137",
+      x: 160,
+      y: 20,
+      category: "4",
+      connections: {
+        top: null,
+        bottom: null,
+        left: "block_5_1748228674476",
+        right: "block_7_1748228679308",
+      },
+    },
+    {
+      id: "block_7_1748228679308",
+      x: 300,
+      y: 20,
+      category: "3",
+      connections: {
+        top: null,
+        bottom: "block_8_1748228840561",
+        left: "block_6_1748228676137",
+        right: null,
+      },
+    },
+    {
+      id: "block_8_1748228840561",
+      x: 300,
+      y: 120,
+      category: "4",
+      connections: {
+        top: "block_7_1748228679308",
+        bottom: null,
+        left: null,
+        right: null,
+      },
+    },
+  ]);
 }
 </script>
 

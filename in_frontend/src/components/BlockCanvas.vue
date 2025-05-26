@@ -27,7 +27,10 @@
           selected: selectedBlock === block,
         }"
         :id="'block-' + block.category"
-      ></div>
+      >
+        <img :src="block.getCategoryIcon()" class="icon" draggable="false" />
+        {{ block.getCategoryName() }}
+      </div>
     </div>
 
     <!-- 侧边栏切换按钮 -->
@@ -81,7 +84,10 @@
             dragging: draggingBlock === block,
           }"
           :id="'block-' + block.category"
-        ></div>
+        >
+          <img :src="block.getCategoryIcon()" class="icon" draggable="false" />
+          {{ block.getCategoryName() }}
+        </div>
       </div>
       <!-- 删除区域 -->
       <div
@@ -108,6 +114,11 @@ import {
 } from "vue";
 import { ElMessageBox } from "element-plus";
 import { Delete, DArrowLeft, DArrowRight } from "@element-plus/icons-vue";
+import shelf from "@/assets/shelf.svg";
+import conveyor from "@/assets/conveyor.svg";
+import lifter from "@/assets/lifter.svg";
+import equipment from "@/assets/equipment.svg";
+import transplanter from "@/assets/transplanter.svg";
 
 const GRID_SIZE = 20;
 const SNAP_THRESHOLD = 25;
@@ -125,6 +136,30 @@ class Block {
   static PARAMS = {
     width: 120,
     height: 80,
+  };
+
+  // 可用的块类别配置
+  static CATEGORIES = {
+    1: {
+      name: "货架",
+      color: "#f9b4ab",
+      icon: shelf,
+    },
+    2: {
+      name: "输送机",
+      color: "#fdebd3",
+      icon: conveyor,
+    },
+    3: {
+      name: "移栽机",
+      color: "#48d6d2",
+      icon: transplanter,
+    },
+    4: {
+      name: "提升机",
+      color: "#bbd4ce",
+      icon: lifter,
+    },
   };
 
   // 静态计数器用于生成唯一ID
@@ -157,12 +192,34 @@ class Block {
 
   // 根据类别获取颜色
   getColorByCategory() {
-    const colors = {
-      1: "#ff9900", // 橙色
-      2: "#3399ff", // 蓝色
-      3: "#66cc66", // 绿色
-    };
-    return colors[this.category] || "#999999";
+    const categoryConfig = Block.CATEGORIES[this.category];
+    return categoryConfig ? categoryConfig.color : "#999999";
+  }
+
+  // 获取类别名称
+  getCategoryName() {
+    const categoryConfig = Block.CATEGORIES[this.category];
+    return categoryConfig ? categoryConfig.name : "未知类型";
+  }
+
+  // 获取类别图标
+  getCategoryIcon() {
+    const categoryConfig = Block.CATEGORIES[this.category];
+    if (categoryConfig && categoryConfig.icon) {
+      return categoryConfig.icon;
+    }
+    // 默认图标
+    return equipment;
+  }
+
+  // 静态方法：获取所有可用类别
+  static getAvailableCategories() {
+    return Object.keys(Block.CATEGORIES);
+  }
+
+  // 静态方法：验证类别是否有效
+  static isValidCategory(categoryId) {
+    return Object.prototype.hasOwnProperty.call(Block.CATEGORIES, categoryId);
   }
 
   // 获取块的中心点
@@ -337,12 +394,10 @@ const canvasStyle = computed(() => {
   };
 });
 
-// 原始块
-const originalBlocks = [
-  Block.createBlock(0, 0, Block.PLACE_STATE.original, "1"),
-  Block.createBlock(0, 0, Block.PLACE_STATE.original, "2"),
-  Block.createBlock(0, 0, Block.PLACE_STATE.original, "3"),
-];
+// 原始块 - 基于可用类别动态生成
+const originalBlocks = Object.keys(Block.CATEGORIES).map((categoryId) =>
+  Block.createBlock(0, 0, Block.PLACE_STATE.original, categoryId)
+);
 
 // 已放置的块
 const placedBlocks = ref([]);
@@ -1085,6 +1140,7 @@ function validateWorkspaceData(blockList) {
 
   const requiredFields = ["id", "x", "y", "category"];
   const blockIds = new Set();
+  const validCategories = Block.getAvailableCategories();
 
   blockList.forEach((blockData, index) => {
     // 检查必需字段
@@ -1115,9 +1171,13 @@ function validateWorkspaceData(blockList) {
       throw new Error(`块 ${blockData.id} 的坐标超出画布范围`);
     }
 
-    // 检查类别有效性
-    if (!["1", "2", "3"].includes(blockData.category)) {
-      throw new Error(`块 ${blockData.id} 的类别无效: ${blockData.category}`);
+    // 检查类别有效性 - 使用动态类别验证
+    if (!Block.isValidCategory(blockData.category)) {
+      throw new Error(
+        `块 ${blockData.id} 的类别无效: ${
+          blockData.category
+        }，有效类别: ${validCategories.join(", ")}`
+      );
     }
   });
 
@@ -1138,6 +1198,11 @@ function safeLoadFromBlockList(blockList) {
   }
 }
 
+// 获取块类别配置
+function getBlockCategories() {
+  return { ...Block.CATEGORIES };
+}
+
 // 暴露接口
 defineExpose({
   resetCanvas,
@@ -1146,25 +1211,13 @@ defineExpose({
   clearWorkspace,
   getPlacedBlockList,
   safeLoadFromBlockList,
+  getBlockCategories,
   clearWorkspaceValid,
   scale,
 });
 </script>
 
 <style scoped>
-.home-aside {
-  /* width: 20%; */ /* 由 asideStyle 动态控制 */
-  height: 100%;
-  background-color: antiquewhite;
-  z-index: 2; /* 高于 canvas-container 内的 delete-zone (如果需要) */
-  position: relative; /* 确保其内部绝对定位的块正确 */
-  transition: width 0.3s ease-in-out, padding 0.3s ease-in-out,
-    box-shadow 0.3s ease-in-out; /* 添加 box-shadow 到过渡 */
-  overflow: hidden; /* 折叠时隐藏内容 */
-  flex-shrink: 0; /* 防止在空间不足时被压缩 */
-  box-sizing: border-box; /* 如果添加了 padding */
-}
-
 .aside-toggle-button .icon {
   width: 14px; /* 调整图标大小 */
   height: 14px;

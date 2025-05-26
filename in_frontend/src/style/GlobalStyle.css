@@ -3,6 +3,7 @@ html {
   --color-light-1: #ffffcc;
   --color-light-2: #ffffe8;
   --color-light-3: #fffff4;
+  --color-light-4: #fffffc;
   --color-dark-0: #3e82a9;
   --color-dark-1: #2c698d;
   --color-dark-2: #264653;
@@ -10,9 +11,6 @@ html {
   --color-important: #ff4b4b;
   --color-important-light: #ff7b7b;
   --color-important-dark: #ff0000;
-  --color-drag-block-type-1: #6fc900;
-  --color-drag-block-type-2: #f1bd00;
-  --color-drag-block-type-3: #0061c9;
 }
 
 body {
@@ -45,18 +43,13 @@ body {
   transition: none;
   border-radius: 4px;
   user-select: none;
-}
-
-.drag-block#block-1 {
-  background-color: var(--color-drag-block-type-1);
-}
-
-.drag-block#block-2 {
-  background-color: var(--color-drag-block-type-2);
-}
-
-.drag-block#block-3 {
-  background-color: var(--color-drag-block-type-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: small;
+  border: 1px solid var(--color-dark-0);
 }
 
 /* 拖拽中的样式 */
@@ -64,7 +57,6 @@ body {
   opacity: 0.95;
   transform: scale(1.01);
   box-shadow: 0 0 5px 1px rgba(0, 0, 0, 0.3);
-  /* z-index: 100 !important; */
 }
 
 /* 吸附样式 */
@@ -75,7 +67,14 @@ body {
 /* 选中样式 */
 .drag-block.selected:not(.snap):not(.dragging) {
   transform: scale(1.01);
-  box-shadow: 0px 0px 0px 2px var(--color-dark-0);
+  box-shadow: 0px 0px 0px 2px black;
+}
+
+.drag-block .icon {
+  width: 40px;
+  height: 40px;
+  margin-top: 5px;
+  margin-bottom: 5px;
 }
 
 .el-message-box.clear-workspace-dialog {
@@ -123,15 +122,20 @@ body {
 }
 
 .home-aside {
-  z-index: 1;
+  z-index: 2;
   height: 100%;
-  background-color: var(--color-light-3);
+  background-color: var(--color-light-4);
   border-right: 1px solid var(--color-dark-2);
   display: flex;
   flex-direction: column;
   align-self: center;
   justify-content: center;
-  /* padding: 20px; */
+  position: relative;
+  transition: width 0.3s ease-in-out, padding 0.3s ease-in-out,
+    box-shadow 0.3s ease-in-out;
+  overflow: hidden;
+  box-sizing: border-box;
+  flex-shrink: 0;
   gap: 10px;
 }
 
