@@ -49,9 +49,9 @@
         :style="[
           canvasStyle,
           {
-            'background-size': gridSize + 'px ' + gridSize + 'px',
-            width: canvasWidth + 'px',
-            height: canvasHeight + 'px',
+            'background-size': GRID_SIZE + 'px ' + GRID_SIZE + 'px',
+            width: CANVAS_WIDTH + 'px',
+            height: CANVAS_HEIGHT + 'px',
           },
         ]"
         @click="clearSelection"
@@ -109,28 +109,153 @@ import {
 import { ElMessageBox } from "element-plus";
 import { Delete, DArrowLeft, DArrowRight } from "@element-plus/icons-vue";
 
-// 可拖动块的放置状态
-const BLOCK_PLACE_STATE = {
-  original: "original",
-  placed: "placed",
-};
+const GRID_SIZE = 20;
+const SNAP_THRESHOLD = 25;
+const SNAP_SPACING = GRID_SIZE;
+const CANVAS_WIDTH = 1000;
+const CANVAS_HEIGHT = 1000;
 
-// 块原始参数
-const BLOCK_PARAMS = {
-  width: 120,
-  height: 80,
-};
+class Block {
+  // 静态属性
+  static PLACE_STATE = {
+    original: "original",
+    placed: "placed",
+  };
 
-// 网格大小
-const gridSize = 20;
+  static PARAMS = {
+    width: 120,
+    height: 80,
+  };
 
-// 吸附参数
-const snap_threshold = 30; // 吸附阈值
-const snap_spacing = gridSize; // 吸附间距
+  // 构造函数
+  constructor(x, y, placeState, category = "1") {
+    this.x = x;
+    this.y = y;
+    this.width = Block.PARAMS.width;
+    this.height = Block.PARAMS.height;
+    this.category = category;
+    this.place_state = placeState;
+    this.color = this.getColorByCategory();
+  }
 
-// 画布尺寸常量
-const canvasWidth = 1000;
-const canvasHeight = 1000;
+  // 根据类别获取颜色
+  getColorByCategory() {
+    const colors = {
+      1: "#ff9900", // 橙色
+      2: "#3399ff", // 蓝色
+      3: "#66cc66", // 绿色
+    };
+    return colors[this.category] || "#999999";
+  }
+
+  // 获取块的中心点
+  getCenter() {
+    return {
+      x: this.x + this.width / 2,
+      y: this.y + this.height / 2,
+    };
+  }
+
+  // 检查是否与其他块重叠
+  wouldOverlap(targetX, targetY, otherBlock) {
+    return (
+      targetX < otherBlock.x + otherBlock.width &&
+      targetX + this.width > otherBlock.x &&
+      targetY < otherBlock.y + otherBlock.height &&
+      targetY + this.height > otherBlock.y
+    );
+  }
+
+  // 检查位置是否有效（不出界且不重叠）
+  isValidPosition(targetX, targetY, allBlocks, checkOverlap = true) {
+    // 检查是否出界
+    if (
+      targetX < 0 ||
+      targetY < 0 ||
+      targetX + this.width > CANVAS_WIDTH ||
+      targetY + this.height > CANVAS_HEIGHT
+    ) {
+      return false;
+    }
+
+    if (!checkOverlap) {
+      return true;
+    }
+
+    // 检查是否与其他块重叠
+    for (const block of allBlocks) {
+      if (block === this || block.place_state === Block.PLACE_STATE.original) {
+        continue;
+      }
+
+      if (this.wouldOverlap(targetX, targetY, block)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  // 尝试吸附到其他块
+  snapTo(otherBlock, allBlocks) {
+    const thisCenter = this.getCenter();
+    const otherCenter = otherBlock.getCenter();
+
+    const diffX = thisCenter.x - otherCenter.x;
+    const diffY = thisCenter.y - otherCenter.y;
+
+    let newX = this.x;
+    let newY = this.y;
+    let willSnap = false;
+
+    if (
+      Math.abs(diffX) < this.width + SNAP_THRESHOLD &&
+      Math.abs(diffY) < this.height + SNAP_THRESHOLD
+    ) {
+      if (Math.abs(diffX) > Math.abs(diffY)) {
+        // 水平吸附（左或右）
+        if (diffX > 0) {
+          newX = otherBlock.x + otherBlock.width + SNAP_SPACING;
+        } else {
+          newX = otherBlock.x - this.width - SNAP_SPACING;
+        }
+        newY = otherBlock.y; // 水平对齐
+        willSnap = true;
+      } else {
+        // 垂直吸附（上或下）
+        if (diffY > 0) {
+          newY = otherBlock.y + otherBlock.height + SNAP_SPACING;
+        } else {
+          newY = otherBlock.y - this.height - SNAP_SPACING;
+        }
+        newX = otherBlock.x; // 垂直对齐
+        willSnap = true;
+      }
+
+      // 检查新位置是否有效
+      if (willSnap && this.isValidPosition(newX, newY, allBlocks)) {
+        return {
+          x: newX,
+          y: newY,
+          distance: Math.sqrt(Math.pow(diffX, 2) + Math.pow(diffY, 2)),
+          snapped: true,
+        };
+      }
+    }
+
+    return { x: this.x, y: this.y, distance: Infinity, snapped: false };
+  }
+
+  // 创建块的静态方法
+  static createBlock(x, y, placeState, category = "1") {
+    return new Block(x, y, placeState, category);
+  }
+
+  // 创建块的深拷贝
+  clone() {
+    return new Block(this.x, this.y, this.place_state, this.category);
+  }
+}
 
 // 画布状态
 const scale = ref(1); // 缩放比例
@@ -148,23 +273,11 @@ const canvasStyle = computed(() => {
   };
 });
 
-// 创建块的函数
-function createBlock(x, y, place_state, category = "1") {
-  return {
-    x: x,
-    y: y,
-    width: BLOCK_PARAMS.width,
-    height: BLOCK_PARAMS.height,
-    category: category,
-    place_state: place_state,
-  };
-}
-
 // 原始块
 const originalBlocks = [
-  createBlock(0, 0, BLOCK_PLACE_STATE.original, "1"),
-  createBlock(0, 0, BLOCK_PLACE_STATE.original, "2"),
-  createBlock(0, 0, BLOCK_PLACE_STATE.original, "3"),
+  Block.createBlock(0, 0, Block.PLACE_STATE.original, "1"),
+  Block.createBlock(0, 0, Block.PLACE_STATE.original, "2"),
+  Block.createBlock(0, 0, Block.PLACE_STATE.original, "3"),
 ];
 
 // 已放置的块
@@ -192,7 +305,7 @@ const isOverDelete = ref(false);
 // 侧边栏状态
 const isAsideCollapsed = ref(false);
 const asidePadding = 20;
-const expandedAsideWidthPx = BLOCK_PARAMS.width + 2 * asidePadding; // 定义侧边栏展开时的固定宽度
+const expandedAsideWidthPx = Block.PARAMS.width + 2 * asidePadding; // 定义侧边栏展开时的固定宽度
 
 // 是否可以清空工作区
 const clearWorkspaceValid = computed(() => {
@@ -224,10 +337,10 @@ function checkBoundaries() {
     const containerHeight = canvasContainerRef.value.clientHeight;
 
     // 计算缩放后的最小允许偏移量（确保右侧和底部不会出现空白）
-    const minOffsetX = Math.min(0, containerWidth - canvasWidth * scale.value);
+    const minOffsetX = Math.min(0, containerWidth - CANVAS_WIDTH * scale.value);
     const minOffsetY = Math.min(
       0,
-      containerHeight - canvasHeight * scale.value
+      containerHeight - CANVAS_HEIGHT * scale.value
     );
 
     offsetX.value = Math.max(minOffsetX, offsetX.value);
@@ -252,8 +365,8 @@ function zoom(zoomFactor, centerX, centerY) {
     ? canvasContainerRef.value.clientHeight
     : window.innerHeight;
 
-  const minScaleX = containerWidth / canvasWidth;
-  const minScaleY = containerHeight / canvasHeight;
+  const minScaleX = containerWidth / CANVAS_WIDTH;
+  const minScaleY = containerHeight / CANVAS_HEIGHT;
   const minScale = Math.min(minScaleX, minScaleY);
 
   // 限制最大缩放比例
@@ -337,7 +450,7 @@ function isMouseOverBlock(event) {
   for (const block of allBlocks.value) {
     // 计算块的真实位置（考虑缩放和偏移）
     let blockX, blockY;
-    if (block.place_state === BLOCK_PLACE_STATE.original) {
+    if (block.place_state === Block.PLACE_STATE.original) {
       // 原始块在侧边栏，不受画布变换影响
       blockX = block.x;
       blockY = block.y;
@@ -350,10 +463,10 @@ function isMouseOverBlock(event) {
     // 获取块的实际宽高（考虑缩放）
     const blockWidth =
       block.width *
-      (block.place_state === BLOCK_PLACE_STATE.placed ? scale.value : 1);
+      (block.place_state === Block.PLACE_STATE.placed ? scale.value : 1);
     const blockHeight =
       block.height *
-      (block.place_state === BLOCK_PLACE_STATE.placed ? scale.value : 1);
+      (block.place_state === Block.PLACE_STATE.placed ? scale.value : 1);
 
     // 检查鼠标是否在块的范围内
     if (
@@ -416,15 +529,17 @@ function startDrag(block, event) {
   // 只有左键点击才触发拖拽
   if (event.button !== 0) return;
 
-  if (block.place_state === BLOCK_PLACE_STATE.original) {
+  if (block.place_state === Block.PLACE_STATE.original) {
     // 计算鼠标在画布坐标系中的位置（考虑缩放和偏移）
     const rect = canvasContainerRef.value.getBoundingClientRect();
     let mouseX = (event.clientX - rect.left - offsetX.value) / scale.value;
     let mouseY = (event.clientY - rect.top - offsetY.value) / scale.value;
-    const newBlock = createBlock(
+
+    // 创建新块并放置到画布中
+    const newBlock = Block.createBlock(
       mouseX,
       mouseY,
-      BLOCK_PLACE_STATE.placed,
+      Block.PLACE_STATE.placed,
       block.category
     );
     placedBlocks.value.push(newBlock);
@@ -435,54 +550,6 @@ function startDrag(block, event) {
     selectedBlock.value = block; // 选中正在拖拽的块
   }
   event.stopPropagation(); // 防止触发画布拖拽
-}
-
-function calCenter(corner_x, corner_y) {
-  return {
-    x: corner_x + BLOCK_PARAMS.width / 2,
-    y: corner_y + BLOCK_PARAMS.height / 2,
-  };
-}
-
-// 检查移动是否合法（不重叠且不出界）
-function isMoveValid(targetX, targetY, currentBlock, checkOverlap = true) {
-  // 检查是否出界
-  if (
-    targetX < 0 ||
-    targetY < 0 ||
-    targetX + BLOCK_PARAMS.width > canvasWidth ||
-    targetY + BLOCK_PARAMS.height > canvasHeight
-  ) {
-    return false;
-  }
-
-  if (!checkOverlap) {
-    return true; // 如果不检查重叠，直接返回合法
-  }
-
-  // 检查是否与其他块重叠
-  for (const block of allBlocks.value) {
-    // 跳过自己和原始块
-    if (
-      block === currentBlock ||
-      block.place_state === BLOCK_PLACE_STATE.original
-    ) {
-      continue;
-    }
-
-    // 检查是否重叠
-    if (
-      targetX < block.x + BLOCK_PARAMS.width &&
-      targetX + BLOCK_PARAMS.width > block.x &&
-      targetY < block.y + BLOCK_PARAMS.height &&
-      targetY + BLOCK_PARAMS.height > block.y
-    ) {
-      return false;
-    }
-  }
-
-  // 通过所有检查，移动合法
-  return true;
 }
 
 function onMouseMove(event) {
@@ -537,17 +604,27 @@ function onMouseMove(event) {
 
   // 初始坐标（带网格吸附）
   let newX =
-    Math.round((mouseXInCanvas - BLOCK_PARAMS.width / 2) / gridSize) * gridSize;
+    Math.round((mouseXInCanvas - Block.PARAMS.width / 2) / GRID_SIZE) *
+    GRID_SIZE;
   let newY =
-    Math.round((mouseYInCanvas - BLOCK_PARAMS.height / 2) / gridSize) *
-    gridSize;
+    Math.round((mouseYInCanvas - Block.PARAMS.height / 2) / GRID_SIZE) *
+    GRID_SIZE;
 
   // 限制拖动边界，确保块不会超出画布
-  newX = Math.max(0, Math.min(canvasWidth - BLOCK_PARAMS.width, newX));
-  newY = Math.max(0, Math.min(canvasHeight - BLOCK_PARAMS.height, newY));
+  newX = Math.max(0, Math.min(CANVAS_WIDTH - Block.PARAMS.width, newX));
+  newY = Math.max(0, Math.min(CANVAS_HEIGHT - Block.PARAMS.height, newY));
 
   // 检查初始移动位置是否合法
-  let initialMoveValid = isMoveValid(newX, newY, draggingBlock.value, false);
+  let initialMoveValid = draggingBlock.value.isValidPosition(
+    newX,
+    newY,
+    allBlocks.value,
+    false
+  );
+
+  // 跟随鼠标移动
+  draggingBlock.value.x = newX;
+  draggingBlock.value.y = newY;
 
   isSnapped.value = false; // 在检测吸附前重置
 
@@ -556,86 +633,48 @@ function onMouseMove(event) {
 
   // 只有初始位置合法时才尝试吸附 (并且没有在删除区域上方)
   if (initialMoveValid && !isOverDelete.value) {
-    let draggingBlockCenter = calCenter(finalX, finalY);
-    let snapBlockList = [];
+    let snapResults = [];
 
     for (const otherBlock of allBlocks.value) {
       if (otherBlock === draggingBlock.value) continue; // 自己不吸附
-      if (otherBlock.place_state === BLOCK_PLACE_STATE.original) continue; // 原始块不参与吸附
+      if (otherBlock.place_state === Block.PLACE_STATE.original) continue; // 原始块不参与吸附
 
-      // 计算距离
-      const otherBlockCenter = calCenter(otherBlock.x, otherBlock.y);
-      const diffVec = [
-        draggingBlockCenter.x - otherBlockCenter.x,
-        draggingBlockCenter.y - otherBlockCenter.y,
-      ];
+      // 尝试吸附到该块
+      const snapResult = draggingBlock.value.snapTo(
+        otherBlock,
+        allBlocks.value
+      );
 
-      let potentialFinalX = finalX;
-      let potentialFinalY = finalY;
-      let willSnap = false;
-
-      if (
-        Math.abs(diffVec[0]) < BLOCK_PARAMS.width + snap_threshold &&
-        Math.abs(diffVec[1]) < BLOCK_PARAMS.height + snap_threshold
-      ) {
-        if (Math.abs(diffVec[0]) > Math.abs(diffVec[1])) {
-          // 吸附到左或右
-          if (diffVec[0] > 0) {
-            potentialFinalX = otherBlock.x + BLOCK_PARAMS.width + snap_spacing;
-          } else {
-            potentialFinalX = otherBlock.x - BLOCK_PARAMS.width - snap_spacing;
-          }
-          potentialFinalY = otherBlock.y;
-          willSnap = true;
-        } else {
-          // 吸附到上或下
-          if (diffVec[1] > 0) {
-            potentialFinalY = otherBlock.y + BLOCK_PARAMS.height + snap_spacing;
-          } else {
-            potentialFinalY = otherBlock.y - BLOCK_PARAMS.height - snap_spacing;
-          }
-          potentialFinalX = otherBlock.x;
-          willSnap = true;
-        }
-
-        // 检查这个吸附位置是否会导致与任何其他块重叠
-        let potentialMoveValidForSnap = isMoveValid(
-          potentialFinalX,
-          potentialFinalY,
-          draggingBlock.value
-        );
-
-        if (willSnap && potentialMoveValidForSnap) {
-          isSnapped.value = true;
-          snapBlockList.push({
-            actualDist: Math.sqrt(
-              Math.pow(draggingBlockCenter.x - otherBlockCenter.x, 2) +
-                Math.pow(draggingBlockCenter.y - otherBlockCenter.y, 2)
-            ),
-            finalX: potentialFinalX,
-            finalY: potentialFinalY,
-          });
-        }
+      if (snapResult.snapped) {
+        snapResults.push(snapResult);
       }
     }
 
-    // 选择距离最近的块
-    if (snapBlockList.length > 0) {
+    // 选择距离最近的块进行吸附
+    if (snapResults.length > 0) {
       let minDist = Number.MAX_VALUE;
-      for (const snapBlock of snapBlockList) {
-        if (snapBlock.actualDist < minDist) {
-          minDist = snapBlock.actualDist;
-          finalX = snapBlock.finalX;
-          finalY = snapBlock.finalY;
+      let bestSnapResult = null;
+
+      for (const result of snapResults) {
+        if (result.distance < minDist) {
+          minDist = result.distance;
+          bestSnapResult = result;
         }
       }
-    } else {
-      isSnapped.value = false; // 如果没有可吸附的块，确保isSnapped为false
+
+      if (bestSnapResult) {
+        finalX = bestSnapResult.x;
+        finalY = bestSnapResult.y;
+        isSnapped.value = true;
+      }
     }
   }
 
   // 最终检查确保移动合法 (如果不在删除区域上)
-  if (!isOverDelete.value && isMoveValid(finalX, finalY, draggingBlock.value)) {
+  if (
+    !isOverDelete.value &&
+    draggingBlock.value.isValidPosition(finalX, finalY, allBlocks.value)
+  ) {
     // 更新块的位置
     draggingBlock.value.x = finalX;
     draggingBlock.value.y = finalY;
@@ -674,6 +713,10 @@ function onMouseUp() {
   isOverDelete.value = false; // 确保重置
 }
 
+function getPlacedBlockList() {
+  return null;
+}
+
 // 处理鼠标离开窗口事件
 function onMouseLeave() {
   // 如果正在拖动或平移，自动取消操作
@@ -693,7 +736,7 @@ function handleKeyDown(event) {
     selectedBlock.value
   ) {
     // 只有已放置的块可以删除，原始模板不能删除
-    if (selectedBlock.value.place_state === BLOCK_PLACE_STATE.placed) {
+    if (selectedBlock.value.place_state === Block.PLACE_STATE.placed) {
       // 从已放置块数组中移除选中的块
       const index = placedBlocks.value.findIndex(
         (block) => block === selectedBlock.value
@@ -723,6 +766,7 @@ defineExpose({
   zoomIn,
   zoomOut,
   clearWorkspace,
+  getPlacedBlockList,
   clearWorkspaceValid,
   scale,
 });
