@@ -112,6 +112,13 @@ body {
   right: calc(-1 * var(--connector-extend));
 }
 
+.connector-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
 .connector {
   width: calc(var(--connector-extend) - 1px);
   height: 10px;
@@ -123,6 +130,10 @@ body {
 
 .right-connector-region .connector {
   margin-left: 1px;
+}
+
+.left-connector-region .connector {
+  margin-right: 1px;
 }
 
 .var-connector {

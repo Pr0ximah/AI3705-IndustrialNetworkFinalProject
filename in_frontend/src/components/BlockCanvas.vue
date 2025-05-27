@@ -29,13 +29,37 @@
         >
           <!-- 左侧接口区域 -->
           <div class="connector-region left-connector-region">
-            <div class="connector signal-connector" />
-            <div class="connector var-connector" />
+            <div class="connector-group">
+              <div
+                class="connector signal-connector"
+                v-for="signal in block.categoryConf.signal_input"
+                :key="signal.name"
+              />
+            </div>
+            <div class="connector-group">
+              <div
+                class="connector var-connector"
+                v-for="variable in block.categoryConf.var_input"
+                :key="variable.name"
+              />
+            </div>
           </div>
           <!-- 右侧接口区域 -->
           <div class="connector-region right-connector-region">
-            <div class="connector signal-connector" />
-            <div class="connector var-connector" />
+            <div class="connector-group">
+              <div
+                class="connector signal-connector"
+                v-for="signal in block.categoryConf.signal_output"
+                :key="signal.name"
+              />
+            </div>
+            <div class="connector-group">
+              <div
+                class="connector var-connector"
+                v-for="variable in block.categoryConf.var_output"
+                :key="variable.name"
+              />
+            </div>
           </div>
           <img :src="block.getCategoryIcon()" class="icon" draggable="false" />
           {{ block.getCategoryName() }}
@@ -57,17 +81,7 @@
 
     <!-- 可拖拽块的容器 -->
     <div ref="canvasContainerRef" class="canvas-container">
-      <div
-        class="canvas-content"
-        :style="[
-          canvasStyle,
-          {
-            width: canvasWidth + 'px',
-            height: canvasHeight + 'px',
-          },
-        ]"
-        @click="clearSelection"
-      >
+      <div class="canvas-content" :style="canvasStyle" @click="clearSelection">
         <!-- 所有可拖拽的块统一渲染 -->
         <div
           v-for="(block, index) in placedBlocks"
@@ -80,6 +94,7 @@
             backgroundColor: block.color,
             position: 'absolute',
             cursor: draggingBlock === block ? 'grabbing' : 'grab',
+            zIndex: draggingBlock === block ? 10 : -1,
           }"
           @mousedown="startDrag(block, $event)"
           @click.stop="selectBlock(block, $event)"
@@ -91,13 +106,37 @@
         >
           <!-- 左侧接口区域 -->
           <div class="connector-region left-connector-region">
-            <div class="connector signal-connector" />
-            <div class="connector var-connector" />
+            <div class="connector-group">
+              <div
+                class="connector signal-connector"
+                v-for="signal in block.categoryConf.signal_input"
+                :key="signal.name"
+              />
+            </div>
+            <div class="connector-group">
+              <div
+                class="connector var-connector"
+                v-for="variable in block.categoryConf.var_input"
+                :key="variable.name"
+              />
+            </div>
           </div>
           <!-- 右侧接口区域 -->
           <div class="connector-region right-connector-region">
-            <div class="connector signal-connector" />
-            <div class="connector var-connector" />
+            <div class="connector-group">
+              <div
+                class="connector signal-connector"
+                v-for="signal in block.categoryConf.signal_output"
+                :key="signal.name"
+              />
+            </div>
+            <div class="connector-group">
+              <div
+                class="connector var-connector"
+                v-for="variable in block.categoryConf.var_output"
+                :key="variable.name"
+              />
+            </div>
           </div>
           <img :src="block.getCategoryIcon()" class="icon" draggable="false" />
           {{ block.getCategoryName() }}
@@ -132,12 +171,8 @@ import { Delete, DArrowLeft, DArrowRight } from "@element-plus/icons-vue";
 import equipment from "@/assets/equipment.svg";
 
 const DRAG_THRESHOLD = 3; // 拖拽阈值：鼠标移动超过5像素才触发拖拽
-const BLOCK_COLOR_MAP = []; // 块颜色映射
+const BLOCK_COLOR_MAP = ["#f9b4ab", "#fdebd3", "#264e70", "#679186", "#bbd4ce"]; // 块颜色映射
 const blockCategories = ref([]);
-
-// 动态画布尺寸
-const canvasWidth = ref(2000); // 默认值
-const canvasHeight = ref(2000); // 默认值
 
 class Block {
   // 静态属性
@@ -185,7 +220,7 @@ class Block {
   // 根据类别获取颜色
   getColorByCategory() {
     const color = safeGet(BLOCK_COLOR_MAP, this.categoryIndex);
-    return color ? color : "#999999";
+    return color ? color : "#FFFFFF";
   }
 
   // 获取类别名称
@@ -205,21 +240,6 @@ class Block {
       x: this.x + this.width / 2,
       y: this.y + this.height / 2,
     };
-  }
-
-  // 检查位置是否有效（不出界且不重叠）
-  isValidPosition(targetX, targetY) {
-    // 检查是否出界
-    if (
-      targetX < 0 ||
-      targetY < 0 ||
-      targetX + this.width > canvasWidth.value ||
-      targetY + this.height > canvasHeight.value
-    ) {
-      return false;
-    }
-
-    return true;
   }
 
   // 创建块的静态方法
@@ -319,49 +339,19 @@ function toggleAside() {
   isAsideCollapsed.value = !isAsideCollapsed.value;
 }
 
-// 检查并限制画布位置在可视区域内
-function checkBoundaries() {
-  // 限制左上方不超出边界（不显示空白区域）
-  offsetX.value = Math.min(0, offsetX.value);
-  offsetY.value = Math.min(0, offsetY.value);
-
-  // 获取画布容器尺寸
-  if (canvasContainerRef.value) {
-    const containerWidth = canvasContainerRef.value.clientWidth;
-    const containerHeight = canvasContainerRef.value.clientHeight;
-
-    // 计算缩放后的最小允许偏移量（确保右侧和底部不会出现空白）
-    const minOffsetX = Math.min(
-      0,
-      containerWidth - canvasWidth.value * scale.value
-    );
-    const minOffsetY = Math.min(
-      0,
-      containerHeight - canvasHeight.value * scale.value
-    );
-
-    offsetX.value = Math.max(minOffsetX, offsetX.value);
-    offsetY.value = Math.max(minOffsetY, offsetY.value);
-  }
-}
-
 // 初始化画布大小和位置
 function initializeCanvas() {
   if (canvasContainerRef.value) {
     const containerWidth = canvasContainerRef.value.clientWidth;
     const containerHeight = canvasContainerRef.value.clientHeight;
 
-    // 设置画布大小为容器宽度的两倍
-    canvasWidth.value = containerWidth * 2;
-    canvasHeight.value = containerWidth * 2; // 保持正方形
+    // 移除画布大小设置
+    // canvasWidth.value = containerWidth * 2;
+    // canvasHeight.value = containerWidth * 2;
 
-    // 计算居中位置
-    const centerX = (containerWidth - canvasWidth.value) / 2;
-    const centerY = (containerHeight - canvasHeight.value) / 2;
-
-    // 设置初始偏移使画布居中
-    offsetX.value = centerX;
-    offsetY.value = centerY;
+    // 设置初始偏移为0，让画布从原点开始
+    offsetX.value = containerWidth / 2;
+    offsetY.value = containerHeight / 2;
 
     // 重置缩放
     scale.value = 1;
@@ -374,9 +364,6 @@ function adjustCanvas() {
 
   const containerWidth = canvasContainerRef.value.clientWidth;
   const containerHeight = canvasContainerRef.value.clientHeight;
-
-  // 重置缩放
-  scale.value = 1;
 
   // 如果有已放置的块，计算它们的边界框并居中显示
   if (placedBlocks.value.length > 0) {
@@ -393,50 +380,50 @@ function adjustCanvas() {
       maxY = Math.max(maxY, block.y + block.height);
     });
 
-    // 计算块群的中心点
-    const blocksCenter = {
-      x: (minX + maxX) / 2,
-      y: (minY + maxY) / 2,
-    };
+    // 添加padding确保块不会贴边显示
+    const padding = 50;
+    minX -= padding;
+    minY -= padding;
+    maxX += padding;
+    maxY += padding;
+
+    // 计算内容区域的尺寸
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+
+    // 计算适合的缩放比例，确保所有内容都能显示
+    const scaleX = containerWidth / contentWidth;
+    const scaleY = containerHeight / contentHeight;
+    const fitScale = Math.min(scaleX, scaleY, 1); // 不超过1倍缩放
+
+    // 设置缩放
+    scale.value = fitScale;
+
+    // 计算内容区域的中心点
+    const contentCenterX = (minX + maxX) / 2;
+    const contentCenterY = (minY + maxY) / 2;
 
     // 计算容器中心点
-    const containerCenter = {
-      x: containerWidth / 2,
-      y: containerHeight / 2,
-    };
+    const containerCenterX = containerWidth / 2;
+    const containerCenterY = containerHeight / 2;
 
-    // 设置偏移使块群居中显示
-    offsetX.value = containerCenter.x - blocksCenter.x;
-    offsetY.value = containerCenter.y - blocksCenter.y;
+    // 设置偏移使内容居中显示
+    offsetX.value = containerCenterX - contentCenterX * fitScale;
+    offsetY.value = containerCenterY - contentCenterY * fitScale;
   } else {
-    // 如果没有块，则将画布居中
-    const centerX = (containerWidth - canvasWidth.value) / 2;
-    const centerY = (containerHeight - canvasHeight.value) / 2;
-
-    offsetX.value = centerX;
-    offsetY.value = centerY;
+    // 如果没有块，则重置缩放并将画布居中
+    scale.value = 1;
+    offsetX.value = containerWidth / 2;
+    offsetY.value = containerHeight / 2;
   }
-
-  // 检查边界
-  checkBoundaries();
 }
 
 // 统一的缩放函数
 function zoom(zoomFactor, centerX, centerY) {
-  // 计算最小缩放比例
-  const containerWidth = canvasContainerRef.value
-    ? canvasContainerRef.value.clientWidth
-    : window.innerWidth;
-  const containerHeight = canvasContainerRef.value
-    ? canvasContainerRef.value.clientHeight
-    : window.innerHeight;
+  // 移除最小缩放限制，设置更宽松的缩放范围
+  const minScale = 0.1; // 允许缩放到很小
+  const maxScale = 5.0; // 允许放大到5倍
 
-  const minScaleX = containerWidth / canvasWidth.value;
-  const minScaleY = containerHeight / canvasHeight.value;
-  const minScale = Math.min(minScaleX, minScaleY);
-
-  // 限制最大缩放比例
-  const maxScale = 2.0;
   const newScale = Math.max(
     minScale,
     Math.min(maxScale, scale.value + zoomFactor)
@@ -452,8 +439,7 @@ function zoom(zoomFactor, centerX, centerY) {
     offsetX.value = centerX - centerXInCanvas * newScale;
     offsetY.value = centerY - centerYInCanvas * newScale;
 
-    // 检查边界
-    checkBoundaries();
+    // 移除边界检查调用
   }
 }
 
@@ -601,7 +587,7 @@ function onWheel(event) {
 }
 
 // 鼠标移出事件
-function onMouseLeave(_event) {
+function onMouseLeave(event) {
   // 停止平移
   if (isPanning.value) {
     isPanning.value = false;
@@ -676,8 +662,7 @@ function onMouseMove(event) {
     offsetX.value += dx;
     offsetY.value += dy;
 
-    // 检查边界
-    checkBoundaries();
+    // 移除边界检查，允许自由移动
 
     lastMouseX.value = event.clientX;
     lastMouseY.value = event.clientY;
@@ -737,17 +722,9 @@ function onMouseMove(event) {
   let newX = mouseXInCanvas - Block.PARAMS.width / 2;
   let newY = mouseYInCanvas - Block.PARAMS.height / 2;
 
-  // 限制拖动边界，确保块不会超出画布
-  newX = Math.max(0, Math.min(canvasWidth.value - Block.PARAMS.width, newX));
-  newY = Math.max(0, Math.min(canvasHeight.value - Block.PARAMS.height, newY));
-
-  // // 检查初始移动位置是否合法
-  // let initialMoveValid = draggingBlock.value.isValidPosition(
-  //   newX,
-  //   newY,
-  //   allBlocks.value,
-  //   false
-  // );
+  // 移除拖动边界限制，允许块在画布外放置
+  // newX = Math.max(0, Math.min(canvasWidth.value - Block.PARAMS.width, newX));
+  // newY = Math.max(0, Math.min(canvasHeight.value - Block.PARAMS.height, newY));
 
   // 跟随鼠标移动
   draggingBlock.value.x = newX;
@@ -757,10 +734,7 @@ function onMouseMove(event) {
   let finalY = newY;
 
   // 最终检查确保移动合法 (如果不在删除区域上)
-  if (
-    !isOverDelete.value &&
-    draggingBlock.value.isValidPosition(finalX, finalY, allBlocks.value)
-  ) {
+  if (!isOverDelete.value) {
     // 更新块的位置
     draggingBlock.value.x = finalX;
     draggingBlock.value.y = finalY;
@@ -856,8 +830,8 @@ function getBlockCategories() {
     "传送带",
     [var1],
     [var2],
-    [],
-    [],
+    [1, 3],
+    [2],
     "传输货物"
   );
   blockCategories.value.push(category1);
