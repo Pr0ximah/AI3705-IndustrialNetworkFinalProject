@@ -17,7 +17,7 @@
           :style="{
             width: block.width + 'px',
             height: block.height + 'px',
-            backgroundColor: block.color, // 假设 block.color 已定义
+            backgroundColor: block.color,
             cursor: draggingBlock === block ? 'grabbing' : 'grab',
           }"
           @mousedown="startDrag(block, $event)"
@@ -26,8 +26,17 @@
           :class="{
             selected: selectedBlock === block,
           }"
-          :id="'block-' + block.category"
         >
+          <!-- 左侧接口区域 -->
+          <div class="connector-region left-connector-region">
+            <div class="connector signal-connector" />
+            <div class="connector var-connector" />
+          </div>
+          <!-- 右侧接口区域 -->
+          <div class="connector-region right-connector-region">
+            <div class="connector signal-connector" />
+            <div class="connector var-connector" />
+          </div>
           <img :src="block.getCategoryIcon()" class="icon" draggable="false" />
           {{ block.getCategoryName() }}
         </div>
@@ -71,19 +80,25 @@
             backgroundColor: block.color,
             position: 'absolute',
             cursor: draggingBlock === block ? 'grabbing' : 'grab',
-            zIndex:
-              draggingBlock === block ? 2 : selectedBlock === block ? 1 : 0,
           }"
           @mousedown="startDrag(block, $event)"
           @click.stop="selectBlock(block, $event)"
           class="drag-block"
           :class="{
-            snap: isSnapped && draggingBlock === block,
             selected: selectedBlock === block,
             dragging: draggingBlock === block,
           }"
-          :id="'block-' + block.category"
         >
+          <!-- 左侧接口区域 -->
+          <div class="connector-region left-connector-region">
+            <div class="connector signal-connector" />
+            <div class="connector var-connector" />
+          </div>
+          <!-- 右侧接口区域 -->
+          <div class="connector-region right-connector-region">
+            <div class="connector signal-connector" />
+            <div class="connector var-connector" />
+          </div>
           <img :src="block.getCategoryIcon()" class="icon" draggable="false" />
           {{ block.getCategoryName() }}
         </div>
@@ -208,8 +223,8 @@ class Block {
   }
 
   // 创建块的静态方法
-  static createBlock(x, y, placeState, category = "1") {
-    return new Block(x, y, placeState, category);
+  static createBlock(x, y, placeState, categoryConf) {
+    return new Block(x, y, placeState, categoryConf);
   }
 
   // 创建块的深拷贝
@@ -218,7 +233,7 @@ class Block {
       this.x,
       this.y,
       this.place_state,
-      this.category
+      this.categoryConf
     );
     // 注意：clone会自动生成新的ID，这通常是我们想要的行为
     return clonedBlock;
@@ -634,7 +649,7 @@ function startDrag(block, event) {
       mouseX,
       mouseY,
       Block.PLACE_STATE.placed,
-      block.category
+      block.categoryConf
     );
     placedBlocks.value.push(newBlock);
     potentialDragBlock.value = newBlock;
