@@ -53,8 +53,8 @@
           canvasStyle,
           {
             'background-size': GRID_SIZE + 'px ' + GRID_SIZE + 'px',
-            width: CANVAS_WIDTH + 'px',
-            height: CANVAS_HEIGHT + 'px',
+            width: canvasWidth + 'px',
+            height: canvasHeight + 'px',
           },
         ]"
         @click="clearSelection"
@@ -120,11 +120,13 @@ import equipment from "@/assets/equipment.svg";
 import transplanter from "@/assets/transplanter.svg";
 
 const GRID_SIZE = 20;
-const SNAP_THRESHOLD = 25;
+const SNAP_THRESHOLD = 50;
 const SNAP_SPACING = GRID_SIZE;
-const CANVAS_WIDTH = 1000;
-const CANVAS_HEIGHT = 1000;
 const DRAG_THRESHOLD = 3; // 拖拽阈值：鼠标移动超过5像素才触发拖拽
+
+// 动态画布尺寸
+const canvasWidth = ref(2000); // 默认值
+const canvasHeight = ref(2000); // 默认值
 
 class Block {
   // 静态属性
@@ -246,8 +248,8 @@ class Block {
     if (
       targetX < 0 ||
       targetY < 0 ||
-      targetX + this.width > CANVAS_WIDTH ||
-      targetY + this.height > CANVAS_HEIGHT
+      targetX + this.width > canvasWidth.value ||
+      targetY + this.height > canvasHeight.value
     ) {
       return false;
     }
@@ -462,10 +464,13 @@ function checkBoundaries() {
     const containerHeight = canvasContainerRef.value.clientHeight;
 
     // 计算缩放后的最小允许偏移量（确保右侧和底部不会出现空白）
-    const minOffsetX = Math.min(0, containerWidth - CANVAS_WIDTH * scale.value);
+    const minOffsetX = Math.min(
+      0,
+      containerWidth - canvasWidth.value * scale.value
+    );
     const minOffsetY = Math.min(
       0,
-      containerHeight - CANVAS_HEIGHT * scale.value
+      containerHeight - canvasHeight.value * scale.value
     );
 
     offsetX.value = Math.max(minOffsetX, offsetX.value);
@@ -473,11 +478,80 @@ function checkBoundaries() {
   }
 }
 
+// 初始化画布大小和位置
+function initializeCanvas() {
+  if (canvasContainerRef.value) {
+    const containerWidth = canvasContainerRef.value.clientWidth;
+    const containerHeight = canvasContainerRef.value.clientHeight;
+
+    // 设置画布大小为容器宽度的两倍
+    canvasWidth.value = containerWidth * 2;
+    canvasHeight.value = containerWidth * 2; // 保持正方形
+
+    // 计算居中位置
+    const centerX = (containerWidth - canvasWidth.value) / 2;
+    const centerY = (containerHeight - canvasHeight.value) / 2;
+
+    // 设置初始偏移使画布居中
+    offsetX.value = centerX;
+    offsetY.value = centerY;
+
+    // 重置缩放
+    scale.value = 1;
+  }
+}
+
 // 重置画布到初始状态
 function resetCanvas() {
+  if (!canvasContainerRef.value) return;
+
+  const containerWidth = canvasContainerRef.value.clientWidth;
+  const containerHeight = canvasContainerRef.value.clientHeight;
+
+  // 重置缩放
   scale.value = 1;
-  offsetX.value = 0;
-  offsetY.value = 0;
+
+  // 如果有已放置的块，计算它们的边界框并居中显示
+  if (placedBlocks.value.length > 0) {
+    // 计算所有块的边界框
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    placedBlocks.value.forEach((block) => {
+      minX = Math.min(minX, block.x);
+      minY = Math.min(minY, block.y);
+      maxX = Math.max(maxX, block.x + block.width);
+      maxY = Math.max(maxY, block.y + block.height);
+    });
+
+    // 计算块群的中心点
+    const blocksCenter = {
+      x: (minX + maxX) / 2,
+      y: (minY + maxY) / 2,
+    };
+
+    // 计算容器中心点
+    const containerCenter = {
+      x: containerWidth / 2,
+      y: containerHeight / 2,
+    };
+
+    // 设置偏移使块群居中显示
+    offsetX.value = containerCenter.x - blocksCenter.x;
+    offsetY.value = containerCenter.y - blocksCenter.y;
+  } else {
+    // 如果没有块，则将画布居中
+    const centerX = (containerWidth - canvasWidth.value) / 2;
+    const centerY = (containerHeight - canvasHeight.value) / 2;
+
+    offsetX.value = centerX;
+    offsetY.value = centerY;
+  }
+
+  // 检查边界
+  checkBoundaries();
 }
 
 // 统一的缩放函数
@@ -490,8 +564,8 @@ function zoom(zoomFactor, centerX, centerY) {
     ? canvasContainerRef.value.clientHeight
     : window.innerHeight;
 
-  const minScaleX = containerWidth / CANVAS_WIDTH;
-  const minScaleY = containerHeight / CANVAS_HEIGHT;
+  const minScaleX = containerWidth / canvasWidth.value;
+  const minScaleY = containerHeight / canvasHeight.value;
   const minScale = Math.min(minScaleX, minScaleY);
 
   // 限制最大缩放比例
@@ -757,8 +831,8 @@ function onMouseMove(event) {
     GRID_SIZE;
 
   // 限制拖动边界，确保块不会超出画布
-  newX = Math.max(0, Math.min(CANVAS_WIDTH - Block.PARAMS.width, newX));
-  newY = Math.max(0, Math.min(CANVAS_HEIGHT - Block.PARAMS.height, newY));
+  newX = Math.max(0, Math.min(canvasWidth.value - Block.PARAMS.width, newX));
+  newY = Math.max(0, Math.min(canvasHeight.value - Block.PARAMS.height, newY));
 
   // 检查初始移动位置是否合法
   let initialMoveValid = draggingBlock.value.isValidPosition(
@@ -1039,6 +1113,9 @@ function handleKeyDown(event) {
 // 在组件挂载时添加键盘事件监听器
 onMounted(() => {
   window.addEventListener("keydown", handleKeyDown);
+
+  // 初始化画布（只在启动时执行一次）
+  initializeCanvas();
 });
 
 // 在组件卸载时移除键盘事件监听器
@@ -1196,8 +1273,8 @@ function validateWorkspaceData(blockList) {
     if (
       blockData.x < 0 ||
       blockData.y < 0 ||
-      blockData.x > CANVAS_WIDTH - Block.PARAMS.width ||
-      blockData.y > CANVAS_HEIGHT - Block.PARAMS.height
+      blockData.x > canvasWidth.value - Block.PARAMS.width ||
+      blockData.y > canvasHeight.value - Block.PARAMS.height
     ) {
       throw new Error(`块 ${blockData.id} 的坐标超出画布范围`);
     }
@@ -1278,7 +1355,6 @@ defineExpose({
   flex: 1; /* 占据剩余空间 */
   z-index: 1;
   overflow: hidden;
-  min-width: v-bind("canvasWidth") + "px";
   position: relative;
   padding: 0;
   display: flex;

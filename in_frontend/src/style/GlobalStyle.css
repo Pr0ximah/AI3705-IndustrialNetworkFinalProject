@@ -48,7 +48,7 @@ body {
   justify-content: center;
   font-weight: 600;
   font-size: small;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, left 0.06s ease, top 0.06s ease;
   border: 1px solid var(--color-dark-0);
 }
 
