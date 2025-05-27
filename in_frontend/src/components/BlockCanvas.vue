@@ -73,7 +73,6 @@
             cursor: draggingBlock === block ? 'grabbing' : 'grab',
             zIndex:
               draggingBlock === block ? 2 : selectedBlock === block ? 1 : 0,
-            transition: isSnapped ? 'all 0.05s' : 'none',
           }"
           @mousedown="startDrag(block, $event)"
           @click.stop="selectBlock(block, $event)"
@@ -125,6 +124,7 @@ const SNAP_THRESHOLD = 25;
 const SNAP_SPACING = GRID_SIZE;
 const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = 1000;
+const DRAG_THRESHOLD = 3; // 拖拽阈值：鼠标移动超过5像素才触发拖拽
 
 class Block {
   // 静态属性
@@ -408,6 +408,12 @@ const allBlocks = computed(() => [...originalBlocks, ...placedBlocks.value]);
 // 当前正在拖动的块
 const draggingBlock = ref(null);
 
+// 拖拽状态相关
+const isDragStarted = ref(false); // 是否已经开始拖拽
+const dragStartX = ref(0); // 拖拽开始时的鼠标X坐标
+const dragStartY = ref(0); // 拖拽开始时的鼠标Y坐标
+const potentialDragBlock = ref(null); // 潜在拖拽块（点击但还未达到拖拽阈值）
+
 // 当前选中的块
 const selectedBlock = ref(null);
 
@@ -648,6 +654,11 @@ function startDrag(block, event) {
   // 只有左键点击才触发拖拽
   if (event.button !== 0) return;
 
+  // 记录拖拽开始位置
+  dragStartX.value = event.clientX;
+  dragStartY.value = event.clientY;
+  isDragStarted.value = false; // 重置拖拽状态
+
   if (block.place_state === Block.PLACE_STATE.original) {
     // 计算鼠标在画布坐标系中的位置（考虑缩放和偏移）
     const rect = canvasContainerRef.value.getBoundingClientRect();
@@ -662,10 +673,10 @@ function startDrag(block, event) {
       block.category
     );
     placedBlocks.value.push(newBlock);
-    draggingBlock.value = newBlock;
+    potentialDragBlock.value = newBlock;
     selectedBlock.value = newBlock; // 选中新的块
   } else {
-    draggingBlock.value = block;
+    potentialDragBlock.value = block;
     selectedBlock.value = block; // 选中正在拖拽的块
   }
   event.stopPropagation(); // 防止触发画布拖拽
@@ -686,6 +697,22 @@ function onMouseMove(event) {
     lastMouseX.value = event.clientX;
     lastMouseY.value = event.clientY;
     return;
+  }
+
+  // 处理拖拽阈值检测
+  if (potentialDragBlock.value && !isDragStarted.value) {
+    const deltaX = Math.abs(event.clientX - dragStartX.value);
+    const deltaY = Math.abs(event.clientY - dragStartY.value);
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    // 如果移动距离小于阈值，不进行拖拽
+    if (distance < DRAG_THRESHOLD) {
+      return;
+    }
+
+    // 超过阈值，开始拖拽
+    isDragStarted.value = true;
+    draggingBlock.value = potentialDragBlock.value;
   }
 
   // 处理块拖拽
@@ -875,8 +902,10 @@ function onMouseUp() {
       selectedBlock.value = null;
     }
     draggingBlock.value = null;
+    potentialDragBlock.value = null;
     isOverDelete.value = false;
     isSnapped.value = false;
+    isDragStarted.value = false;
     return;
   }
 
@@ -895,8 +924,10 @@ function onMouseUp() {
 
   // 停止拖拽
   draggingBlock.value = null;
+  potentialDragBlock.value = null;
   isSnapped.value = false;
   isOverDelete.value = false;
+  isDragStarted.value = false;
 }
 
 function getPlacedBlockList() {
