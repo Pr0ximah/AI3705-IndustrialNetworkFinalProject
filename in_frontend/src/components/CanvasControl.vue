@@ -1,15 +1,12 @@
 <template>
   <div class="canvas-controls">
     <button @click="resetCanvas">
-      重置视图
-      <House class="icon" />
+      <FullScreen class="icon" />
     </button>
     <button @click="zoomIn">
-      放大
       <Plus class="icon" />
     </button>
     <button @click="zoomOut">
-      缩小
       <Minus class="icon" />
     </button>
     <button
@@ -28,7 +25,7 @@
 
 <script setup>
 import { inject } from "vue";
-import { Delete, Plus, Minus, House } from "@element-plus/icons-vue";
+import { Delete, Plus, Minus, FullScreen } from "@element-plus/icons-vue";
 
 // 注入 HomeView 提供的 ref/computed
 const blockCanvasRef = inject("blockCanvasRef");

@@ -1,10 +1,12 @@
 <template>
   <ElContainer class="home-container">
     <ElHeader class="container-header">
-      <div>Home</div>
-      <button @click="test1">Test1</button>
-      <button @click="test2">Test2</button>
-      <button @click="test3">Test3</button>
+      <div style="display: flex; gap: 10px">
+        <div>Home</div>
+        <button @click="test1">Test1</button>
+        <button @click="test2">Test2</button>
+        <button @click="test3">Test3</button>
+      </div>
       <CanvasControl />
     </ElHeader>
     <ElMain class="container-main">

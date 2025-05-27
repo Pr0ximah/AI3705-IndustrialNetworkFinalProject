@@ -118,24 +118,32 @@ body {
 .canvas-controls .clear-btn.invalid {
   background-color: gainsboro;
   cursor: auto;
+  border-color: transparent;
 }
 
 .home-aside {
-  z-index: 2;
-  height: 100%;
   background-color: var(--color-light-4);
   border-right: 1px solid var(--color-dark-2);
-  display: flex;
-  flex-direction: column;
-  align-self: center;
-  justify-content: center;
-  position: relative;
   transition: width 0.3s ease-in-out, padding 0.3s ease-in-out,
     box-shadow 0.3s ease-in-out;
-  overflow: hidden;
-  box-sizing: border-box;
+  padding-top: 20px;
+  padding-bottom: 20px;
+  height: calc(100% - 40px);
   flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.block-sidebar {
+  z-index: 2;
+  background-color: transparent;
+  display: flex;
+  flex-direction: column;
+  align-self: flex-start;
+  justify-content: flex-start;
+  position: relative;
+  box-sizing: border-box;
   gap: 10px;
+  width: 100%;
 }
 
 .canvas-controls {
