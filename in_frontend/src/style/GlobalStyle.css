@@ -13,7 +13,9 @@ html {
   --color-important-light: #ff7b7b;
   --color-important-dark: #ff0000;
   --signal-connector-color: #ffb300;
+  --signal-connector-color-dark: #de7e00;
   --var-connector-color: #00e229;
+  --var-connector-color-dark: #00b460;
   --connector-extend: 8px;
 }
 
@@ -326,13 +328,11 @@ body {
 }
 
 .connection-line.signal-connection {
-  stroke: var(--signal-connector-color);
-  filter: brightness(0.7);
+  stroke: var(--signal-connector-color-dark);
 }
 
 .connection-line.var-connection {
-  stroke: var(--var-connector-color);
-  filter: brightness(0.7);
+  stroke: var(--var-connector-color-dark);
 }
 
 .connection-line:hover {
@@ -359,19 +359,21 @@ body {
 
 .connector:hover {
   cursor: pointer;
-  filter: brightness(0.9);
 }
 
 .connector.active {
   background-color: var(--color-middle-0);
 }
 
-.connector.connected {
-  filter: brightness(0.7);
+.connector.connected.var-connector {
+  background-color: var(--var-connector-color-dark);
+}
+
+.connector.connected.signal-connector {
+  background-color: var(--signal-connector-color-dark);
 }
 
 .connector.snapped {
-  background-color: var(--color-dark-0);
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
   transform: scale(1.3);
 }
