@@ -9,6 +9,7 @@
     class="main-container"
   >
     <div class="home-aside" :style="asideStyle" @wheel="onSidebarWheel">
+      <div class="sidebar-title" :style="sidebarTitleStyle">组件库</div>
       <div class="block-sidebar">
         <!-- 侧边栏内容 -->
         <div
@@ -80,7 +81,13 @@
     </div>
 
     <!-- 可拖拽块的容器 -->
-    <div ref="canvasContainerRef" class="canvas-container">
+    <div
+      ref="canvasContainerRef"
+      class="canvas-container"
+      :style="{
+        cursor: isConnecting || potentialSelectConnector ? 'pointer' : 'auto',
+      }"
+    >
       <!-- SVG连线层 - 移到 canvas-container 层级 -->
       <svg class="connections-layer">
         <!-- 已建立的连接线 -->
@@ -89,7 +96,11 @@
           :key="connection.id"
           :d="getConnectionPath(connection)"
           class="connection-line"
-          :class="{ selected: selectedConnection === connection }"
+          :class="{
+            selected: selectedConnection === connection,
+            'signal-connection': connection.type === 'signal',
+            'var-connection': connection.type === 'var',
+          }"
           @click="selectConnection(connection, $event)"
         />
         <!-- 正在绘制的连接线 -->
@@ -137,6 +148,11 @@
                     'signal_input',
                     signalIndex
                   ),
+                  snapped: isConnectorSnapped(
+                    block,
+                    'signal_input',
+                    signalIndex
+                  ),
                 }"
                 @mousedown.stop="
                   startConnection(block, 'signal_input', signalIndex, $event)
@@ -154,6 +170,7 @@
                 :class="{
                   active: isConnectorActive(block, 'var_input', varIndex),
                   connected: isConnectorConnected(block, 'var_input', varIndex),
+                  snapped: isConnectorSnapped(block, 'var_input', varIndex),
                 }"
                 @mousedown.stop="
                   startConnection(block, 'var_input', varIndex, $event)
@@ -183,6 +200,11 @@
                     'signal_output',
                     signalIndex
                   ),
+                  snapped: isConnectorNearby(
+                    block,
+                    'signal_output',
+                    signalIndex
+                  ),
                 }"
                 @mousedown.stop="
                   startConnection(block, 'signal_output', signalIndex, $event)
@@ -204,6 +226,7 @@
                     'var_output',
                     varIndex
                   ),
+                  snapped: isConnectorNearby(block, 'var_output', varIndex),
                 }"
                 @mousedown.stop="
                   startConnection(block, 'var_output', varIndex, $event)
@@ -373,6 +396,8 @@ const selectedConnection = ref(null); // 当前选中的连接线
 const isConnecting = ref(false); // 是否正在连接
 const connectingStart = ref(null); // 连接开始位置
 let connectionIdCounter = 0;
+let potentialConnectTarget = null; // 潜在连接目标（用于连接线吸附）
+let potentialSelectConnector = ref(null);
 
 // 当前鼠标位置（用于连接线绘制）
 const currentMouseX = ref(0);
@@ -441,6 +466,10 @@ const asideStyle = computed(() => ({
   paddingRight: isAsideCollapsed.value ? "0" : asidePadding + "px",
 }));
 
+const sidebarTitleStyle = computed(() => ({
+  minWidth: `${Block.PARAMS.width + blockBorderWidth * 2 - 10}px`,
+}));
+
 const toggleButtonStyle = computed(() => ({
   left: isAsideCollapsed.value ? "1px" : `${expandedAsideWidthPx + 1}px`,
 }));
@@ -470,7 +499,7 @@ const getConnectorPosition = (block, type, index) => {
 function calculateConnectorRelativePosition(block, type, index) {
   const connectorWidth = 8;
   const connectorHeight = 10;
-  const lineBlockSpacing = 4; // 连接器与块边界的间距
+  const lineBlockSpacing = 2; // 连接器与块边界的间距
   const connectorSpacing = 5; // 同组内连接器间距
   const topBottomMargin = 6 + connectorHeight / 2; // 顶部边距
   const borderWidth = 1;
@@ -732,9 +761,19 @@ function onMouseDown(event) {
 
   // 左键按下
   if (event.button === 0) {
+    // 如果有附近的连接器，开始连接
+    if (potentialSelectConnector.value) {
+      const block = potentialSelectConnector.value.block;
+      const type = potentialSelectConnector.value.type;
+      const index = potentialSelectConnector.value.index;
+      startConnection(block, type, index, event);
+      return; // 阻止事件冒泡
+    }
+
     // 如果点击画布空白区域，清除选中
     if (!isMouseOverBlock(event)) {
       selectedBlock.value = null;
+      selectedConnection.value = null;
 
       // 如果按住Shift键且不在侧边栏区域，则开始平移画布
       if (event.shiftKey && !isMouseOverSidebar(event)) {
@@ -758,7 +797,8 @@ function onWheel(event) {
   event.preventDefault();
 
   // 根据滚轮方向决定缩放因子
-  const zoomFactor = event.deltaY < 0 ? 0.025 : -0.025;
+  let wheelZoomSpeed = 0.05;
+  const zoomFactor = event.deltaY < 0 ? wheelZoomSpeed : -wheelZoomSpeed;
 
   // 使用鼠标位置作为缩放中心点
   zoom(zoomFactor, event.clientX, event.clientY);
@@ -820,11 +860,124 @@ function startDrag(block, event) {
   event.stopPropagation(); // 防止触发画布拖拽
 }
 
-function onMouseMove(event) {
-  // 更新鼠标位置（用于连接线绘制）
-  if (isConnecting.value) {
-    updateMousePosition(event);
+function checkLineSnap() {
+  function closeEnoughDist(pos1, pos2) {
+    const threshold = 25;
+    let dist = Math.sqrt((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2);
+    if (dist < threshold) {
+      return dist;
+    } else {
+      return null; // 不在吸附范围内
+    }
   }
+  potentialConnectTarget = null; // 重置潜在连接目标
+
+  // 检查是否有块在连接线附近
+  if (!isConnecting.value || !connectingStart.value) return;
+
+  const startBlock = connectingStart.value.block;
+  const startType = connectingStart.value.type;
+  const startIndex = connectingStart.value.index;
+
+  const mousePos = {
+    x: currentMouseX.value,
+    y: currentMouseY.value,
+  };
+  let minDist = Infinity;
+
+  // 检查所有块的连接器位置
+  for (const block of placedBlocks.value) {
+    if (block === startBlock) continue; // 跳过起始块
+    if (startType.includes("signal")) {
+      // 检查信号输入连接器
+      for (let i = 0; i < block.categoryConf.signal_input.length; i++) {
+        const pos = getConnectorPosition(block, "signal_input", i).value;
+        const dist = closeEnoughDist(mousePos, pos);
+        if (dist !== null && dist < minDist) {
+          minDist = dist;
+          potentialConnectTarget = {
+            block,
+            type: "signal_input",
+            index: i,
+          };
+        }
+      }
+    } else if (startType.includes("var")) {
+      // 检查变量输入连接器
+      for (let i = 0; i < block.categoryConf.var_input.length; i++) {
+        const pos = getConnectorPosition(block, "var_input", i).value;
+        const dist = closeEnoughDist(mousePos, pos);
+        if (dist !== null && dist < minDist) {
+          minDist = dist;
+          potentialConnectTarget = {
+            block,
+            type: "var_input",
+            index: i,
+          };
+        }
+      }
+    }
+  }
+}
+
+function checkConnectorNearbyToStartConnect() {
+  function closeEnoughDist(pos1, pos2) {
+    const threshold = 10;
+    let dist = Math.sqrt((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2);
+    if (dist < threshold) {
+      return dist;
+    } else {
+      return null; // 不在吸附范围内
+    }
+  }
+  potentialSelectConnector.value = null; // 重置潜在连接器
+  const mousePos = {
+    x: currentMouseX.value,
+    y: currentMouseY.value,
+  };
+  let minDist = Infinity;
+
+  // 检查所有块的连接器位置
+  for (const block of placedBlocks.value) {
+    // 检查信号输出连接器
+    for (let i = 0; i < block.categoryConf.signal_output.length; i++) {
+      const pos = getConnectorPosition(block, "signal_output", i).value;
+      const dist = closeEnoughDist(mousePos, pos);
+      if (dist !== null && dist < minDist) {
+        minDist = dist;
+        potentialSelectConnector.value = {
+          block,
+          type: "signal_output",
+          index: i,
+        };
+      }
+    }
+
+    // 检查变量输出连接器
+    for (let i = 0; i < block.categoryConf.var_output.length; i++) {
+      const pos = getConnectorPosition(block, "var_output", i).value;
+      const dist = closeEnoughDist(mousePos, pos);
+      if (dist !== null && dist < minDist) {
+        minDist = dist;
+        potentialSelectConnector.value = {
+          block,
+          type: "var_output",
+          index: i,
+        };
+      }
+    }
+  }
+}
+
+function onMouseMove(event) {
+  // 更新鼠标位置
+  updateMousePosition(event);
+
+  // 检测附近连接器
+  checkConnectorNearbyToStartConnect();
+
+  // 检测连线吸附
+  checkLineSnap();
 
   // 处理画布平移
   if (isPanning.value) {
@@ -839,8 +992,6 @@ function onMouseMove(event) {
 
     offsetX.value += dx;
     offsetY.value += dy;
-
-    // 移除边界检查，允许自由移动
 
     lastMouseX.value = event.clientX;
     lastMouseY.value = event.clientY;
@@ -900,15 +1051,11 @@ function onMouseMove(event) {
   let newX = mouseXInCanvas - Block.PARAMS.width / 2;
   let newY = mouseYInCanvas - Block.PARAMS.height / 2;
 
-  // 跟随鼠标移动
-  draggingBlock.value.x = newX;
-  draggingBlock.value.y = newY;
-
   let finalX = newX;
   let finalY = newY;
 
-  // 最终检查确保移动合法 (如果不在删除区域上)
-  if (!isOverDelete.value) {
+  // 最终检查确保移动合法
+  if (!isOverDelete.value && !isMouseOverSidebar(event)) {
     // 更新块的位置
     draggingBlock.value.x = finalX;
     draggingBlock.value.y = finalY;
@@ -919,11 +1066,16 @@ function onMouseMove(event) {
 }
 
 function onMouseUp() {
-  // 如果正在连接但没有结束在有效目标上，取消连接
-  if (isConnecting.value) {
-    isConnecting.value = false;
-    connectingStart.value = null;
+  if (potentialConnectTarget) {
+    // 如果有潜在连接目标，创建连接
+    createConnection(connectingStart.value, potentialConnectTarget);
+    potentialConnectTarget = null; // 清除潜在连接目标
   }
+  if (isConnecting.value) {
+    connectingStart.value = null;
+    isConnecting.value = false; // 结束连接状态
+  }
+  potentialSelectConnector.value = null; // 清除潜在连接器
 
   if (draggingBlock.value && isOverDelete.value) {
     // 删除块
@@ -956,6 +1108,7 @@ function createConnection(start, end) {
 
   const connection = {
     id: connectionId,
+    type: start.type.includes("signal") ? "signal" : "var",
     start: {
       blockId: start.block.id,
       type: start.type,
@@ -1085,6 +1238,30 @@ function isConnectorConnected(block, type, index) {
   );
 }
 
+function isConnectorSnapped(block, type, index) {
+  // 检查连接器是否被吸附到其他块
+  if (potentialConnectTarget) {
+    return (
+      potentialConnectTarget.block === block &&
+      potentialConnectTarget.type === type &&
+      potentialConnectTarget.index === index
+    );
+  }
+  return false;
+}
+
+function isConnectorNearby(block, type, index) {
+  // 检查连接器是否在鼠标附近
+  if (potentialSelectConnector.value) {
+    return (
+      potentialSelectConnector.value.block === block &&
+      potentialSelectConnector.value.type === type &&
+      potentialSelectConnector.value.index === index
+    );
+  }
+  return false;
+}
+
 // 更新鼠标位置（画布坐标系）
 function updateMousePosition(event) {
   const rect = canvasContainerRef.value.getBoundingClientRect();
@@ -1188,6 +1365,7 @@ function endConnection(block, type, index, event) {
   // 重置连接状态
   isConnecting.value = false;
   connectingStart.value = null;
+  potentialConnectTarget = null; // 清除潜在连接目标
 }
 
 // 生成连接线的 SVG 路径（横平竖直）
