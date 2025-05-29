@@ -278,7 +278,7 @@ import {
   markRaw,
   defineExpose,
 } from "vue";
-import { CategoryConf, VarConf } from "./BlockBaseConf";
+import { CategoryConf, VarConf, SignalConf } from "./BlockBaseConf";
 import { ElMessageBox } from "element-plus";
 import { Delete, DArrowLeft, DArrowRight } from "@element-plus/icons-vue";
 import equipment from "@/assets/equipment.svg";
@@ -702,8 +702,16 @@ function zoomOut() {
 }
 
 // 清空工作区函数
-function clearWorkspace() {
+function clearWorkspace(confirm_clear = true) {
   if (placedBlocks.value.length > 0) {
+    if (!confirm_clear) {
+      // 如果不需要确认，直接清空
+      connections.value = [];
+      placedBlocks.value = [];
+      selectedBlock.value = null;
+      selectedConnection.value = null;
+      return;
+    }
     ElMessageBox.confirm("确定要清空工作区吗？", "提示", {
       confirmButtonText: "确定",
       cancelButtonText: "取消",
@@ -799,6 +807,10 @@ function onMouseDown(event) {
 
   // 左键按下
   if (event.button === 0) {
+    // 更新鼠标位置
+    updateMousePosition(event);
+    // 检测附近连接器
+    checkConnectorNearbyToStartConnect();
     // 如果有附近的连接器，开始连接
     if (potentialSelectConnector.value) {
       const block = potentialSelectConnector.value.block;
@@ -1174,8 +1186,11 @@ function onMouseUp() {
   }
 
   if (potentialConnectTarget) {
-    // 如果有潜在连接目标，创建连接
-    createConnection(connectingStart.value, potentialConnectTarget);
+    // 如果有潜在连接目标，尝试创建连接
+    const success = createConnection(
+      connectingStart.value,
+      potentialConnectTarget
+    );
     potentialConnectTarget = null; // 清除潜在连接目标
   }
   if (isConnecting.value) {
@@ -1211,6 +1226,21 @@ function onMouseUp() {
 
 // 创建连接
 function createConnection(start, end) {
+  // 检查输入连接器是否已经被占用
+  if (end.block.connectors[end.type][end.index].connected) {
+    ElMessageBox({
+      title: "连接失败",
+      message: `${end.block.name}的${end.type}连接器已被占用`,
+      type: "warning",
+      showClose: false,
+      closeOnClickModal: true,
+      closeOnPressEscape: true,
+    }).catch(() => {
+      // do nothing
+    });
+    return false;
+  }
+
   const connectionId = `connection_${++connectionIdCounter}`;
 
   const connection = {
@@ -1240,11 +1270,14 @@ function createConnection(start, end) {
   connections.value.push(connection);
 
   // 更新块的连接状态
+  start.block.connectors[start.type][start.index].connected = true;
   start.block.connectors[start.type][start.index].connectionIds.push(
     connectionId
   );
   end.block.connectors[end.type][end.index].connected = true;
   end.block.connectors[end.type][end.index].connectionId = connectionId;
+
+  return true;
 }
 
 // 删除连接
@@ -1256,24 +1289,28 @@ function deleteConnection(connection) {
     (b) => b.id === connection.end.blockId
   );
 
-  // 更新块的连接状态
+  // 更新起始块的连接状态（输出连接器）
   if (startBlock) {
-    const connectionIds =
-      startBlock.connectors[connection.start.type][connection.start.index]
-        .connectionIds;
-    const index = connectionIds.indexOf(connection.id);
-    if (index > -1) {
-      connectionIds.splice(index, 1);
+    const startConnector =
+      startBlock.connectors[connection.start.type][connection.start.index];
+    if (startConnector.connectionIds) {
+      const index = startConnector.connectionIds.indexOf(connection.id);
+      if (index > -1) {
+        startConnector.connectionIds.splice(index, 1);
+      }
+      // 如果没有连接了，更新connected状态
+      if (startConnector.connectionIds.length === 0) {
+        startConnector.connected = false;
+      }
     }
   }
 
+  // 更新目标块的连接状态（输入连接器）
   if (endBlock) {
-    endBlock.connectors[connection.end.type][
-      connection.end.index
-    ].connected = false;
-    endBlock.connectors[connection.end.type][
-      connection.end.index
-    ].connectionId = null;
+    const endConnector =
+      endBlock.connectors[connection.end.type][connection.end.index];
+    endConnector.connected = false;
+    endConnector.connectionId = null;
   }
 
   // 从连接数组中移除
@@ -1422,16 +1459,16 @@ function isConnectionInSelectionBox(connection) {
   if (!selectionBox.value) return false;
 
   const box = selectionBox.value;
-  const start = connection.startPosition;
-  const end = connection.endPosition;
+  const startCoords = connection.startPosition;
+  const endCoords = connection.endPosition;
 
   // 获取连接线的路径点（简化为三段直线）
-  const midX = start.x + (end.x - start.x) * 0.5;
+  const midX = startCoords.x + (endCoords.x - startCoords.x) * 0.5;
 
   const lineSegments = [
-    { x1: start.x, y1: start.y, x2: midX, y2: start.y },
-    { x1: midX, y1: start.y, x2: midX, y2: end.y },
-    { x1: midX, y1: end.y, x2: end.x, y2: end.y },
+    { x1: startCoords.x, y1: startCoords.y, x2: midX, y2: startCoords.y },
+    { x1: midX, y1: startCoords.y, x2: midX, y2: endCoords.y },
+    { x1: midX, y1: endCoords.y, x2: endCoords.x, y2: endCoords.y },
   ];
 
   // 检查任何一段是否与选择框相交
@@ -1588,7 +1625,7 @@ function endConnection(block, type, index, event) {
   }
 
   // 检查是否是有效的连接目标
-  if (type.includes("input") && !block.connectors[type][index].connected) {
+  if (type.includes("input")) {
     // 检查连接类型是否匹配（信号对信号，变量对变量）
     const startIsSignal = connectingStart.value.type.includes("signal");
     const targetIsSignal = type.includes("signal");
@@ -1597,8 +1634,8 @@ function endConnection(block, type, index, event) {
       startIsSignal === targetIsSignal &&
       connectingStart.value.block !== block
     ) {
-      // 创建连接
-      createConnection(
+      // 尝试创建连接
+      const success = createConnection(
         {
           block: connectingStart.value.block,
           type: connectingStart.value.type,
@@ -1623,14 +1660,14 @@ function endConnection(block, type, index, event) {
 function getConnectionPath(connection) {
   return computed(() => {
     // 获取实时的连接器位置
-    const start = connection.startPosition;
-    const end = connection.endPosition;
+    const startCoords = connection.startPosition;
+    const endCoords = connection.endPosition;
 
     // 转换为屏幕坐标
-    const x1 = start.x * scale.value + offsetX.value;
-    const y1 = start.y * scale.value + offsetY.value;
-    const x2 = end.x * scale.value + offsetX.value;
-    const y2 = end.y * scale.value + offsetY.value;
+    const x1 = startCoords.x * scale.value + offsetX.value;
+    const y1 = startCoords.y * scale.value + offsetY.value;
+    const x2 = endCoords.x * scale.value + offsetX.value;
+    const y2 = endCoords.y * scale.value + offsetY.value;
 
     // 计算中间点，创建横平竖直的路径
     const midX = x1 + (x2 - x1) * 0.5;
@@ -1682,13 +1719,16 @@ onUnmounted(() => {
 function getBlockCategories() {
   const var1 = new VarConf("poweron", "bool", "是否启用");
   const var2 = new VarConf("poweroff", "bool", "是否关闭");
+  const sig1 = new SignalConf("start", "开始传输");
+  const sig2 = new SignalConf("stop", "停止传输");
   const category1 = new CategoryConf(
     "传送带",
     [var1],
     [var2],
-    [1, 3],
-    [2],
-    "传输货物"
+    [sig1],
+    [sig2],
+    "传输货物",
+    null
   );
   blockCategories.value.push(category1);
 }
@@ -1697,17 +1737,403 @@ function safeGet(list, index) {
   return index >= 0 && index < list.length ? list[index] : null;
 }
 
-function getPlacedBlockList() {
-  return placedBlocks.value;
+function getWorkspace() {
+  // 序列化当前工作区状态
+  const workspace = {
+    version: "1.0",
+    timestamp: Date.now(),
+    canvas: {
+      scale: scale.value,
+      offsetX: offsetX.value,
+      offsetY: offsetY.value,
+    },
+    // 保存类别定义
+    blockCategories: blockCategories.value.map((category) => ({
+      name: category.name,
+      description: category.description,
+      icon: category.icon,
+      signal_input: category.signal_input.map((signal) => ({
+        name: signal.name,
+        description: signal.description,
+      })),
+      signal_output: category.signal_output.map((signal) => ({
+        name: signal.name,
+        description: signal.description,
+      })),
+      var_input: category.var_input.map((variable) => ({
+        name: variable.name,
+        type: variable.type,
+        description: variable.description,
+      })),
+      var_output: category.var_output.map((variable) => ({
+        name: variable.name,
+        type: variable.type,
+        description: variable.description,
+      })),
+    })),
+    blocks: placedBlocks.value.map((block) => ({
+      id: block.id,
+      x: block.x,
+      y: block.y,
+      width: block.width,
+      height: block.height,
+      categoryName: block.categoryConf.name,
+      categoryIndex: block.categoryIndex,
+      categoryConf: {
+        name: block.categoryConf.name,
+        signal_input: block.categoryConf.signal_input.map((signal) => ({
+          name: signal.name,
+          description: signal.description,
+        })),
+        signal_output: block.categoryConf.signal_output.map((signal) => ({
+          name: signal.name,
+          description: signal.description,
+        })),
+        var_input: block.categoryConf.var_input.map((variable) => ({
+          name: variable.name,
+          type: variable.type,
+          description: variable.description,
+        })),
+        var_output: block.categoryConf.var_output.map((variable) => ({
+          name: variable.name,
+          type: variable.type,
+          description: variable.description,
+        })),
+        description: block.categoryConf.description,
+        icon: block.categoryConf.icon,
+      },
+    })),
+    connections: connections.value.map((connection) => ({
+      id: connection.id,
+      type: connection.type,
+      start: {
+        blockId: connection.start.blockId,
+        type: connection.start.type,
+        index: connection.start.index,
+      },
+      end: {
+        blockId: connection.end.blockId,
+        type: connection.end.type,
+        index: connection.end.index,
+      },
+    })),
+  };
+
+  return workspace;
 }
 
-// 暴露接口
+function loadWorkspace(workspace) {
+  try {
+    // 清空当前工作区
+    clearWorkspace(false);
+
+    if (!workspace || typeof workspace !== "object") {
+      ElMessageBox({
+        title: "加载失败",
+        message: "无效的工作区数据",
+        type: "error",
+        showClose: false,
+      });
+      return false;
+    }
+
+    const blockData = workspace.blocks || [];
+    const connectionData = workspace.connections || [];
+    const canvasData = workspace.canvas || {};
+    const categoryData = workspace.blockCategories || [];
+
+    console.log("加载工作区数据", {
+      blockData,
+      connectionData,
+      canvasData,
+      categoryData,
+    });
+
+    // 1. 首先恢复类别定义
+    if (categoryData.length > 0) {
+      blockCategories.value = [];
+      categoryData.forEach((categoryInfo) => {
+        try {
+          const category = new CategoryConf(
+            categoryInfo.name,
+            categoryInfo.var_input.map(
+              (v) => new VarConf(v.name, v.type, v.description)
+            ),
+            categoryInfo.var_output.map(
+              (v) => new VarConf(v.name, v.type, v.description)
+            ),
+            categoryInfo.signal_input.map(
+              (s) => new SignalConf(s.name, s.description)
+            ),
+            categoryInfo.signal_output.map(
+              (s) => new SignalConf(s.name, s.description)
+            ),
+            categoryInfo.description,
+            categoryInfo.icon
+          );
+          blockCategories.value.push(category);
+          console.log(`恢复类别定义: ${category.name}`);
+        } catch (error) {
+          console.error("恢复类别定义失败:", categoryInfo, error);
+        }
+      });
+    } else {
+      // 如果没有保存的类别数据，使用默认类别
+      console.log("未找到保存的类别数据，使用默认类别");
+      getBlockCategories();
+    }
+
+    // 重建块映射表，用于快速查找
+    const blockMap = new Map();
+
+    // 2. 重建所有块
+    blockData.forEach((blockInfo) => {
+      try {
+        // 查找对应的类别定义
+        let categoryConf;
+        if (
+          blockInfo.categoryIndex !== undefined &&
+          blockInfo.categoryIndex >= 0 &&
+          blockInfo.categoryIndex < blockCategories.value.length
+        ) {
+          // 使用索引查找类别
+          categoryConf = blockCategories.value[blockInfo.categoryIndex];
+        } else {
+          // 使用名称查找类别
+          categoryConf = blockCategories.value.find(
+            (cat) => cat.name === blockInfo.categoryName
+          );
+        }
+
+        if (!categoryConf) {
+          // 如果找不到对应类别，从保存的数据重建
+          console.warn(`找不到类别 ${blockInfo.categoryName}，从块数据重建`);
+          categoryConf = new CategoryConf(
+            blockInfo.categoryConf.name,
+            blockInfo.categoryConf.var_input.map(
+              (v) => new VarConf(v.name, v.type, v.description)
+            ),
+            blockInfo.categoryConf.var_output.map(
+              (v) => new VarConf(v.name, v.type, v.description)
+            ),
+            blockInfo.categoryConf.signal_input.map(
+              (s) => new SignalConf(s.name, s.description)
+            ),
+            blockInfo.categoryConf.signal_output.map(
+              (s) => new SignalConf(s.name, s.description)
+            ),
+            blockInfo.categoryConf.description,
+            blockInfo.categoryConf.icon
+          );
+        }
+
+        // 创建新块实例
+        const block = new Block(
+          blockInfo.x,
+          blockInfo.y,
+          Block.PLACE_STATE.placed,
+          categoryConf
+        );
+
+        // 使用原始ID（重要：保持引用一致性）
+        block.id = blockInfo.id;
+
+        // 设置其他属性
+        block.width = blockInfo.width;
+        block.height = blockInfo.height;
+
+        // 确保连接器状态正确初始化
+        block.initializeConnectors();
+
+        placedBlocks.value.push(block);
+        blockMap.set(block.id, block);
+
+        console.log(`重建块: ${block.id} (${block.categoryConf.name})`);
+      } catch (error) {
+        console.error("重建块失败:", blockInfo, error);
+      }
+    });
+
+    // 3. 重建所有连接
+    connectionData.forEach((connInfo) => {
+      try {
+        const startBlock = blockMap.get(connInfo.start.blockId);
+        const endBlock = blockMap.get(connInfo.end.blockId);
+
+        if (!startBlock || !endBlock) {
+          console.error("找不到连接的块:", connInfo);
+          return;
+        }
+
+        // 验证连接器索引有效性
+        const startConnectors = startBlock.categoryConf[connInfo.start.type];
+        const endConnectors = endBlock.categoryConf[connInfo.end.type];
+
+        if (
+          !startConnectors ||
+          connInfo.start.index >= startConnectors.length
+        ) {
+          console.error("无效的起始连接器:", connInfo.start);
+          return;
+        }
+
+        if (!endConnectors || connInfo.end.index >= endConnectors.length) {
+          console.error("无效的目标连接器:", connInfo.end);
+          return;
+        }
+
+        // 检查目标连接器是否已被占用（输入连接器只能有一个连接）
+        if (connInfo.end.type.includes("input")) {
+          if (
+            endBlock.connectors[connInfo.end.type][connInfo.end.index].connected
+          ) {
+            console.warn(
+              `目标连接器已被占用: ${connInfo.end.blockId}.${connInfo.end.type}[${connInfo.end.index}]`
+            );
+            return;
+          }
+        }
+
+        // 创建连接对象，使用正确的响应式计算属性
+        const connection = {
+          id: connInfo.id,
+          type: connInfo.type,
+          start: connInfo.start,
+          end: connInfo.end,
+          // 重新创建响应式位置计算 - 确保引用正确的块实例
+          startPosition: computed(() => {
+            // 重新查找块以确保响应式更新
+            const currentStartBlock = placedBlocks.value.find(
+              (b) => b.id === connInfo.start.blockId
+            );
+            if (!currentStartBlock) return { x: 0, y: 0 };
+            const pos = getConnectorPosition(
+              currentStartBlock,
+              connInfo.start.type,
+              connInfo.start.index
+            );
+            return pos.value;
+          }),
+          endPosition: computed(() => {
+            // 重新查找块以确保响应式更新
+            const currentEndBlock = placedBlocks.value.find(
+              (b) => b.id === connInfo.end.blockId
+            );
+            if (!currentEndBlock) return { x: 0, y: 0 };
+            const pos = getConnectorPosition(
+              currentEndBlock,
+              connInfo.end.type,
+              connInfo.end.index
+            );
+            return pos.value;
+          }),
+        };
+
+        connections.value.push(connection);
+
+        // 正确更新块的连接状态
+        // 更新起始块（输出连接器）
+        if (connInfo.start.type.includes("output")) {
+          const startConnector =
+            startBlock.connectors[connInfo.start.type][connInfo.start.index];
+          startConnector.connected = true;
+          if (!startConnector.connectionIds) {
+            startConnector.connectionIds = [];
+          }
+          startConnector.connectionIds.push(connInfo.id);
+        }
+
+        // 更新目标块（输入连接器）
+        if (connInfo.end.type.includes("input")) {
+          const endConnector =
+            endBlock.connectors[connInfo.end.type][connInfo.end.index];
+          endConnector.connected = true;
+          endConnector.connectionId = connInfo.id;
+        }
+
+        console.log(
+          `重建连接: ${connInfo.id} (${connInfo.start.blockId} -> ${connInfo.end.blockId})`
+        );
+      } catch (error) {
+        console.error("重建连接失败:", connInfo, error);
+      }
+    });
+
+    // 验证连接状态
+    console.log("验证连接状态:");
+    placedBlocks.value.forEach((block) => {
+      console.log(`块 ${block.id} 连接状态:`, block.connectors);
+    });
+
+    // 4. 恢复画布状态
+    if (canvasData.scale !== undefined) {
+      scale.value = canvasData.scale;
+    }
+    if (canvasData.offsetX !== undefined) {
+      offsetX.value = canvasData.offsetX;
+    }
+    if (canvasData.offsetY !== undefined) {
+      offsetY.value = canvasData.offsetY;
+    }
+
+    // 5. 更新连接计数器，避免ID冲突
+    if (connectionData.length > 0) {
+      const maxConnectionId = Math.max(
+        ...connectionData.map((conn) => {
+          // 修正正则表达式以匹配 "connection_NUMBER" 格式
+          const match = conn.id.match(/^connection_(\d+)$/);
+          return match ? parseInt(match[1]) : 0;
+        })
+      );
+      connectionIdCounter = maxConnectionId;
+    } else {
+      connectionIdCounter = 0; // 如果没有连接，重置计数器
+    }
+
+    // 6. 更新块ID计数器
+    if (blockData.length > 0) {
+      const maxBlockId = Math.max(
+        ...blockData.map((block) => {
+          const match = block.id.match(/block_(\d+)_/);
+          return match ? parseInt(match[1]) : 0;
+        })
+      );
+      Block._idCounter = maxBlockId;
+    } else {
+      Block._idCounter = 0; // 如果没有块，重置计数器
+    }
+
+    // 7. 清除选中状态，确保界面正确更新
+    selectedBlock.value = null;
+    selectedBlocks.value.clear();
+    selectedConnection.value = null;
+    selectedConnections.value.clear();
+
+    console.log(
+      `工作区加载完成: ${categoryData.length} 个类别, ${blockData.length} 个块, ${connectionData.length} 个连接`
+    );
+
+    // 强制触发响应式更新
+    placedBlocks.value = [...placedBlocks.value];
+    connections.value = [...connections.value];
+
+    return true;
+  } catch (error) {
+    console.error("加载工作区失败:", error);
+    // 发生错误时清空工作区并恢复默认类别
+    clearWorkspace(false);
+    getBlockCategories();
+    return false;
+  }
+}
+
 defineExpose({
   resetCanvas: adjustCanvas,
   zoomIn,
   zoomOut,
+  getWorkspace,
+  loadWorkspace,
   clearWorkspace,
-  getPlacedBlockList,
   clearWorkspaceValid,
   scale,
 });

@@ -63,13 +63,10 @@ body {
   box-shadow: 0 0 5px 3px rgba(0, 0, 0, 0.3);
 }
 
-.drag-block.selected {
-  filter: brightness(0.93);
-}
-
 /* 选中样式 */
 .drag-block.selected:not(.dragging) {
   z-index: 2;
+  box-shadow: 0 0 5px 2px rgba(0, 0, 0, 0.5);
 }
 
 .drag-block::before {

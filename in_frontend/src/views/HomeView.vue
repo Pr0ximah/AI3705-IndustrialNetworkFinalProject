@@ -34,63 +34,431 @@ provide("blockCanvasRef", blockCanvasRef);
 provide("clearWorkspaceValid", clearWorkspaceValid);
 provide("scale", scale);
 
-let workspace = [
-  {
-    id: "block_5_1748231013849",
-    x: 20,
-    y: 20,
-    category: "1",
-    connections: {
-      top: null,
-      bottom: "block_6_1748231015652",
-      left: null,
-      right: null,
-    },
+let workspace = {
+  version: "1.0",
+  timestamp: 1748510669163,
+  canvas: {
+    scale: 1,
+    offsetX: 321.5,
+    offsetY: 246.5,
   },
-  {
-    id: "block_6_1748231015652",
-    x: 20,
-    y: 120,
-    category: "2",
-    connections: {
-      top: "block_5_1748231013849",
-      bottom: null,
-      left: null,
-      right: "block_7_1748231017115",
+  blockCategories: [
+    {
+      name: "传送带",
+      description: "传输货物",
+      signal_input: [
+        {
+          name: "start",
+          description: "开始传输",
+        },
+      ],
+      signal_output: [
+        {
+          name: "stop",
+          description: "停止传输",
+        },
+      ],
+      var_input: [
+        {
+          name: "poweron",
+          type: "bool",
+          description: "是否启用",
+        },
+      ],
+      var_output: [
+        {
+          name: "poweroff",
+          type: "bool",
+          description: "是否关闭",
+        },
+      ],
     },
-  },
-  {
-    id: "block_7_1748231017115",
-    x: 160,
-    y: 120,
-    category: "3",
-    connections: {
-      top: null,
-      bottom: "block_8_1748231018678",
-      left: "block_6_1748231015652",
-      right: null,
+  ],
+  blocks: [
+    {
+      id: "block_2_1748510045368",
+      x: -243.5,
+      y: -190.5,
+      width: 100,
+      height: 100,
+      categoryName: "传送带",
+      categoryIndex: 0,
+      categoryConf: {
+        name: "传送带",
+        signal_input: [
+          {
+            name: "start",
+            description: "开始传输",
+          },
+        ],
+        signal_output: [
+          {
+            name: "stop",
+            description: "停止传输",
+          },
+        ],
+        var_input: [
+          {
+            name: "poweron",
+            type: "bool",
+            description: "是否启用",
+          },
+        ],
+        var_output: [
+          {
+            name: "poweroff",
+            type: "bool",
+            description: "是否关闭",
+          },
+        ],
+        description: "传输货物",
+      },
     },
-  },
-  {
-    id: "block_8_1748231018678",
-    x: 160,
-    y: 220,
-    category: "4",
-    connections: {
-      top: "block_7_1748231017115",
-      bottom: null,
-      left: null,
-      right: null,
+    {
+      id: "block_3_1748510045909",
+      x: 67.5,
+      y: -177.5,
+      width: 100,
+      height: 100,
+      categoryName: "传送带",
+      categoryIndex: 0,
+      categoryConf: {
+        name: "传送带",
+        signal_input: [
+          {
+            name: "start",
+            description: "开始传输",
+          },
+        ],
+        signal_output: [
+          {
+            name: "stop",
+            description: "停止传输",
+          },
+        ],
+        var_input: [
+          {
+            name: "poweron",
+            type: "bool",
+            description: "是否启用",
+          },
+        ],
+        var_output: [
+          {
+            name: "poweroff",
+            type: "bool",
+            description: "是否关闭",
+          },
+        ],
+        description: "传输货物",
+      },
     },
-  },
-];
-
+    {
+      id: "block_5_1748510641128",
+      x: -262.5,
+      y: -16.5,
+      width: 100,
+      height: 100,
+      categoryName: "传送带",
+      categoryIndex: 0,
+      categoryConf: {
+        name: "传送带",
+        signal_input: [
+          {
+            name: "start",
+            description: "开始传输",
+          },
+        ],
+        signal_output: [
+          {
+            name: "stop",
+            description: "停止传输",
+          },
+        ],
+        var_input: [
+          {
+            name: "poweron",
+            type: "bool",
+            description: "是否启用",
+          },
+        ],
+        var_output: [
+          {
+            name: "poweroff",
+            type: "bool",
+            description: "是否关闭",
+          },
+        ],
+        description: "传输货物",
+      },
+    },
+    {
+      id: "block_6_1748510641712",
+      x: -48.5,
+      y: -48.5,
+      width: 100,
+      height: 100,
+      categoryName: "传送带",
+      categoryIndex: 0,
+      categoryConf: {
+        name: "传送带",
+        signal_input: [
+          {
+            name: "start",
+            description: "开始传输",
+          },
+        ],
+        signal_output: [
+          {
+            name: "stop",
+            description: "停止传输",
+          },
+        ],
+        var_input: [
+          {
+            name: "poweron",
+            type: "bool",
+            description: "是否启用",
+          },
+        ],
+        var_output: [
+          {
+            name: "poweroff",
+            type: "bool",
+            description: "是否关闭",
+          },
+        ],
+        description: "传输货物",
+      },
+    },
+    {
+      id: "block_7_1748510642358",
+      x: -114.5,
+      y: 75.5,
+      width: 100,
+      height: 100,
+      categoryName: "传送带",
+      categoryIndex: 0,
+      categoryConf: {
+        name: "传送带",
+        signal_input: [
+          {
+            name: "start",
+            description: "开始传输",
+          },
+        ],
+        signal_output: [
+          {
+            name: "stop",
+            description: "停止传输",
+          },
+        ],
+        var_input: [
+          {
+            name: "poweron",
+            type: "bool",
+            description: "是否启用",
+          },
+        ],
+        var_output: [
+          {
+            name: "poweroff",
+            type: "bool",
+            description: "是否关闭",
+          },
+        ],
+        description: "传输货物",
+      },
+    },
+    {
+      id: "block_8_1748510662129",
+      x: 109.5,
+      y: 23.5,
+      width: 100,
+      height: 100,
+      categoryName: "传送带",
+      categoryIndex: 0,
+      categoryConf: {
+        name: "传送带",
+        signal_input: [
+          {
+            name: "start",
+            description: "开始传输",
+          },
+        ],
+        signal_output: [
+          {
+            name: "stop",
+            description: "停止传输",
+          },
+        ],
+        var_input: [
+          {
+            name: "poweron",
+            type: "bool",
+            description: "是否启用",
+          },
+        ],
+        var_output: [
+          {
+            name: "poweroff",
+            type: "bool",
+            description: "是否关闭",
+          },
+        ],
+        description: "传输货物",
+      },
+    },
+  ],
+  connections: [
+    {
+      id: "connection_1",
+      type: "signal",
+      start: {
+        blockId: "block_2_1748510045368",
+        type: "signal_output",
+        index: 0,
+      },
+      end: {
+        blockId: "block_3_1748510045909",
+        type: "signal_input",
+        index: 0,
+      },
+    },
+    {
+      id: "connection_2",
+      type: "var",
+      start: {
+        blockId: "block_2_1748510045368",
+        type: "var_output",
+        index: 0,
+      },
+      end: {
+        blockId: "block_3_1748510045909",
+        type: "var_input",
+        index: 0,
+      },
+    },
+    {
+      id: "connection_3",
+      type: "signal",
+      start: {
+        blockId: "block_3_1748510045909",
+        type: "signal_output",
+        index: 0,
+      },
+      end: {
+        blockId: "block_5_1748510641128",
+        type: "signal_input",
+        index: 0,
+      },
+    },
+    {
+      id: "connection_4",
+      type: "signal",
+      start: {
+        blockId: "block_5_1748510641128",
+        type: "signal_output",
+        index: 0,
+      },
+      end: {
+        blockId: "block_6_1748510641712",
+        type: "signal_input",
+        index: 0,
+      },
+    },
+    {
+      id: "connection_5",
+      type: "signal",
+      start: {
+        blockId: "block_6_1748510641712",
+        type: "signal_output",
+        index: 0,
+      },
+      end: {
+        blockId: "block_7_1748510642358",
+        type: "signal_input",
+        index: 0,
+      },
+    },
+    {
+      id: "connection_6",
+      type: "var",
+      start: {
+        blockId: "block_3_1748510045909",
+        type: "var_output",
+        index: 0,
+      },
+      end: {
+        blockId: "block_6_1748510641712",
+        type: "var_input",
+        index: 0,
+      },
+    },
+    {
+      id: "connection_7",
+      type: "var",
+      start: {
+        blockId: "block_6_1748510641712",
+        type: "var_output",
+        index: 0,
+      },
+      end: {
+        blockId: "block_7_1748510642358",
+        type: "var_input",
+        index: 0,
+      },
+    },
+    {
+      id: "connection_8",
+      type: "var",
+      start: {
+        blockId: "block_7_1748510642358",
+        type: "var_output",
+        index: 0,
+      },
+      end: {
+        blockId: "block_5_1748510641128",
+        type: "var_input",
+        index: 0,
+      },
+    },
+    {
+      id: "connection_9",
+      type: "var",
+      start: {
+        blockId: "block_5_1748510641128",
+        type: "var_output",
+        index: 0,
+      },
+      end: {
+        blockId: "block_8_1748510662129",
+        type: "var_input",
+        index: 0,
+      },
+    },
+    {
+      id: "connection_10",
+      type: "signal",
+      start: {
+        blockId: "block_7_1748510642358",
+        type: "signal_output",
+        index: 0,
+      },
+      end: {
+        blockId: "block_8_1748510662129",
+        type: "signal_input",
+        index: 0,
+      },
+    },
+  ],
+};
 function test1() {
-  console.log(blockCanvasRef.value.getPlacedBlockList());
+  console.log(blockCanvasRef.value.getWorkspace());
 }
 
 function test2() {
-  blockCanvasRef.value.safeLoadFromBlockList(workspace);
+  blockCanvasRef.value.loadWorkspace(workspace);
 }
 
 function test3() {

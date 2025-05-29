@@ -11,7 +11,12 @@ class VarConf {
   }
 }
 
-// @TODO: SignalConf properties and methods
+class SignalConf {
+  constructor(name, description) {
+    this.name = name;
+    this.description = description;
+  }
+}
 
 class CategoryConf {
   constructor(
@@ -20,7 +25,8 @@ class CategoryConf {
     var_output,
     signal_input,
     signal_output,
-    description
+    description,
+    ECC
   ) {
     this.name = name;
     this.var_input = var_input;
@@ -28,7 +34,58 @@ class CategoryConf {
     this.signal_input = signal_input;
     this.signal_output = signal_output;
     this.description = description;
+    this.ECC = ECC;
   }
 }
 
-export { VarConf, CategoryConf };
+export { VarConf, CategoryConf, SignalConf };
+
+let example_json = {
+  name: "Example Category",
+  var_input: [
+    {
+      name: "inputVar1",
+      type: "int",
+      description: "An integer input variable",
+    },
+    {
+      name: "inputVar2",
+      type: "float",
+      description: "A float input variable",
+    },
+  ],
+  var_output: [
+    {
+      name: "outputVar1",
+      type: "float",
+      description: "A float output variable",
+    },
+    {
+      name: "outputVar2",
+      type: "bool",
+      description: "A boolean output variable",
+    },
+  ],
+  signal_input: [
+    {
+      name: "inputSignal1",
+      description: "An input signal",
+    },
+    {
+      name: "inputSignal2",
+      description: "Another input signal",
+    },
+  ],
+  signal_output: [
+    {
+      name: "outputSignal1",
+      description: "An output signal",
+    },
+    {
+      name: "outputSignal2",
+      description: "Another output signal",
+    },
+  ],
+  ECC: "Example ECC",
+  description: "This is an example category.",
+};
