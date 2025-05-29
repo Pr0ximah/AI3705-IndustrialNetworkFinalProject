@@ -417,6 +417,8 @@ let potentialSelectConnector = ref(null);
 const currentMouseX = ref(0);
 const currentMouseY = ref(0);
 
+const CONNECTOR_SNAP_THRESHOLD = 25; // 连接器吸附阈值
+
 // 画布样式计算属性
 const canvasStyle = computed(() => {
   return {
@@ -1034,9 +1036,8 @@ function getAllDragBlocks() {
 
 function checkLineSnap() {
   function closeEnoughDist(pos1, pos2) {
-    const threshold = 25;
     let dist = Math.sqrt((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2);
-    if (dist < threshold) {
+    if (dist < CONNECTOR_SNAP_THRESHOLD) {
       return dist;
     } else {
       return null; // 不在吸附范围内
@@ -1049,7 +1050,6 @@ function checkLineSnap() {
 
   const startBlock = connectingStart.value.block;
   const startType = connectingStart.value.type;
-  const startIndex = connectingStart.value.index;
 
   const mousePos = {
     x: currentMouseX.value,
@@ -1094,9 +1094,8 @@ function checkLineSnap() {
 
 function checkConnectorNearbyToStartConnect() {
   function closeEnoughDist(pos1, pos2) {
-    const threshold = 10;
     let dist = Math.sqrt((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2);
-    if (dist < threshold) {
+    if (dist < CONNECTOR_SNAP_THRESHOLD) {
       return dist;
     } else {
       return null; // 不在吸附范围内
