@@ -279,13 +279,23 @@ import {
   defineExpose,
   nextTick,
 } from "vue";
-import { CategoryConf, VarConf, SignalConf } from "./BlockBaseConf";
-import { ElMessageBox } from "element-plus";
+import {
+  VarConf,
+  SignalConf,
+  InternalVarConf,
+  ECAction,
+  ECState,
+  ECTransition,
+  AlgorithmConf,
+  CategoryConf,
+} from "./BlockBaseConf";
+import { ElMessageBox, ElLoading } from "element-plus";
 import { Delete, DArrowLeft, DArrowRight } from "@element-plus/icons-vue";
 import equipment from "@/assets/equipment.svg";
+import service from "@/util/ajax_inst.js";
 
 const DRAG_THRESHOLD = 3; // 拖拽阈值：鼠标移动超过5像素才触发拖拽
-const BLOCK_COLOR_MAP = ["#f9b4ab", "#fdebd3", "#264e70", "#679186", "#bbd4ce"]; // 块颜色映射
+const BLOCK_COLOR_MAP = ["#f9b4ab", "#fdebd3", "#ccd9ff", "#f0fff0", "#e4d6ff"]; // 块颜色映射
 const blockCategories = ref([]);
 
 class Block {
@@ -2082,20 +2092,93 @@ function handleWindowBlur(event) {
 }
 
 function getBlockCategories() {
-  const var1 = new VarConf("poweron", "bool", "是否启用");
-  const var2 = new VarConf("poweroff", "bool", "是否关闭");
-  const sig1 = new SignalConf("start", "开始传输");
-  const sig2 = new SignalConf("stop", "停止传输");
-  const category1 = new CategoryConf(
-    "传送带",
-    [var1],
-    [var2],
-    [sig1],
-    [sig2],
-    "传输货物",
-    null
+  const loading = ElLoading.service({
+    lock: true,
+    customClass: "default-loading",
+    text: "正在读取模型定义...",
+    background: "rgba(255, 255, 255, 0.7)",
+  });
+  service
+    .get("/inputs/categories")
+    .then((response) => {
+      console.log(response);
+      if (response.data.categories && response.data.categories.length > 0) {
+        // 清空现有类别
+        blockCategories.value = [];
+        // 添加新类别
+        response.data.categories.forEach((categoryJSON) => {
+          blockCategories.value.push(createBlockCategoryByJSON(categoryJSON));
+        });
+      } else {
+        console.warn("没有获取到任何类别定义");
+      }
+    })
+    .catch((error) => {
+      console.error("获取类别定义失败", error);
+    })
+    .finally(() => {
+      setTimeout(() => {
+        loading.close();
+      }, 400);
+    });
+}
+
+function createBlockCategoryByJSON(categoryJSON) {
+  let varInputs = categoryJSON.var_input.map(
+    (v) => new VarConf(v.name, v.type, v.description)
   );
-  blockCategories.value.push(category1);
+  let signalInputs = categoryJSON.signal_input.map(
+    (s) => new SignalConf(s.name, s.description)
+  );
+  let varOutputs = categoryJSON.var_output.map(
+    (v) => new VarConf(v.name, v.type, v.description)
+  );
+  let signalOutputs = categoryJSON.signal_output.map(
+    (s) => new SignalConf(s.name, s.description)
+  );
+  let internalVars = categoryJSON.InternalVars.map(
+    (v) => new VarConf(v.name, v.type, v.intialValue, v.description)
+  );
+  let ECStates = [];
+  categoryJSON.ECC.ECStates.forEach((state) => {
+    let ECAtion = null;
+    if (state.ecAction) {
+      ECAtion = new ECAction(state.ecAction.alogorithm, state.ecAction.output);
+    }
+    ECStates.push(
+      new ECState(state.name, state.comment, state.x, state.y, ECAtion)
+    );
+  });
+  let ECTransitions = categoryJSON.ECC.ECTransitions.map(
+    (t) =>
+      new ECTransition(
+        t.source,
+        t.destination,
+        t.condition,
+        t.comment,
+        t.x,
+        t.y
+      )
+  );
+  let ECC = {
+    ECStates: ECStates,
+    ECTransitions: ECTransitions,
+  };
+  let Algorithms = categoryJSON.Algorithms.map(
+    (a) => new AlgorithmConf(a.Name, a.Comment, a.Input, a.Output, a.Code)
+  );
+  let category = new CategoryConf(
+    categoryJSON.name,
+    varInputs,
+    varOutputs,
+    signalInputs,
+    signalOutputs,
+    internalVars,
+    ECC,
+    Algorithms,
+    categoryJSON.description
+  );
+  return category;
 }
 
 function safeGet(list, index) {

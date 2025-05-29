@@ -1,6 +1,6 @@
 import assert from "assert";
 
-const VAR_TYPE = ["int", "float", "bool"];
+const VAR_TYPE = ["int", "float", "bool", "Time"];
 
 class VarConf {
   constructor(name, type, description) {
@@ -18,6 +18,56 @@ class SignalConf {
   }
 }
 
+class ECAction {
+  constructor(algorithm, output) {
+    this.algorithm = algorithm;
+    this.output = output;
+  }
+}
+
+class ECState {
+  constructor(name, comment = "", x = 0, y = 0, ecAction = null) {
+    this.name = name;
+    this.comment = comment;
+    this.x = x;
+    this.y = y;
+    this.ecAction = ecAction; // ECAction 对象
+  }
+}
+
+class ECTransition {
+  constructor(source, destination, condition, comment = "", x = 0, y = 0) {
+    this.source = source;
+    this.destination = destination;
+    this.condition = condition;
+    this.comment = comment;
+    this.x = x;
+    this.y = y;
+  }
+}
+
+class InternalVarConf {
+  constructor(name, type, InitalVaule, description) {
+    this.name = name;
+    this.type = type;
+    this.InitalVaule = InitalVaule;
+    // 验证类型是否在允许的范围内
+    assert(VAR_TYPE.includes(type), `Invalid type: ${type}`);
+    this.description = description;
+  }
+}
+
+class AlgorithmConf {
+  constructor(name, description, inputVars, outputVars, code) {
+    this.name = name;
+    this.description = description;
+    this.inputVars = inputVars; // 数组，包含 VarConf 对象
+    this.outputVars = outputVars; // 数组，包含 VarConf 对象
+    this.code = code; // 算法代码
+    assert(typeof code === "string", "Code must be a string");
+  }
+}
+
 class CategoryConf {
   constructor(
     name,
@@ -25,67 +75,30 @@ class CategoryConf {
     var_output,
     signal_input,
     signal_output,
-    description,
-    ECC
+    internalVar,
+    ECC,
+    algorithms,
+    description
   ) {
     this.name = name;
-    this.var_input = var_input;
-    this.var_output = var_output;
-    this.signal_input = signal_input;
-    this.signal_output = signal_output;
+    this.var_input = var_input; // 数组，包含 VarConf 对象
+    this.var_output = var_output; // 数组，包含 VarConf 对象
+    this.signal_input = signal_input; // 数组，包含 SignalConf 对象
+    this.signal_output = signal_output; // 数组，包含 SignalConf 对象
+    this.internalVar = internalVar; // 数组，包含 InternalVarConf 对象
+    this.ECC = ECC; // 数组，包含 ECState 和 ECTransitions 对象
+    this.algorithms = algorithms; // 数组，包含 AlgorithmConf 对象
     this.description = description;
-    this.ECC = ECC;
   }
 }
 
-export { VarConf, CategoryConf, SignalConf };
-
-let example_json = {
-  name: "Example Category",
-  var_input: [
-    {
-      name: "inputVar1",
-      type: "int",
-      description: "An integer input variable",
-    },
-    {
-      name: "inputVar2",
-      type: "float",
-      description: "A float input variable",
-    },
-  ],
-  var_output: [
-    {
-      name: "outputVar1",
-      type: "float",
-      description: "A float output variable",
-    },
-    {
-      name: "outputVar2",
-      type: "bool",
-      description: "A boolean output variable",
-    },
-  ],
-  signal_input: [
-    {
-      name: "inputSignal1",
-      description: "An input signal",
-    },
-    {
-      name: "inputSignal2",
-      description: "Another input signal",
-    },
-  ],
-  signal_output: [
-    {
-      name: "outputSignal1",
-      description: "An output signal",
-    },
-    {
-      name: "outputSignal2",
-      description: "Another output signal",
-    },
-  ],
-  ECC: "Example ECC",
-  description: "This is an example category.",
+export {
+  VarConf,
+  SignalConf,
+  InternalVarConf,
+  ECAction,
+  ECState,
+  ECTransition,
+  AlgorithmConf,
+  CategoryConf,
 };
