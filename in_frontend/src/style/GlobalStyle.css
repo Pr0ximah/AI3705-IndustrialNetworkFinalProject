@@ -63,6 +63,10 @@ body {
   box-shadow: 0 0 5px 3px rgba(0, 0, 0, 0.3);
 }
 
+.drag-block.selected {
+  filter: brightness(0.93);
+}
+
 /* 选中样式 */
 .drag-block.selected:not(.dragging) {
   z-index: 2;
@@ -371,4 +375,13 @@ body {
 .connector.snapped {
   background-color: var(--color-dark-0);
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+}
+
+/* 选择框样式 */
+.selection-box {
+  position: absolute;
+  border: 2px dashed var(--color-middle-0);
+  background-color: rgba(127, 191, 255, 0.2);
+  pointer-events: none;
+  z-index: 100;
 }

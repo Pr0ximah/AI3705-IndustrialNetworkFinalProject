@@ -97,7 +97,9 @@
           :d="getConnectionPath(connection)"
           class="connection-line"
           :class="{
-            selected: selectedConnection === connection,
+            selected:
+              selectedConnection === connection ||
+              selectedConnections.has(connection),
             'signal-connection': connection.type === 'signal',
             'var-connection': connection.type === 'var',
           }"
@@ -112,6 +114,18 @@
       </svg>
 
       <div class="canvas-content" :style="canvasStyle" @click="clearSelection">
+        <!-- 选择框 -->
+        <div
+          v-if="isSelecting && selectionBox"
+          class="selection-box"
+          :style="{
+            left: selectionBox.x + 'px',
+            top: selectionBox.y + 'px',
+            width: selectionBox.width + 'px',
+            height: selectionBox.height + 'px',
+          }"
+        />
+
         <!-- 所有可拖拽的块统一渲染 -->
         <div
           v-for="(block, index) in placedBlocks"
@@ -130,7 +144,7 @@
           @click.stop="selectBlock(block, $event)"
           class="drag-block"
           :class="{
-            selected: selectedBlock === block,
+            selected: selectedBlock === block || selectedBlocks.has(block),
             dragging: draggingBlock === block,
           }"
         >
@@ -438,6 +452,10 @@ const potentialDragBlock = ref(null); // 潜在拖拽块（点击但还未达到
 
 // 当前选中的块
 const selectedBlock = ref(null);
+const selectedBlocks = ref(new Set()); // 多选块集合
+
+// 连接线选择相关
+const selectedConnections = ref(new Set()); // 多选连接线集合
 
 // 画布容器引用
 const canvasContainerRef = ref(null);
@@ -445,6 +463,26 @@ const canvasContainerRef = ref(null);
 // 删除区域引用和状态
 const deleteZoneRef = ref(null);
 const isOverDelete = ref(false);
+
+// 拖动选择相关状态
+const isSelecting = ref(false);
+const selectionStart = ref({ x: 0, y: 0 });
+const selectionEnd = ref({ x: 0, y: 0 });
+const selectionBox = computed(() => {
+  if (!isSelecting.value) return null;
+
+  const minX = Math.min(selectionStart.value.x, selectionEnd.value.x);
+  const minY = Math.min(selectionStart.value.y, selectionEnd.value.y);
+  const maxX = Math.max(selectionStart.value.x, selectionEnd.value.x);
+  const maxY = Math.max(selectionStart.value.y, selectionEnd.value.y);
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+});
 
 // 侧边栏状态
 const isAsideCollapsed = ref(false);
@@ -770,10 +808,15 @@ function onMouseDown(event) {
       return; // 阻止事件冒泡
     }
 
-    // 如果点击画布空白区域，清除选中
+    // 如果点击画布空白区域，清除选中或开始选择框
     if (!isMouseOverBlock(event)) {
-      selectedBlock.value = null;
-      selectedConnection.value = null;
+      // 如果没有按住Ctrl/Cmd键，清除选中
+      if (!event.ctrlKey && !event.metaKey) {
+        selectedBlock.value = null;
+        selectedBlocks.value.clear();
+        selectedConnection.value = null;
+        selectedConnections.value.clear();
+      }
 
       // 如果按住Shift键且不在侧边栏区域，则开始平移画布
       if (event.shiftKey && !isMouseOverSidebar(event)) {
@@ -781,6 +824,17 @@ function onMouseDown(event) {
         lastMouseX.value = event.clientX;
         lastMouseY.value = event.clientY;
         event.preventDefault();
+      } else if (!isMouseOverSidebar(event)) {
+        // 开始拖动选择
+        const rect = canvasContainerRef.value.getBoundingClientRect();
+        const canvasX =
+          (event.clientX - rect.left - offsetX.value) / scale.value;
+        const canvasY =
+          (event.clientY - rect.top - offsetY.value) / scale.value;
+
+        isSelecting.value = true;
+        selectionStart.value = { x: canvasX, y: canvasY };
+        selectionEnd.value = { x: canvasX, y: canvasY };
       }
     }
     // 否则让块的mousedown事件处理（会触发startDrag）
@@ -822,7 +876,26 @@ function onMouseLeave(event) {
 function selectBlock(block, event) {
   // 阻止事件冒泡，防止触发画布的click事件
   event.stopPropagation();
-  selectedBlock.value = block;
+
+  if (event.ctrlKey || event.metaKey) {
+    // Ctrl/Cmd + 点击：切换选择状态
+    if (selectedBlocks.value.has(block)) {
+      selectedBlocks.value.delete(block);
+      if (selectedBlock.value === block) {
+        selectedBlock.value = null;
+      }
+    } else {
+      selectedBlocks.value.add(block);
+      if (selectedBlock.value) {
+        selectedBlocks.value.add(selectedBlock.value);
+        selectedBlock.value = null;
+      }
+    }
+  } else {
+    // 普通点击：单选
+    selectedBlocks.value.clear();
+    selectedBlock.value = block;
+  }
 }
 
 function startDrag(block, event) {
@@ -979,6 +1052,17 @@ function onMouseMove(event) {
   // 检测连线吸附
   checkLineSnap();
 
+  // 处理拖动选择
+  if (isSelecting.value) {
+    const rect = canvasContainerRef.value.getBoundingClientRect();
+    const canvasX = (event.clientX - rect.left - offsetX.value) / scale.value;
+    const canvasY = (event.clientY - rect.top - offsetY.value) / scale.value;
+
+    selectionEnd.value = { x: canvasX, y: canvasY };
+    updateSelectionBoxBlocks();
+    return;
+  }
+
   // 处理画布平移
   if (isPanning.value) {
     // 如果鼠标在侧边栏区域，停止平移
@@ -1066,6 +1150,29 @@ function onMouseMove(event) {
 }
 
 function onMouseUp() {
+  // 结束拖动选择
+  if (isSelecting.value) {
+    isSelecting.value = false;
+    // 如果选择框内有内容，将它们设为选中状态
+    const totalSelected =
+      selectedBlocks.value.size + selectedConnections.value.size;
+
+    if (totalSelected > 0) {
+      // 如果只选中了一个元素，设置为单选
+      if (totalSelected === 1) {
+        if (selectedBlocks.value.size === 1) {
+          selectedBlock.value = Array.from(selectedBlocks.value)[0];
+          selectedBlocks.value.clear();
+        } else if (selectedConnections.value.size === 1) {
+          selectedConnection.value = Array.from(selectedConnections.value)[0];
+          selectedConnections.value.clear();
+        }
+      }
+      // 多个元素保持多选状态
+    }
+    return;
+  }
+
   if (potentialConnectTarget) {
     // 如果有潜在连接目标，创建连接
     createConnection(connectingStart.value, potentialConnectTarget);
@@ -1197,8 +1304,28 @@ function deleteBlock(block) {
 // 选择连接
 function selectConnection(connection, event) {
   event.stopPropagation();
-  selectedConnection.value = connection;
-  selectedBlock.value = null; // 清除块选择
+
+  if (event.ctrlKey || event.metaKey) {
+    // Ctrl/Cmd + 点击：切换选择状态
+    if (selectedConnections.value.has(connection)) {
+      selectedConnections.value.delete(connection);
+      if (selectedConnection.value === connection) {
+        selectedConnection.value = null;
+      }
+    } else {
+      selectedConnections.value.add(connection);
+      if (selectedConnection.value) {
+        selectedConnections.value.add(selectedConnection.value);
+        selectedConnection.value = null;
+      }
+    }
+  } else {
+    // 普通点击：单选
+    selectedConnections.value.clear();
+    selectedBlocks.value.clear();
+    selectedBlock.value = null;
+    selectedConnection.value = connection;
+  }
 }
 
 // 检查连接器是否激活（正在连接时的视觉反馈）
@@ -1271,17 +1398,139 @@ function updateMousePosition(event) {
     (event.clientY - rect.top - offsetY.value) / scale.value;
 }
 
+// 检查块是否在选择框内
+function isBlockInSelectionBox(block) {
+  if (!selectionBox.value) return false;
+
+  const box = selectionBox.value;
+  const blockLeft = block.x;
+  const blockTop = block.y;
+  const blockRight = block.x + block.width;
+  const blockBottom = block.y + block.height;
+
+  // 检查是否有重叠
+  return !(
+    blockRight < box.x ||
+    blockLeft > box.x + box.width ||
+    blockBottom < box.y ||
+    blockTop > box.y + box.height
+  );
+}
+
+// 检查连接线是否与选择框相交
+function isConnectionInSelectionBox(connection) {
+  if (!selectionBox.value) return false;
+
+  const box = selectionBox.value;
+  const start = connection.startPosition;
+  const end = connection.endPosition;
+
+  // 获取连接线的路径点（简化为三段直线）
+  const midX = start.x + (end.x - start.x) * 0.5;
+
+  const lineSegments = [
+    { x1: start.x, y1: start.y, x2: midX, y2: start.y },
+    { x1: midX, y1: start.y, x2: midX, y2: end.y },
+    { x1: midX, y1: end.y, x2: end.x, y2: end.y },
+  ];
+
+  // 检查任何一段是否与选择框相交
+  return lineSegments.some((segment) => isLineIntersectBox(segment, box));
+}
+
+// 检查线段是否与矩形相交
+function isLineIntersectBox(line, box) {
+  const { x1, y1, x2, y2 } = line;
+  const { x: boxX, y: boxY, width: boxW, height: boxH } = box;
+
+  // 检查线段端点是否在矩形内
+  if (isPointInBox(x1, y1, box) || isPointInBox(x2, y2, box)) {
+    return true;
+  }
+
+  // 检查线段是否与矩形的四条边相交
+  const boxEdges = [
+    { x1: boxX, y1: boxY, x2: boxX + boxW, y2: boxY }, // 上边
+    { x1: boxX, y1: boxY + boxH, x2: boxX + boxW, y2: boxY + boxH }, // 下边
+    { x1: boxX, y1: boxY, x2: boxX, y2: boxY + boxH }, // 左边
+    { x1: boxX + boxW, y1: boxY, x2: boxX + boxW, y2: boxY + boxH }, // 右边
+  ];
+
+  return boxEdges.some((edge) => doLinesIntersect(line, edge));
+}
+
+// 检查点是否在矩形内
+function isPointInBox(x, y, box) {
+  return (
+    x >= box.x &&
+    x <= box.x + box.width &&
+    y >= box.y &&
+    y <= box.y + box.height
+  );
+}
+
+// 检查两条线段是否相交
+function doLinesIntersect(line1, line2) {
+  const { x1: x1, y1: y1, x2: x2, y2: y2 } = line1;
+  const { x1: x3, y1: y3, x2: x4, y2: y4 } = line2;
+
+  const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+  if (Math.abs(denom) < 1e-10) return false; // 平行线
+
+  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+  const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
+
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+}
+
+// 更新选择框内的块和连接线
+function updateSelectionBoxBlocks() {
+  if (!isSelecting.value) return;
+
+  const newSelectedBlocks = new Set();
+  const newSelectedConnections = new Set();
+
+  // 选择块
+  for (const block of placedBlocks.value) {
+    if (isBlockInSelectionBox(block)) {
+      newSelectedBlocks.add(block);
+    }
+  }
+
+  // 选择连接线
+  for (const connection of connections.value) {
+    if (isConnectionInSelectionBox(connection)) {
+      newSelectedConnections.add(connection);
+    }
+  }
+
+  selectedBlocks.value = newSelectedBlocks;
+  selectedConnections.value = newSelectedConnections;
+}
+
 // 清除选中
 function clearSelection() {
   selectedBlock.value = null;
+  selectedBlocks.value.clear();
   selectedConnection.value = null;
+  selectedConnections.value.clear();
 }
 
 // 键盘事件处理函数
 function handleKeyDown(event) {
   // Delete键删除选中的块或连接
   if (event.key === "Delete" || event.key === "Backspace") {
-    if (selectedBlock.value) {
+    if (selectedBlocks.value.size > 0) {
+      // 删除多选的块
+      selectedBlocks.value.forEach((block) => deleteBlock(block));
+      selectedBlocks.value.clear();
+    } else if (selectedConnections.value.size > 0) {
+      // 删除多选的连接线
+      selectedConnections.value.forEach((connection) =>
+        deleteConnection(connection)
+      );
+      selectedConnections.value.clear();
+    } else if (selectedBlock.value) {
       deleteBlock(selectedBlock.value);
       selectedBlock.value = null;
     } else if (selectedConnection.value) {
@@ -1294,7 +1543,9 @@ function handleKeyDown(event) {
   // Escape键清除选中状态
   if (event.key === "Escape") {
     selectedBlock.value = null;
+    selectedBlocks.value.clear();
     selectedConnection.value = null;
+    selectedConnections.value.clear();
     if (isConnecting.value) {
       isConnecting.value = false;
       connectingStart.value = null;
