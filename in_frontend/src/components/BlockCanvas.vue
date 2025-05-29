@@ -240,7 +240,6 @@ import {
   onUnmounted,
   markRaw,
   defineExpose,
-  reactive,
 } from "vue";
 import { CategoryConf, VarConf } from "./BlockBaseConf";
 import { ElMessageBox } from "element-plus";
@@ -369,7 +368,7 @@ const lastMouseX = ref(0); // 上次鼠标X位置
 const lastMouseY = ref(0); // 上次鼠标Y位置
 
 // 连接线状态变量
-let connections = reactive([]); // 存储所有连接线
+let connections = ref([]); // 存储所有连接线
 const selectedConnection = ref(null); // 当前选中的连接线
 const isConnecting = ref(false); // 是否正在连接
 const connectingStart = ref(null); // 连接开始位置
@@ -395,10 +394,13 @@ const originalBlocks = computed(() =>
 );
 
 // 已放置的块
-let placedBlocks = reactive([]);
+let placedBlocks = ref([]);
 
 // 合并所有块
-const allBlocks = computed(() => [...originalBlocks.value, ...placedBlocks]);
+const allBlocks = computed(() => [
+  ...originalBlocks.value,
+  ...placedBlocks.value,
+]);
 
 // 当前正在拖动的块
 const draggingBlock = ref(null);
@@ -428,7 +430,7 @@ const expandedAsideWidthPx =
 
 // 是否可以清空工作区
 const clearWorkspaceValid = computed(() => {
-  return placedBlocks.length > 0;
+  return placedBlocks.value.length > 0;
 });
 
 const asideStyle = computed(() => ({
@@ -525,10 +527,6 @@ function initializeCanvas() {
     const containerWidth = canvasContainerRef.value.clientWidth;
     const containerHeight = canvasContainerRef.value.clientHeight;
 
-    // 移除画布大小设置
-    // canvasWidth.value = containerWidth * 2;
-    // canvasHeight.value = containerWidth * 2;
-
     // 设置初始偏移为0，让画布从原点开始
     offsetX.value = containerWidth / 2;
     offsetY.value = containerHeight / 2;
@@ -546,14 +544,14 @@ function adjustCanvas() {
   const containerHeight = canvasContainerRef.value.clientHeight;
 
   // 如果有已放置的块，计算它们的边界框并居中显示
-  if (placedBlocks.length > 0) {
+  if (placedBlocks.value.length > 0) {
     // 计算所有块的边界框
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
     let maxY = -Infinity;
 
-    placedBlocks.forEach((block) => {
+    placedBlocks.value.forEach((block) => {
       minX = Math.min(minX, block.x);
       minY = Math.min(minY, block.y);
       maxX = Math.max(maxX, block.x + block.width);
@@ -601,8 +599,8 @@ function adjustCanvas() {
 // 统一的缩放函数
 function zoom(zoomFactor, centerX, centerY) {
   // 移除最小缩放限制，设置更宽松的缩放范围
-  const minScale = 0.1; // 允许缩放到很小
-  const maxScale = 5.0; // 允许放大到5倍
+  const minScale = 0.1;
+  const maxScale = 3.0;
 
   const newScale = Math.max(
     minScale,
@@ -618,8 +616,6 @@ function zoom(zoomFactor, centerX, centerY) {
     scale.value = newScale;
     offsetX.value = centerX - centerXInCanvas * newScale;
     offsetY.value = centerY - centerYInCanvas * newScale;
-
-    // 移除边界检查调用
   }
 }
 
@@ -640,7 +636,7 @@ function zoomOut() {
 
 // 清空工作区函数
 function clearWorkspace() {
-  if (placedBlocks.length > 0) {
+  if (placedBlocks.value.length > 0) {
     ElMessageBox.confirm("确定要清空工作区吗？", "提示", {
       confirmButtonText: "确定",
       cancelButtonText: "取消",
@@ -655,9 +651,9 @@ function clearWorkspace() {
     })
       .then(() => {
         // 清空所有连接
-        connections = [];
+        connections.value = [];
         // 清空已放置的块
-        placedBlocks = [];
+        placedBlocks.value = [];
         // 清除选中状态
         selectedBlock.value = null;
         selectedConnection.value = null;
@@ -814,7 +810,7 @@ function startDrag(block, event) {
       Block.PLACE_STATE.placed,
       block.categoryConf
     );
-    placedBlocks.push(newBlock);
+    placedBlocks.value.push(newBlock);
     potentialDragBlock.value = newBlock;
     selectedBlock.value = newBlock; // 选中新的块
   } else {
@@ -985,7 +981,7 @@ function createConnection(start, end) {
     }),
   };
 
-  connections.push(connection);
+  connections.value.push(connection);
 
   // 更新块的连接状态
   start.block.connectors[start.type][start.index].connectionIds.push(
@@ -997,10 +993,12 @@ function createConnection(start, end) {
 
 // 删除连接
 function deleteConnection(connection) {
-  const startBlock = placedBlocks.find(
+  const startBlock = placedBlocks.value.find(
     (b) => b.id === connection.start.blockId
   );
-  const endBlock = placedBlocks.find((b) => b.id === connection.end.blockId);
+  const endBlock = placedBlocks.value.find(
+    (b) => b.id === connection.end.blockId
+  );
 
   // 更新块的连接状态
   if (startBlock) {
@@ -1023,25 +1021,27 @@ function deleteConnection(connection) {
   }
 
   // 从连接数组中移除
-  const connectionIndex = connections.findIndex((c) => c.id === connection.id);
+  const connectionIndex = connections.value.findIndex(
+    (c) => c.id === connection.id
+  );
   if (connectionIndex > -1) {
-    connections.splice(connectionIndex, 1);
+    connections.value.splice(connectionIndex, 1);
   }
 }
 
 // 删除块及其相关连接
 function deleteBlock(block) {
   // 找到与该块相关的所有连接并删除
-  const relatedConnections = connections.filter(
+  const relatedConnections = connections.value.filter(
     (conn) => conn.start.blockId === block.id || conn.end.blockId === block.id
   );
 
   relatedConnections.forEach((conn) => deleteConnection(conn));
 
   // 从已放置块数组中移除
-  const index = placedBlocks.findIndex((b) => b === block);
+  const index = placedBlocks.value.findIndex((b) => b === block);
   if (index !== -1) {
-    placedBlocks.splice(index, 1);
+    placedBlocks.value.splice(index, 1);
   }
 }
 
@@ -1272,12 +1272,17 @@ function safeGet(list, index) {
   return index >= 0 && index < list.length ? list[index] : null;
 }
 
+function getPlacedBlockList() {
+  return placedBlocks.value;
+}
+
 // 暴露接口
 defineExpose({
   resetCanvas: adjustCanvas,
   zoomIn,
   zoomOut,
   clearWorkspace,
+  getPlacedBlockList,
   clearWorkspaceValid,
   scale,
 });
