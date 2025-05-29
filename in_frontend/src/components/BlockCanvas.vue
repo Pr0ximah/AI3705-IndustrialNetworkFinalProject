@@ -145,7 +145,7 @@
           class="drag-block"
           :class="{
             selected: selectedBlock === block || selectedBlocks.has(block),
-            dragging: draggingBlock === block,
+            dragging: draggingBlocks.has(block), // 修改：使用draggingBlocks检查
           }"
         >
           <!-- 左侧接口区域 -->
@@ -443,12 +443,14 @@ const allBlocks = computed(() => [
 
 // 当前正在拖动的块
 const draggingBlock = ref(null);
+const draggingBlocks = ref(new Set()); // 新增：所有正在拖动的块集合
 
 // 拖拽状态相关
 const isDragStarted = ref(false); // 是否已经开始拖拽
 const dragStartX = ref(0); // 拖拽开始时的鼠标X坐标
 const dragStartY = ref(0); // 拖拽开始时的鼠标Y坐标
 const potentialDragBlock = ref(null); // 潜在拖拽块（点击但还未达到拖拽阈值）
+const multiDragOffsets = ref(new Map()); // 多选拖拽时各块的相对偏移
 
 // 当前选中的块
 const selectedBlock = ref(null);
@@ -872,15 +874,50 @@ function onWheel(event) {
 
 // 鼠标移出事件
 function onMouseLeave(event) {
+  // 结束拖动选择
+  if (isSelecting.value) {
+    isSelecting.value = false;
+    // 如果选择框内有内容，将它们设为选中状态
+    const totalSelected =
+      selectedBlocks.value.size + selectedConnections.value.size;
+
+    if (totalSelected > 0) {
+      // 如果只选中了一个元素，设置为单选
+      if (totalSelected === 1) {
+        if (selectedBlocks.value.size === 1) {
+          selectedBlock.value = Array.from(selectedBlocks.value)[0];
+          selectedBlocks.value.clear();
+        } else if (selectedConnections.value.size === 1) {
+          selectedConnection.value = Array.from(selectedConnections.value)[0];
+          selectedConnections.value.clear();
+        }
+      }
+    }
+  }
+
+  // 结束连接状态
+  if (potentialConnectTarget) {
+    potentialConnectTarget = null; // 清除潜在连接目标
+  }
+  if (isConnecting.value) {
+    connectingStart.value = null;
+    isConnecting.value = false; // 结束连接状态
+  }
+  potentialSelectConnector.value = null; // 清除潜在连接器
+
   // 停止平移
   if (isPanning.value) {
     isPanning.value = false;
   }
 
-  // 如果鼠标移出主容器且正在拖拽，继续跟踪鼠标
-  if (draggingBlock.value || potentialDragBlock.value) {
-    // 保持拖拽状态，让全局鼠标事件处理
-    return;
+  // 停止拖拽
+  if (draggingBlock.value) {
+    draggingBlock.value = null;
+    potentialDragBlock.value = null;
+    isOverDelete.value = false;
+    isDragStarted.value = false;
+    multiDragOffsets.value.clear();
+    draggingBlocks.value.clear(); // 清空拖动块集合
   }
 }
 
@@ -938,11 +975,61 @@ function startDrag(block, event) {
     placedBlocks.value.push(newBlock);
     potentialDragBlock.value = newBlock;
     selectedBlock.value = newBlock; // 选中新的块
+
+    // 清空多选状态，因为这是新建块
+    selectedBlocks.value.clear();
+    multiDragOffsets.value.clear();
   } else {
     potentialDragBlock.value = block;
-    selectedBlock.value = block; // 选中正在拖拽的块
+
+    // 检查是否为多选拖拽
+    if (selectedBlocks.value.has(block) || selectedBlock.value === block) {
+      // 如果拖拽的块在选中的块中，准备多选拖拽
+      setupMultiDrag(block, event);
+    } else {
+      // 如果拖拽的块不在选中的块中，清空选择并单选
+      selectedBlocks.value.clear();
+      selectedBlock.value = block;
+      multiDragOffsets.value.clear();
+    }
   }
   event.stopPropagation(); // 防止触发画布拖拽
+}
+
+// 设置多选拖拽
+function setupMultiDrag(primaryBlock, event) {
+  // 计算鼠标在画布坐标系中的位置
+  const rect = canvasContainerRef.value.getBoundingClientRect();
+  const mouseXInCanvas =
+    (event.clientX - rect.left - offsetX.value) / scale.value;
+  const mouseYInCanvas =
+    (event.clientY - rect.top - offsetY.value) / scale.value;
+
+  multiDragOffsets.value.clear();
+
+  // 获取所有要拖拽的块
+  const blocksToMove = new Set();
+  if (selectedBlock.value) {
+    blocksToMove.add(selectedBlock.value);
+  }
+  selectedBlocks.value.forEach((block) => blocksToMove.add(block));
+
+  // 计算每个块相对于鼠标位置的偏移
+  blocksToMove.forEach((block) => {
+    const offsetX = block.x - mouseXInCanvas;
+    const offsetY = block.y - mouseYInCanvas;
+    multiDragOffsets.value.set(block.id, { x: offsetX, y: offsetY });
+  });
+}
+
+// 获取所有需要拖拽的块
+function getAllDragBlocks() {
+  const blocksToMove = new Set();
+  if (selectedBlock.value) {
+    blocksToMove.add(selectedBlock.value);
+  }
+  selectedBlocks.value.forEach((block) => blocksToMove.add(block));
+  return Array.from(blocksToMove);
 }
 
 function checkLineSnap() {
@@ -1108,6 +1195,9 @@ function onMouseMove(event) {
     // 超过阈值，开始拖拽
     isDragStarted.value = true;
     draggingBlock.value = potentialDragBlock.value;
+
+    // 更新所有拖动的块集合
+    updateDraggingBlocks();
   }
 
   // 处理块拖拽
@@ -1143,21 +1233,62 @@ function onMouseMove(event) {
     (event.clientX - rect.left - offsetX.value) / scale.value;
   let mouseYInCanvas = (event.clientY - rect.top - offsetY.value) / scale.value;
 
-  // 初始坐标
-  let newX = mouseXInCanvas - Block.PARAMS.width / 2;
-  let newY = mouseYInCanvas - Block.PARAMS.height / 2;
+  // 检查是否为多选拖拽
+  if (multiDragOffsets.value.size > 0) {
+    // 多选拖拽：移动所有选中的块
+    const blocksToMove = getAllDragBlocks();
 
-  let finalX = newX;
-  let finalY = newY;
+    if (!isOverDelete.value && !isMouseOverSidebar(event)) {
+      blocksToMove.forEach((block) => {
+        const offset = multiDragOffsets.value.get(block.id);
+        if (offset) {
+          block.x = mouseXInCanvas + offset.x;
+          block.y = mouseYInCanvas + offset.y;
+        }
+      });
+    } else if (isOverDelete.value) {
+      // 在删除区域时也要更新位置，但会在松开鼠标时删除
+      blocksToMove.forEach((block) => {
+        const offset = multiDragOffsets.value.get(block.id);
+        if (offset) {
+          block.x = mouseXInCanvas + offset.x;
+          block.y = mouseYInCanvas + offset.y;
+        }
+      });
+    }
+  } else {
+    // 单选拖拽：原有逻辑
+    let newX = mouseXInCanvas - Block.PARAMS.width / 2;
+    let newY = mouseYInCanvas - Block.PARAMS.height / 2;
 
-  // 最终检查确保移动合法
-  if (!isOverDelete.value && !isMouseOverSidebar(event)) {
-    // 更新块的位置
-    draggingBlock.value.x = finalX;
-    draggingBlock.value.y = finalY;
-  } else if (isOverDelete.value) {
-    draggingBlock.value.x = newX;
-    draggingBlock.value.y = newY;
+    let finalX = newX;
+    let finalY = newY;
+
+    // 最终检查确保移动合法
+    if (!isOverDelete.value && !isMouseOverSidebar(event)) {
+      // 更新块的位置
+      draggingBlock.value.x = finalX;
+      draggingBlock.value.y = finalY;
+    } else if (isOverDelete.value) {
+      draggingBlock.value.x = newX;
+      draggingBlock.value.y = newY;
+    }
+  }
+}
+
+// 新增：更新拖动块集合
+function updateDraggingBlocks() {
+  draggingBlocks.value.clear();
+
+  if (multiDragOffsets.value.size > 0) {
+    // 多选拖拽：添加所有要拖动的块
+    const blocksToMove = getAllDragBlocks();
+    blocksToMove.forEach((block) => {
+      draggingBlocks.value.add(block);
+    });
+  } else if (draggingBlock.value) {
+    // 单选拖拽：只添加主拖动块
+    draggingBlocks.value.add(draggingBlock.value);
   }
 }
 
@@ -1200,15 +1331,27 @@ function onMouseUp() {
   potentialSelectConnector.value = null; // 清除潜在连接器
 
   if (draggingBlock.value && isOverDelete.value) {
-    // 删除块
-    deleteBlock(draggingBlock.value);
-    if (selectedBlock.value === draggingBlock.value) {
+    // 删除块（如果是多选，删除所有选中的块）
+    if (multiDragOffsets.value.size > 0) {
+      // 多选删除
+      const blocksToDelete = getAllDragBlocks();
+      blocksToDelete.forEach((block) => deleteBlock(block));
+      selectedBlocks.value.clear();
       selectedBlock.value = null;
+    } else {
+      // 单选删除
+      deleteBlock(draggingBlock.value);
+      if (selectedBlock.value === draggingBlock.value) {
+        selectedBlock.value = null;
+      }
     }
+
     draggingBlock.value = null;
     potentialDragBlock.value = null;
     isOverDelete.value = false;
     isDragStarted.value = false;
+    multiDragOffsets.value.clear();
+    draggingBlocks.value.clear(); // 清空拖动块集合
     return;
   }
 
@@ -1222,6 +1365,8 @@ function onMouseUp() {
   potentialDragBlock.value = null;
   isOverDelete.value = false;
   isDragStarted.value = false;
+  multiDragOffsets.value.clear();
+  draggingBlocks.value.clear(); // 清空拖动块集合
 }
 
 // 创建连接
@@ -1583,6 +1728,8 @@ function handleKeyDown(event) {
     selectedBlocks.value.clear();
     selectedConnection.value = null;
     selectedConnections.value.clear();
+    multiDragOffsets.value.clear();
+    draggingBlocks.value.clear(); // 清空拖动块集合
     if (isConnecting.value) {
       isConnecting.value = false;
       connectingStart.value = null;
@@ -1704,6 +1851,10 @@ function getConnectingPath() {
 onMounted(() => {
   window.addEventListener("keydown", handleKeyDown);
 
+  // 添加全局鼠标事件监听，处理鼠标移出浏览器窗口的情况
+  document.addEventListener("mouseleave", handleDocumentMouseLeave);
+  window.addEventListener("blur", handleWindowBlur);
+
   // 初始化画布（只在启动时执行一次）
   initializeCanvas();
 
@@ -1714,7 +1865,29 @@ onMounted(() => {
 // 在组件卸载时移除键盘事件监听器
 onUnmounted(() => {
   window.removeEventListener("keydown", handleKeyDown);
+
+  // 移除全局事件监听器
+  document.removeEventListener("mouseleave", handleDocumentMouseLeave);
+  window.removeEventListener("blur", handleWindowBlur);
 });
+
+// 处理鼠标移出文档区域
+function handleDocumentMouseLeave(event) {
+  // 检查鼠标是否真的离开了浏览器窗口
+  if (
+    event.clientY <= 0 ||
+    event.clientX <= 0 ||
+    event.clientX >= window.innerWidth ||
+    event.clientY >= window.innerHeight
+  ) {
+    onMouseLeave(event);
+  }
+}
+
+// 处理窗口失去焦点
+function handleWindowBlur(event) {
+  onMouseLeave(event);
+}
 
 function getBlockCategories() {
   const var1 = new VarConf("poweron", "bool", "是否启用");
@@ -2081,6 +2254,7 @@ function loadWorkspace(workspace) {
       const maxConnectionId = Math.max(
         ...connectionData.map((conn) => {
           // 修正正则表达式以匹配 "connection_NUMBER" 格式
+
           const match = conn.id.match(/^connection_(\d+)$/);
           return match ? parseInt(match[1]) : 0;
         })
