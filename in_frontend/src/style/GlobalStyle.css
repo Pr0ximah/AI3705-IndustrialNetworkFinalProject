@@ -39,8 +39,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px;
-  border-bottom: 2px solid var(--color-dark-0);
+  padding: 10px 0px;
+  border-bottom: 3px solid var(--color-dark-0);
 }
 
 .container-main {
@@ -50,7 +50,7 @@ body {
 
 /* 普通块样式 */
 .drag-block {
-  border-radius: 4px;
+  border-radius: 8px;
   user-select: none;
   display: flex;
   flex-direction: column;
@@ -192,6 +192,65 @@ body {
   border-color: transparent;
 }
 
+.canvas-controls .scale-text {
+  min-width: 70px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.window-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-left: 20px;
+  margin-right: 10px;
+  gap: 5px;
+}
+
+.window-controls .control-button {
+  cursor: pointer;
+  width: 30px;
+  height: 18px;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.window-controls .control-button:hover {
+  background-color: #e4e4e4;
+}
+
+.window-controls .control-button .icon {
+  fill: #262626;
+}
+
+.window-controls .control-button.close:hover {
+  background-color: var(--color-important);
+}
+
+.window-controls .control-button.close:hover path {
+  fill: white;
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+
+.drag button {
+  -webkit-app-region: no-drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
 .home-aside {
   background-image: linear-gradient(
     180deg,
@@ -207,18 +266,19 @@ body {
   height: calc(100% - 20px);
   flex-shrink: 0;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar-title {
   width: calc(100% - 10px);
-  margin-top: 10px;
+  margin-top: 20px;
   margin-bottom: 20px;
   font-size: large;
   font-weight: 600;
   background-color: var(--color-dark-1);
   color: white;
-  border-radius: 5px;
-  padding: 5px;
+  border-radius: 8px;
+  padding: 10px 5px;
   overflow: hidden;
 }
 
@@ -253,9 +313,12 @@ body {
   gap: 4px;
 }
 
-.canvas-controls button .icon {
+.canvas-controls .icon {
   width: 16px;
   height: 16px;
+}
+
+.canvas-controls button .icon {
   padding-bottom: 2px;
 }
 

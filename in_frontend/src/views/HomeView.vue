@@ -1,13 +1,24 @@
 <template>
   <ElContainer class="home-container cannot-select">
-    <ElHeader class="container-header">
-      <div style="display: flex; gap: 10px">
+    <ElHeader class="container-header drag">
+      <div style="display: flex; gap: 10px; margin-left: 20px">
         <div>Home</div>
         <button @click="test1">Test1</button>
         <button @click="test2">Test2</button>
         <button @click="test3">Test3</button>
       </div>
-      <CanvasControl />
+      <div
+        style="
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+        "
+      >
+        <CanvasControl />
+        <WindowControl />
+      </div>
     </ElHeader>
     <ElMain class="container-main">
       <BlockCanvas ref="blockCanvasRef" />
@@ -18,6 +29,7 @@
 <script setup>
 import BlockCanvas from "@/components/BlockCanvas.vue";
 import CanvasControl from "@/components/CanvasControl.vue";
+import WindowControl from "@/components/WindowControl.vue";
 import { ElContainer, ElHeader, ElMain } from "element-plus";
 import { computed, ref, provide } from "vue";
 import service from "@/util/ajax_inst";
@@ -36,333 +48,453 @@ provide("scale", scale);
 
 let workspace = {
   version: "1.0",
-  timestamp: 1748510669163,
+  timestamp: 1748536338081,
   canvas: {
     scale: 1,
-    offsetX: 321.5,
-    offsetY: 246.5,
+    offsetX: 1187.75,
+    offsetY: 812.5,
   },
   blockCategories: [
     {
-      name: "传送带",
-      description: "传输货物",
+      name: "输送机",
       signal_input: [
         {
-          name: "start",
-          description: "开始传输",
+          name: "StartCmd",
+          description: "启动命令信号",
+        },
+        {
+          name: "StopCmd",
+          description: "急停命令信号",
+        },
+        {
+          name: "MaterialDetected",
+          description: "物料到位传感器信号",
         },
       ],
       signal_output: [
         {
-          name: "stop",
-          description: "停止传输",
+          name: "MotorRun",
+          description: "电机运行控制信号",
+        },
+        {
+          name: "MaterialPresent",
+          description: "物料存在状态信号",
         },
       ],
       var_input: [
         {
-          name: "poweron",
+          name: "MaterialPosition",
           type: "bool",
-          description: "是否启用",
+          description: "物料位置检测信号，TRUE表示物料到位",
+        },
+        {
+          name: "SpeedReference",
+          type: "float",
+          description: "输送机速度设定值(0-100%)",
         },
       ],
       var_output: [
         {
-          name: "poweroff",
-          type: "bool",
-          description: "是否关闭",
+          name: "MotorSpeed",
+          type: "float",
+          description: "电机实际运行速度反馈",
+        },
+        {
+          name: "FaultStatus",
+          type: "int",
+          description: "故障状态码，0表示正常",
+        },
+      ],
+    },
+    {
+      name: "提升机",
+      signal_input: [
+        {
+          name: "StartLift",
+          description: "启动提升信号",
+        },
+        {
+          name: "EmergencyStop",
+          description: "急停信号",
+        },
+        {
+          name: "PositionReached",
+          description: "位置到达信号",
+        },
+      ],
+      signal_output: [
+        {
+          name: "LiftRunning",
+          description: "提升机运行中信号",
+        },
+        {
+          name: "OverloadAlarm",
+          description: "超载报警信号",
+        },
+        {
+          name: "TargetReached",
+          description: "目标位置到达信号",
+        },
+      ],
+      var_input: [
+        {
+          name: "CurrentPosition",
+          type: "float",
+          description: "当前提升机位置(米)",
+        },
+        {
+          name: "TargetPosition",
+          type: "float",
+          description: "目标提升位置(米)",
+        },
+        {
+          name: "LoadWeight",
+          type: "float",
+          description: "当前负载重量(kg)",
+        },
+      ],
+      var_output: [
+        {
+          name: "MotorSpeed",
+          type: "float",
+          description: "电机运行速度(RPM)",
+        },
+        {
+          name: "PositionError",
+          type: "float",
+          description: "位置误差(米)",
+        },
+      ],
+    },
+    {
+      name: "移栽机",
+      signal_input: [
+        {
+          name: "StartTransfer",
+          description: "启动移栽信号",
+        },
+        {
+          name: "EmergencyStop",
+          description: "急停信号",
+        },
+        {
+          name: "WorkpieceDetected",
+          description: "工件到位检测信号",
+        },
+      ],
+      signal_output: [
+        {
+          name: "TransferComplete",
+          description: "移栽完成信号",
+        },
+        {
+          name: "Alarm",
+          description: "异常报警信号",
+        },
+      ],
+      var_input: [
+        {
+          name: "CurrentPosition",
+          type: "float",
+          description: "当前移栽臂位置坐标(mm)",
+        },
+        {
+          name: "TargetPosition",
+          type: "float",
+          description: "目标移栽位置坐标(mm)",
+        },
+        {
+          name: "WorkpieceWeight",
+          type: "float",
+          description: "工件重量(kg)",
+        },
+      ],
+      var_output: [
+        {
+          name: "MoveSpeed",
+          type: "float",
+          description: "移栽臂移动速度(mm/s)",
+        },
+        {
+          name: "GripperForce",
+          type: "float",
+          description: "夹爪夹持力(N)",
         },
       ],
     },
   ],
   blocks: [
     {
-      id: "block_2_1748510045368",
-      x: -243.5,
-      y: -190.5,
+      id: "block_10_1748536296890",
+      x: -851.25,
+      y: -584.5,
       width: 100,
       height: 100,
-      categoryName: "传送带",
+      categoryName: "输送机",
       categoryIndex: 0,
       categoryConf: {
-        name: "传送带",
+        name: "输送机",
         signal_input: [
           {
-            name: "start",
-            description: "开始传输",
+            name: "StartCmd",
+            description: "启动命令信号",
+          },
+          {
+            name: "StopCmd",
+            description: "急停命令信号",
+          },
+          {
+            name: "MaterialDetected",
+            description: "物料到位传感器信号",
           },
         ],
         signal_output: [
           {
-            name: "stop",
-            description: "停止传输",
+            name: "MotorRun",
+            description: "电机运行控制信号",
+          },
+          {
+            name: "MaterialPresent",
+            description: "物料存在状态信号",
           },
         ],
         var_input: [
           {
-            name: "poweron",
+            name: "MaterialPosition",
             type: "bool",
-            description: "是否启用",
+            description: "物料位置检测信号，TRUE表示物料到位",
+          },
+          {
+            name: "SpeedReference",
+            type: "float",
+            description: "输送机速度设定值(0-100%)",
           },
         ],
         var_output: [
           {
-            name: "poweroff",
-            type: "bool",
-            description: "是否关闭",
+            name: "MotorSpeed",
+            type: "float",
+            description: "电机实际运行速度反馈",
+          },
+          {
+            name: "FaultStatus",
+            type: "int",
+            description: "故障状态码，0表示正常",
           },
         ],
-        description: "传输货物",
       },
     },
     {
-      id: "block_3_1748510045909",
-      x: 67.5,
-      y: -177.5,
+      id: "block_11_1748536298997",
+      x: -587.25,
+      y: -587.5,
       width: 100,
       height: 100,
-      categoryName: "传送带",
-      categoryIndex: 0,
+      categoryName: "提升机",
+      categoryIndex: 1,
       categoryConf: {
-        name: "传送带",
+        name: "提升机",
         signal_input: [
           {
-            name: "start",
-            description: "开始传输",
+            name: "StartLift",
+            description: "启动提升信号",
+          },
+          {
+            name: "EmergencyStop",
+            description: "急停信号",
+          },
+          {
+            name: "PositionReached",
+            description: "位置到达信号",
           },
         ],
         signal_output: [
           {
-            name: "stop",
-            description: "停止传输",
+            name: "LiftRunning",
+            description: "提升机运行中信号",
+          },
+          {
+            name: "OverloadAlarm",
+            description: "超载报警信号",
+          },
+          {
+            name: "TargetReached",
+            description: "目标位置到达信号",
           },
         ],
         var_input: [
           {
-            name: "poweron",
-            type: "bool",
-            description: "是否启用",
+            name: "CurrentPosition",
+            type: "float",
+            description: "当前提升机位置(米)",
+          },
+          {
+            name: "TargetPosition",
+            type: "float",
+            description: "目标提升位置(米)",
+          },
+          {
+            name: "LoadWeight",
+            type: "float",
+            description: "当前负载重量(kg)",
           },
         ],
         var_output: [
           {
-            name: "poweroff",
-            type: "bool",
-            description: "是否关闭",
+            name: "MotorSpeed",
+            type: "float",
+            description: "电机运行速度(RPM)",
+          },
+          {
+            name: "PositionError",
+            type: "float",
+            description: "位置误差(米)",
           },
         ],
-        description: "传输货物",
       },
     },
     {
-      id: "block_5_1748510641128",
-      x: -262.5,
-      y: -16.5,
+      id: "block_12_1748536299830",
+      x: -872.75,
+      y: -438.5,
       width: 100,
       height: 100,
-      categoryName: "传送带",
-      categoryIndex: 0,
+      categoryName: "移栽机",
+      categoryIndex: 2,
       categoryConf: {
-        name: "传送带",
+        name: "移栽机",
         signal_input: [
           {
-            name: "start",
-            description: "开始传输",
+            name: "StartTransfer",
+            description: "启动移栽信号",
+          },
+          {
+            name: "EmergencyStop",
+            description: "急停信号",
+          },
+          {
+            name: "WorkpieceDetected",
+            description: "工件到位检测信号",
           },
         ],
         signal_output: [
           {
-            name: "stop",
-            description: "停止传输",
+            name: "TransferComplete",
+            description: "移栽完成信号",
+          },
+          {
+            name: "Alarm",
+            description: "异常报警信号",
           },
         ],
         var_input: [
           {
-            name: "poweron",
-            type: "bool",
-            description: "是否启用",
+            name: "CurrentPosition",
+            type: "float",
+            description: "当前移栽臂位置坐标(mm)",
+          },
+          {
+            name: "TargetPosition",
+            type: "float",
+            description: "目标移栽位置坐标(mm)",
+          },
+          {
+            name: "WorkpieceWeight",
+            type: "float",
+            description: "工件重量(kg)",
           },
         ],
         var_output: [
           {
-            name: "poweroff",
-            type: "bool",
-            description: "是否关闭",
+            name: "MoveSpeed",
+            type: "float",
+            description: "移栽臂移动速度(mm/s)",
+          },
+          {
+            name: "GripperForce",
+            type: "float",
+            description: "夹爪夹持力(N)",
           },
         ],
-        description: "传输货物",
       },
     },
     {
-      id: "block_6_1748510641712",
-      x: -48.5,
-      y: -48.5,
+      id: "block_13_1748536333392",
+      x: -406.75,
+      y: -445.5,
       width: 100,
       height: 100,
-      categoryName: "传送带",
-      categoryIndex: 0,
+      categoryName: "移栽机",
+      categoryIndex: 2,
       categoryConf: {
-        name: "传送带",
+        name: "移栽机",
         signal_input: [
           {
-            name: "start",
-            description: "开始传输",
+            name: "StartTransfer",
+            description: "启动移栽信号",
+          },
+          {
+            name: "EmergencyStop",
+            description: "急停信号",
+          },
+          {
+            name: "WorkpieceDetected",
+            description: "工件到位检测信号",
           },
         ],
         signal_output: [
           {
-            name: "stop",
-            description: "停止传输",
+            name: "TransferComplete",
+            description: "移栽完成信号",
+          },
+          {
+            name: "Alarm",
+            description: "异常报警信号",
           },
         ],
         var_input: [
           {
-            name: "poweron",
-            type: "bool",
-            description: "是否启用",
+            name: "CurrentPosition",
+            type: "float",
+            description: "当前移栽臂位置坐标(mm)",
+          },
+          {
+            name: "TargetPosition",
+            type: "float",
+            description: "目标移栽位置坐标(mm)",
+          },
+          {
+            name: "WorkpieceWeight",
+            type: "float",
+            description: "工件重量(kg)",
           },
         ],
         var_output: [
           {
-            name: "poweroff",
-            type: "bool",
-            description: "是否关闭",
+            name: "MoveSpeed",
+            type: "float",
+            description: "移栽臂移动速度(mm/s)",
           },
-        ],
-        description: "传输货物",
-      },
-    },
-    {
-      id: "block_7_1748510642358",
-      x: -114.5,
-      y: 75.5,
-      width: 100,
-      height: 100,
-      categoryName: "传送带",
-      categoryIndex: 0,
-      categoryConf: {
-        name: "传送带",
-        signal_input: [
           {
-            name: "start",
-            description: "开始传输",
+            name: "GripperForce",
+            type: "float",
+            description: "夹爪夹持力(N)",
           },
         ],
-        signal_output: [
-          {
-            name: "stop",
-            description: "停止传输",
-          },
-        ],
-        var_input: [
-          {
-            name: "poweron",
-            type: "bool",
-            description: "是否启用",
-          },
-        ],
-        var_output: [
-          {
-            name: "poweroff",
-            type: "bool",
-            description: "是否关闭",
-          },
-        ],
-        description: "传输货物",
-      },
-    },
-    {
-      id: "block_8_1748510662129",
-      x: 109.5,
-      y: 23.5,
-      width: 100,
-      height: 100,
-      categoryName: "传送带",
-      categoryIndex: 0,
-      categoryConf: {
-        name: "传送带",
-        signal_input: [
-          {
-            name: "start",
-            description: "开始传输",
-          },
-        ],
-        signal_output: [
-          {
-            name: "stop",
-            description: "停止传输",
-          },
-        ],
-        var_input: [
-          {
-            name: "poweron",
-            type: "bool",
-            description: "是否启用",
-          },
-        ],
-        var_output: [
-          {
-            name: "poweroff",
-            type: "bool",
-            description: "是否关闭",
-          },
-        ],
-        description: "传输货物",
       },
     },
   ],
   connections: [
     {
-      id: "connection_1",
-      type: "signal",
-      start: {
-        blockId: "block_2_1748510045368",
-        type: "signal_output",
-        index: 0,
-      },
-      end: {
-        blockId: "block_3_1748510045909",
-        type: "signal_input",
-        index: 0,
-      },
-    },
-    {
-      id: "connection_2",
-      type: "var",
-      start: {
-        blockId: "block_2_1748510045368",
-        type: "var_output",
-        index: 0,
-      },
-      end: {
-        blockId: "block_3_1748510045909",
-        type: "var_input",
-        index: 0,
-      },
-    },
-    {
-      id: "connection_3",
-      type: "signal",
-      start: {
-        blockId: "block_3_1748510045909",
-        type: "signal_output",
-        index: 0,
-      },
-      end: {
-        blockId: "block_5_1748510641128",
-        type: "signal_input",
-        index: 0,
-      },
-    },
-    {
       id: "connection_4",
       type: "signal",
       start: {
-        blockId: "block_5_1748510641128",
+        blockId: "block_10_1748536296890",
         type: "signal_output",
         index: 0,
       },
       end: {
-        blockId: "block_6_1748510641712",
+        blockId: "block_11_1748536298997",
         type: "signal_input",
         index: 0,
       },
@@ -371,40 +503,40 @@ let workspace = {
       id: "connection_5",
       type: "signal",
       start: {
-        blockId: "block_6_1748510641712",
+        blockId: "block_10_1748536296890",
         type: "signal_output",
-        index: 0,
+        index: 1,
       },
       end: {
-        blockId: "block_7_1748510642358",
+        blockId: "block_11_1748536298997",
         type: "signal_input",
-        index: 0,
+        index: 2,
       },
     },
     {
       id: "connection_6",
       type: "var",
       start: {
-        blockId: "block_3_1748510045909",
+        blockId: "block_12_1748536299830",
         type: "var_output",
         index: 0,
       },
       end: {
-        blockId: "block_6_1748510641712",
+        blockId: "block_11_1748536298997",
         type: "var_input",
-        index: 0,
+        index: 1,
       },
     },
     {
       id: "connection_7",
       type: "var",
       start: {
-        blockId: "block_6_1748510641712",
+        blockId: "block_12_1748536299830",
         type: "var_output",
-        index: 0,
+        index: 1,
       },
       end: {
-        blockId: "block_7_1748510642358",
+        blockId: "block_11_1748536298997",
         type: "var_input",
         index: 0,
       },
@@ -413,46 +545,47 @@ let workspace = {
       id: "connection_8",
       type: "var",
       start: {
-        blockId: "block_7_1748510642358",
+        blockId: "block_10_1748536296890",
         type: "var_output",
         index: 0,
       },
       end: {
-        blockId: "block_5_1748510641128",
+        blockId: "block_11_1748536298997",
         type: "var_input",
-        index: 0,
+        index: 2,
       },
     },
     {
       id: "connection_9",
-      type: "var",
+      type: "signal",
       start: {
-        blockId: "block_5_1748510641128",
-        type: "var_output",
+        blockId: "block_11_1748536298997",
+        type: "signal_output",
         index: 0,
       },
       end: {
-        blockId: "block_8_1748510662129",
-        type: "var_input",
+        blockId: "block_13_1748536333392",
+        type: "signal_input",
         index: 0,
       },
     },
     {
       id: "connection_10",
-      type: "signal",
+      type: "var",
       start: {
-        blockId: "block_7_1748510642358",
-        type: "signal_output",
+        blockId: "block_11_1748536298997",
+        type: "var_output",
         index: 0,
       },
       end: {
-        blockId: "block_8_1748510662129",
-        type: "signal_input",
+        blockId: "block_13_1748536333392",
+        type: "var_input",
         index: 0,
       },
     },
   ],
 };
+
 function test1() {
   console.log(blockCanvasRef.value.getWorkspace());
 }

@@ -17,15 +17,22 @@
       清空工作区
       <Delete class="icon" />
     </button>
-    <span style="font-size: 15px; padding: 0 10px"
-      >缩放: {{ Math.round(scale * 100) }}%</span
-    >
+    <div class="scale-text" style="margin-left: 5px">
+      <ZoomIn class="icon" />
+      {{ Math.round(scale * 100) }}%
+    </div>
   </div>
 </template>
 
 <script setup>
 import { inject } from "vue";
-import { Delete, Plus, Minus, FullScreen } from "@element-plus/icons-vue";
+import {
+  Delete,
+  Plus,
+  Minus,
+  FullScreen,
+  ZoomIn,
+} from "@element-plus/icons-vue";
 
 // 注入 HomeView 提供的 ref/computed
 const blockCanvasRef = inject("blockCanvasRef");

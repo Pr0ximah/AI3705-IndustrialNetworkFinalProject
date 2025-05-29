@@ -513,7 +513,7 @@ const selectionBox = computed(() => {
 
 // 侧边栏状态
 const isAsideCollapsed = ref(false);
-const asidePadding = 20;
+const asidePadding = 30;
 const blockBorderWidth = 1; // 块边框宽度
 const expandedAsideWidthPx =
   Block.PARAMS.width + 2 * asidePadding + blockBorderWidth * 2; // 定义侧边栏展开时的固定宽度

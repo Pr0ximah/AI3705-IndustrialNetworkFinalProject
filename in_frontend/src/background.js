@@ -1,9 +1,11 @@
 "use strict";
 
-import { app, protocol, BrowserWindow } from "electron";
+import { app, protocol, BrowserWindow, Menu, ipcMain } from "electron";
 import { createProtocol } from "vue-cli-plugin-electron-builder/lib";
+import path from "path";
 import installExtension, { VUEJS3_DEVTOOLS } from "electron-devtools-installer";
 const isDevelopment = process.env.NODE_ENV !== "production";
+let mainWindow = null;
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
@@ -12,28 +14,35 @@ protocol.registerSchemesAsPrivileged([
 
 async function createWindow() {
   // Create the browser window.
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    minWidth: 575,
-    minHeight: 375,
+    minWidth: 800,
+    minHeight: 600,
+    frame: false,
     webPreferences: {
       // Use pluginOptions.nodeIntegration, leave this alone
       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
       nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
       contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
+      preload: path.join(__static, "preload.js"),
     },
   });
 
   if (process.env.WEBPACK_DEV_SERVER_URL) {
     // Load the url of the dev server if in development mode
-    await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL);
-    if (!process.env.IS_TEST) win.webContents.openDevTools();
+    await mainWindow.loadURL(process.env.WEBPACK_DEV_SERVER_URL);
+    if (!process.env.IS_TEST) mainWindow.webContents.openDevTools();
   } else {
     createProtocol("app");
     // Load the index.html when not in development
-    win.loadURL("app://./index.html");
+    mainWindow.loadURL("app://./index.html");
   }
+
+  // 添加窗口关闭事件处理
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
 }
 
 // Quit when all windows are closed.
@@ -80,3 +89,25 @@ if (isDevelopment) {
     });
   }
 }
+
+ipcMain.on("close-window", (event) => {
+  if (mainWindow) {
+    mainWindow.close();
+  }
+});
+
+ipcMain.on("minimize-window", (event) => {
+  if (mainWindow) {
+    mainWindow.minimize();
+  }
+});
+
+ipcMain.on("toggle-maximize-window", (event) => {
+  if (mainWindow) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  }
+});
