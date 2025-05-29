@@ -6,7 +6,7 @@
     @wheel="onWheel"
     @mouseleave="onMouseLeave"
     :class="{ panning: isPanning }"
-    class="main-container"
+    class="main-container cannot-select"
   >
     <div class="home-aside" :style="asideStyle" @wheel="onSidebarWheel">
       <div class="sidebar-title" :style="sidebarTitleStyle">组件库</div>
@@ -277,6 +277,7 @@ import {
   onUnmounted,
   markRaw,
   defineExpose,
+  nextTick,
 } from "vue";
 import { CategoryConf, VarConf, SignalConf } from "./BlockBaseConf";
 import { ElMessageBox } from "element-plus";
@@ -418,6 +419,18 @@ const currentMouseX = ref(0);
 const currentMouseY = ref(0);
 
 const CONNECTOR_SNAP_THRESHOLD = 25; // 连接器吸附阈值
+
+// 连线自动避让参数
+const LINE_SPACING = 10; // 连接线间距
+const MIN_SEGMENT_LENGTH = 20; // 最小线段长度
+
+// 连接器类型中文名映射
+const connectorTypeNames = {
+  signal_input: "信号输入",
+  signal_output: "信号输出",
+  var_input: "变量输入",
+  var_output: "变量输出",
+};
 
 // 画布样式计算属性
 const canvasStyle = computed(() => {
@@ -1374,11 +1387,15 @@ function createConnection(start, end) {
   if (end.block.connectors[end.type][end.index].connected) {
     ElMessageBox({
       title: "连接失败",
-      message: `${end.block.name}的${end.type}连接器已被占用`,
+      message: `${end.block.categoryConf.name} 的 ${
+        connectorTypeNames[end.type]
+      } 连接器已被占用`,
       type: "warning",
       showClose: false,
+      showConfirmButton: false,
       closeOnClickModal: true,
       closeOnPressEscape: true,
+      customClass: "default-message-box",
     }).catch(() => {
       // do nothing
     });
@@ -1420,6 +1437,11 @@ function createConnection(start, end) {
   );
   end.block.connectors[end.type][end.index].connected = true;
   end.block.connectors[end.type][end.index].connectionId = connectionId;
+
+  // 强制重新计算所有连接路径以应用避让
+  nextTick(() => {
+    connections.value = [...connections.value];
+  });
 
   return true;
 }
@@ -1464,6 +1486,11 @@ function deleteConnection(connection) {
   if (connectionIndex > -1) {
     connections.value.splice(connectionIndex, 1);
   }
+
+  // 强制重新计算剩余连接路径以重新应用避让
+  nextTick(() => {
+    connections.value = [...connections.value];
+  });
 }
 
 // 删除块及其相关连接
@@ -1802,7 +1829,7 @@ function endConnection(block, type, index, event) {
   potentialConnectTarget = null; // 清除潜在连接目标
 }
 
-// 生成连接线的 SVG 路径（横平竖直）
+// 生成连接线的 SVG 路径（横平竖直，带避让）
 function getConnectionPath(connection) {
   return computed(() => {
     // 获取实时的连接器位置
@@ -1815,12 +1842,178 @@ function getConnectionPath(connection) {
     const x2 = endCoords.x * scale.value + offsetX.value;
     const y2 = endCoords.y * scale.value + offsetY.value;
 
-    // 计算中间点，创建横平竖直的路径
-    const midX = x1 + (x2 - x1) * 0.5;
+    // 计算避让路径
+    const path = calculateAvoidancePath(connection, x1, y1, x2, y2);
 
-    // 创建路径：从起点水平移动到中点，然后垂直移动到终点高度，最后水平移动到终点
-    return `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+    return path;
   }).value;
+}
+
+// 计算避让路径
+function calculateAvoidancePath(currentConnection, x1, y1, x2, y2) {
+  // 获取所有其他连接线的路径信息
+  const otherConnections = connections.value.filter(
+    (conn) => conn.id !== currentConnection.id
+  );
+
+  // 计算基础路径的中间点
+  const direction = x2 > x1 ? 1 : -1; // 连线方向
+  let midX = x1 + (x2 - x1) * 0.5;
+
+  // 检查是否需要避让
+  const conflictingConnections = findConflictingConnections(
+    currentConnection,
+    otherConnections,
+    x1,
+    y1,
+    x2,
+    y2,
+    midX
+  );
+
+  if (conflictingConnections.length === 0) {
+    // 没有冲突，使用基础路径
+    return `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+  }
+
+  // 有冲突，计算避让路径
+  const avoidanceOffset = calculateAvoidanceOffset(
+    currentConnection,
+    conflictingConnections
+  );
+
+  // 根据连线方向和避让偏移调整路径
+  const adjustedMidX = midX + avoidanceOffset * LINE_SPACING * direction;
+
+  // 确保调整后的中间点不会太靠近起点或终点
+  const minMidX = Math.min(x1, x2) + MIN_SEGMENT_LENGTH * direction;
+  const maxMidX = Math.max(x1, x2) - MIN_SEGMENT_LENGTH * direction;
+  const finalMidX = Math.max(minMidX, Math.min(maxMidX, adjustedMidX));
+
+  return `M ${x1} ${y1} L ${finalMidX} ${y1} L ${finalMidX} ${y2} L ${x2} ${y2}`;
+}
+
+// 查找冲突的连接线
+function findConflictingConnections(
+  currentConnection,
+  otherConnections,
+  x1,
+  y1,
+  x2,
+  y2,
+  midX
+) {
+  const conflicting = [];
+  const tolerance = LINE_SPACING; // 冲突检测容忍度
+
+  otherConnections.forEach((otherConn) => {
+    const otherStart = otherConn.startPosition;
+    const otherEnd = otherConn.endPosition;
+
+    const otherX1 = otherStart.x * scale.value + offsetX.value;
+    const otherY1 = otherStart.y * scale.value + offsetY.value;
+    const otherX2 = otherEnd.x * scale.value + offsetX.value;
+    const otherY2 = otherEnd.y * scale.value + offsetY.value;
+
+    const otherMidX = otherX1 + (otherX2 - otherX1) * 0.5;
+
+    // 检查水平线段是否冲突
+    if (
+      checkHorizontalSegmentConflict(
+        x1,
+        y1,
+        midX,
+        otherX1,
+        otherY1,
+        otherMidX,
+        tolerance
+      ) ||
+      checkHorizontalSegmentConflict(
+        midX,
+        y2,
+        x2,
+        otherMidX,
+        otherY2,
+        otherX2,
+        tolerance
+      ) ||
+      checkVerticalSegmentConflict(
+        midX,
+        y1,
+        y2,
+        otherMidX,
+        otherY1,
+        otherY2,
+        tolerance
+      )
+    ) {
+      conflicting.push(otherConn);
+    }
+  });
+
+  return conflicting;
+}
+
+// 检查水平线段冲突
+function checkHorizontalSegmentConflict(
+  x1,
+  y1,
+  x2,
+  otherX1,
+  otherY1,
+  otherX2,
+  tolerance
+) {
+  // 检查Y坐标是否接近
+  if (Math.abs(y1 - otherY1) < tolerance) {
+    // 检查X坐标是否有重叠
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    const otherMinX = Math.min(otherX1, otherX2);
+    const otherMaxX = Math.max(otherX1, otherX2);
+
+    return !(maxX < otherMinX || minX > otherMaxX);
+  }
+  return false;
+}
+
+// 检查垂直线段冲突
+function checkVerticalSegmentConflict(
+  x1,
+  y1,
+  y2,
+  otherX1,
+  otherY1,
+  otherY2,
+  tolerance
+) {
+  // 检查X坐标是否接近
+  if (Math.abs(x1 - otherX1) < tolerance) {
+    // 检查Y坐标是否有重叠
+    const minY = Math.min(y1, y2);
+    const maxY = Math.max(y1, y2);
+    const otherMinY = Math.min(otherY1, otherY2);
+    const otherMaxY = Math.max(otherY1, otherY2);
+
+    return !(maxY < otherMinY || minY > otherMaxY);
+  }
+  return false;
+}
+
+// 计算避让偏移量
+function calculateAvoidanceOffset(currentConnection, conflictingConnections) {
+  // 根据连接线的ID确定一个稳定的避让偏移
+  const connectionIndex = connections.value.findIndex(
+    (conn) => conn.id === currentConnection.id
+  );
+  const conflictCount = conflictingConnections.length;
+
+  // 使用连接线索引和冲突数量计算偏移
+  // 这样可以确保相同的连接组合总是产生相同的避让模式
+  const baseOffset = Math.floor(connectionIndex / 2) + 1;
+  const direction = connectionIndex % 2 === 0 ? 1 : -1;
+
+  return baseOffset * direction;
 }
 
 // 优化正在连接时的临时连接线路径
@@ -1840,7 +2033,7 @@ function getConnectingPath() {
     const x2 = currentMouseX.value * scale.value + offsetX.value;
     const y2 = currentMouseY.value * scale.value + offsetY.value;
 
-    // 计算中间点
+    // 对于正在连接的线，使用简单的中点路径，不做避让
     const midX = x1 + (x2 - x1) * 0.5;
 
     return `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
@@ -1998,16 +2191,6 @@ function loadWorkspace(workspace) {
   try {
     // 清空当前工作区
     clearWorkspace(false);
-
-    if (!workspace || typeof workspace !== "object") {
-      ElMessageBox({
-        title: "加载失败",
-        message: "无效的工作区数据",
-        type: "error",
-        showClose: false,
-      });
-      return false;
-    }
 
     const blockData = workspace.blocks || [];
     const connectionData = workspace.connections || [];

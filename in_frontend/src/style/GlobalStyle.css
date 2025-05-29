@@ -5,10 +5,10 @@ html {
   --color-light-3: #fffff4;
   --color-light-4: #fffffc;
   --color-middle-0: #3d9eff;
-  --color-dark-0: #3e82a9;
-  --color-dark-1: #2c698d;
-  --color-dark-2: #264653;
-  --color-dark-3: #272643;
+  --color-dark-0: rgb(60, 62, 173);
+  --color-dark-1: #3e4491;
+  --color-dark-2: #292a73;
+  --color-dark-3: #1a1b4b;
   --color-important: #ff4b4b;
   --color-important-light: #ff7b7b;
   --color-important-dark: #ff0000;
@@ -28,6 +28,10 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
+}
+
+.cannot-select {
+  user-select: none;
 }
 
 .container-header {
@@ -385,4 +389,34 @@ body {
   background-color: rgba(127, 191, 255, 0.2);
   pointer-events: none;
   z-index: 100;
+}
+
+.el-message-box.default-message-box {
+  border-radius: 12px;
+  padding: 20px 25px;
+}
+
+.default-message-box .el-button {
+  border-radius: 8px;
+}
+
+.default-message-box .el-button.cancel-btn {
+  background-color: #ffffff;
+  border-color: gray;
+  font-weight: 600;
+}
+
+.default-message-box .el-button.cancel-btn:hover {
+  background-color: var(--color-light-3);
+  color: black;
+  border-color: black;
+}
+
+.default-message-box .el-button.confirm-btn {
+  background-color: var(--color-dark-0);
+  font-weight: 600;
+}
+
+.default-message-box .el-button.confirm-btn:hover {
+  background-color: var(--color-dark-2);
 }

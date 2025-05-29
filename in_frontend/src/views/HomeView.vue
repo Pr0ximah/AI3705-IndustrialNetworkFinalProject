@@ -1,5 +1,5 @@
 <template>
-  <ElContainer class="home-container">
+  <ElContainer class="home-container cannot-select">
     <ElHeader class="container-header">
       <div style="display: flex; gap: 10px">
         <div>Home</div>
