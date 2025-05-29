@@ -896,13 +896,9 @@ function onMouseMove(event) {
     (event.clientX - rect.left - offsetX.value) / scale.value;
   let mouseYInCanvas = (event.clientY - rect.top - offsetY.value) / scale.value;
 
-  // 初始坐标（带网格吸附）
+  // 初始坐标
   let newX = mouseXInCanvas - Block.PARAMS.width / 2;
   let newY = mouseYInCanvas - Block.PARAMS.height / 2;
-
-  // 移除拖动边界限制，允许块在画布外放置
-  // newX = Math.max(0, Math.min(canvasWidth.value - Block.PARAMS.width, newX));
-  // newY = Math.max(0, Math.min(canvasHeight.value - Block.PARAMS.height, newY));
 
   // 跟随鼠标移动
   draggingBlock.value.x = newX;
@@ -1290,7 +1286,8 @@ defineExpose({
 
 <style scoped>
 .aside-toggle-button .icon {
-  width: 14px; /* 调整图标大小 */
+  width: 14px;
+  /* 调整图标大小 */
   height: 14px;
   color: #606266;
 }
@@ -1315,7 +1312,8 @@ defineExpose({
 
 .canvas-container {
   height: 100%;
-  flex: 1; /* 占据剩余空间 */
+  flex: 1;
+  /* 占据剩余空间 */
   z-index: 1;
   overflow: hidden;
   position: relative;
@@ -1355,15 +1353,18 @@ defineExpose({
 }
 
 .main-container {
-  position: relative; /* 保持 relative 以便绝对定位的子元素（如toggle button）*/
+  position: relative;
+  /* 保持 relative 以便绝对定位的子元素（如toggle button）*/
   overflow: hidden;
   flex: 1;
   padding: 0;
-  display: flex; /* 使 home-aside 和 canvas-container 水平排列 */
+  display: flex;
+  /* 使 home-aside 和 canvas-container 水平排列 */
 }
 
 /* 新增：平移状态下的光标样式 */
 .main-container.panning {
-  cursor: grabbing !important; /* 确保在平移时始终为抓取光标 */
+  cursor: grabbing !important;
+  /* 确保在平移时始终为抓取光标 */
 }
 </style>
