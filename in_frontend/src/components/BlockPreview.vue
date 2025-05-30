@@ -1,6 +1,10 @@
 <template>
   <div class="block-preview">
-    <DraggableBlock v-if="block" :block="block" />
+    <DraggableBlock
+      v-if="block"
+      :block="block"
+      style="pointer-events: none; transform: scale(1.4)"
+    />
     <!-- <button @click="emit('update:categoryConf', props.categoryConf)">
       Update Category Config
     </button> -->
@@ -36,3 +40,15 @@ defineExpose({
   initBlock,
 });
 </script>
+
+<style scoped>
+.block-preview {
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.2);
+  background-color: rgb(248, 248, 248);
+}
+</style>

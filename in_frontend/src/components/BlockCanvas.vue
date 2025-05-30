@@ -8,7 +8,11 @@
     :class="{ panning: isPanning }"
     class="main-container cannot-select"
   >
-    <div class="home-aside" :style="asideStyle" @wheel="onSidebarWheel">
+    <div
+      class="home-aside custom-scrollbar"
+      :style="asideStyle"
+      @wheel="onSidebarWheel"
+    >
       <div class="sidebar-title" :style="sidebarTitleStyle">组件库</div>
       <div class="block-sidebar">
         <!-- 侧边栏内容 -->
@@ -125,7 +129,6 @@ import DraggableBlock from "./DraggableBlock.vue";
 import {
   VarConf,
   SignalConf,
-  InternalVarConf,
   ECAction,
   ECState,
   ECTransition,
@@ -2169,6 +2172,7 @@ function getWorkspace() {
 }
 
 function loadWorkspace(workspace) {
+  console.log("加载工作区数据");
   try {
     // 清空当前工作区
     clearWorkspace(false);
@@ -2488,6 +2492,7 @@ defineExpose({
   loadWorkspace,
   clearWorkspace,
   saveBlockCatetoriesToFile,
+  getBlockCategories,
   clearWorkspaceValid,
   scale,
 });

@@ -56,4 +56,9 @@ contextBridge.exposeInMainWorld("ipcApi", {
     }
     return String(error);
   },
+
+  // 保存修改的块配置
+  saveModifiedBlockCategory: (category) => {
+    return ipcRenderer.invoke("save-modified-block-category", category);
+  },
 });

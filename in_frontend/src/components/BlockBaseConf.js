@@ -103,4 +103,5 @@ export {
   ECTransition,
   AlgorithmConf,
   CategoryConf,
+  VAR_TYPE,
 };

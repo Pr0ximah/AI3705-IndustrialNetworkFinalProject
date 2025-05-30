@@ -25,7 +25,8 @@
 import WindowControl from "@/components/WindowControl.vue";
 import BlockEditor from "@/components/BlockEditor.vue";
 import BlockPreview from "@/components/BlockPreview.vue";
-import { provide, ref, onMounted } from "vue";
+import { ElNotification } from "element-plus";
+import { provide, ref, onMounted, onBeforeUnmount } from "vue";
 
 const currentCategoryId = window.ipcApi.getProcessArgv("category-id");
 const categoryConf = ref(null);
@@ -50,17 +51,34 @@ const updateCategoryConf = (newCategoryConf) => {
 provide("updateCategoryConf", updateCategoryConf);
 
 onMounted(() => {
-  window.ipcApi.loadBlockCategoryById(currentCategoryId).then((data) => {
-    categoryConf.value = data;
+  window.ipcApi.send("open-block-editor-signal");
+  window.ipcApi
+    .loadBlockCategoryById(currentCategoryId)
+    .then((data) => {
+      categoryConf.value = data;
 
-    // 数据加载完成后调用子组件初始化
-    if (blockPreviewRef.value && blockPreviewRef.value.initBlock) {
-      blockPreviewRef.value.initBlock(categoryConf.value, currentCategoryId);
-    }
-    if (blockEditorRef.value && blockEditorRef.value.initBlock) {
-      blockEditorRef.value.initBlock(categoryConf.value, currentCategoryId);
-    }
-  });
+      // 数据加载完成后调用子组件初始化
+      if (blockPreviewRef.value && blockPreviewRef.value.initBlock) {
+        blockPreviewRef.value.initBlock(categoryConf.value, currentCategoryId);
+      }
+      if (blockEditorRef.value && blockEditorRef.value.initBlock) {
+        blockEditorRef.value.initBlock(categoryConf.value, currentCategoryId);
+      }
+    })
+    .catch((error) => {
+      let errorMessage = window.ipcApi.extractErrorMessage(error);
+      ElNotification({
+        title: "加载失败",
+        message: errorMessage,
+        showClose: false,
+        type: "error",
+        duration: 1500,
+        customClass: "default-notification",
+      });
+      setTimeout(() => {
+        window.ipcApi.send("close-window", "block-editor");
+      }, 1500);
+    });
 });
 </script>
 

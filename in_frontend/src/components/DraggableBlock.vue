@@ -246,11 +246,11 @@ const handleConnectorMouseUp = (type, index, event) => {
   margin-bottom: 5px;
 }
 
-.signal-connector {
+.var-connector {
   background-color: #ff6b6b;
 }
 
-.var-connector {
+.signal-connector {
   background-color: #4ecdc4;
 }
 
@@ -259,26 +259,26 @@ const handleConnectorMouseUp = (type, index, event) => {
   box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
 }
 
-.signal-connector.active {
+.var-connector.active {
   background-color: #ffd93d;
   border-color: #ff6b35;
   box-shadow: 0 0 6px rgba(255, 107, 53, 0.6);
 }
 
-.signal-connector.snapped {
+.var-connector.snapped {
   background-color: #ff9800;
   border-color: #f57c00;
   box-shadow: 0 0 8px rgba(255, 152, 0, 0.8);
   transform: scale(1.3);
 }
 
-.var-connector.active {
+.signal-connector.active {
   background-color: #81c784;
   border-color: #4caf50;
   box-shadow: 0 0 6px rgba(76, 175, 80, 0.6);
 }
 
-.var-connector.snapped {
+.signal-connector.snapped {
   background-color: #66bb6a;
   border-color: #388e3c;
   box-shadow: 0 0 8px rgba(102, 187, 106, 0.8);
