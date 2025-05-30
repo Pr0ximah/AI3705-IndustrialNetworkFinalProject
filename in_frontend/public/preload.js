@@ -14,4 +14,16 @@ contextBridge.exposeInMainWorld("ipcApi", {
       ipcRenderer.removeListener(channel, subscription);
     };
   },
+
+  // 获取启动参数
+  getProcessArgv: () => {
+    return process.argv;
+  },
+
+  // 获取特定的block-id参数
+  getBlockId: () => {
+    const args = process.argv;
+    const blockIdArg = args.find((arg) => arg.startsWith("--block-id="));
+    return blockIdArg ? blockIdArg.split("=")[1] : null;
+  },
 });

@@ -22,7 +22,6 @@
             cursor: draggingBlock === block ? 'grabbing' : 'grab',
           }"
           @mousedown="startDrag(block, $event)"
-          @click.stop="selectBlock(block, $event)"
           class="drag-block"
           :class="{
             selected: selectedBlock === block,
@@ -142,6 +141,7 @@
           }"
           @mousedown="startDrag(block, $event)"
           @click.stop="selectBlock(block, $event)"
+          @dblclick.stop="doubleClickBlock(block, $event)"
           class="drag-block"
           :class="{
             selected: selectedBlock === block || selectedBlocks.has(block),
@@ -1546,6 +1546,13 @@ function selectConnection(connection, event) {
   }
 }
 
+// 双击块事件处理函数
+function doubleClickBlock(block, event) {
+  // 阻止事件冒泡
+  event.stopPropagation();
+  window.ipcApi.send("block-editor:double-click-block", block.id);
+}
+
 // 检查连接器是否激活（正在连接时的视觉反馈）
 function isConnectorActive(block, type, index) {
   if (!isConnecting.value || !connectingStart.value) return false;
@@ -2101,7 +2108,6 @@ function getBlockCategories() {
   service
     .get("/inputs/categories")
     .then((response) => {
-      console.log(response);
       if (response.data.categories && response.data.categories.length > 0) {
         // 清空现有类别
         blockCategories.value = [];

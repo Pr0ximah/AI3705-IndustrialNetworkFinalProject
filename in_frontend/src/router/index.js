@@ -7,6 +7,14 @@ const routes = [
     name: "home",
     component: HomeView,
   },
+  {
+    path: "/block-editor",
+    name: "block-editor",
+    component: () =>
+      import(
+        /* webpackChunkName: "block-editor" */ "../views/BlockEditorView.vue"
+      ),
+  },
   // {
   //   path: "/about",
   //   name: "about",

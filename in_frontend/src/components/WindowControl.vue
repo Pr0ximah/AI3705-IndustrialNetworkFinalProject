@@ -1,6 +1,10 @@
 <template>
   <div class="window-controls">
-    <div class="control-button no-drag" @click="minimizeWindow">
+    <div
+      v-if="showMinimize"
+      class="control-button no-drag"
+      @click="minimizeWindow"
+    >
       <svg
         t="1748533267833"
         class="icon"
@@ -17,7 +21,11 @@
         ></path>
       </svg>
     </div>
-    <div class="control-button no-drag" @click="toggleMaximizeWindow">
+    <div
+      v-if="showMaximize"
+      class="control-button no-drag"
+      @click="toggleMaximizeWindow"
+    >
       <svg
         t="1748533321715"
         class="icon"
@@ -56,17 +64,33 @@
 </template>
 
 <script setup>
-import { inject } from "vue";
+import { defineProps } from "vue";
+
+// 定义组件属性
+const props = defineProps({
+  showMinimize: {
+    type: Boolean,
+    default: true,
+  },
+  showMaximize: {
+    type: Boolean,
+    default: true,
+  },
+  windowName: {
+    type: String,
+    default: "main",
+  },
+});
 
 function minimizeWindow() {
-  window.ipcApi.send("minimize-window");
+  window.ipcApi.send("minimize-window", props.windowName);
 }
 
 function toggleMaximizeWindow() {
-  window.ipcApi.send("toggle-maximize-window");
+  window.ipcApi.send("toggle-maximize-window", props.windowName);
 }
 
 function closeWindow() {
-  window.ipcApi.send("close-window");
+  window.ipcApi.send("close-window", props.windowName);
 }
 </script>
