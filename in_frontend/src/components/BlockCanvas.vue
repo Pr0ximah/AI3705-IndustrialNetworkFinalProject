@@ -132,123 +132,13 @@ import {
   AlgorithmConf,
   CategoryConf,
 } from "./BlockBaseConf";
-import { ElMessageBox, ElLoading } from "element-plus";
+import Block from "./Block";
+import { ElMessageBox, ElLoading, ElNotification } from "element-plus";
 import { Delete, DArrowLeft, DArrowRight } from "@element-plus/icons-vue";
-import equipment from "@/assets/equipment.svg";
 import service from "@/util/ajax_inst.js";
 
 const DRAG_THRESHOLD = 3; // 拖拽阈值：鼠标移动超过5像素才触发拖拽
-const BLOCK_COLOR_MAP = ["#f9b4ab", "#fdebd3", "#ccd9ff", "#f0fff0", "#e4d6ff"]; // 块颜色映射
 const blockCategories = ref([]);
-
-class Block {
-  // 静态属性
-  static PLACE_STATE = {
-    original: "original",
-    placed: "placed",
-  };
-
-  static PARAMS = {
-    width: 100,
-    height: 100,
-  };
-
-  // 静态计数器用于生成唯一ID
-  static _idCounter = 0;
-
-  // 构造函数
-  constructor(x, y, placeState, categoryConf) {
-    this.id = Block._generateUniqueId(); // 生成唯一ID
-    this.x = x;
-    this.y = y;
-    this.width = Block.PARAMS.width;
-    this.height = Block.PARAMS.height;
-    this.categoryConf = categoryConf; // 类别配置
-    this.categoryIndex = blockCategories.value.findIndex(
-      (conf) => conf === categoryConf
-    );
-    this.place_state = placeState;
-    this.color = this.getColorByCategory();
-
-    // 连接信息：存储连接到此块的连接器信息
-    this.connectors = {
-      signal_input: [], // 信号输入连接器状态
-      signal_output: [], // 信号输出连接器状态
-      var_input: [], // 变量输入连接器状态
-      var_output: [], // 变量输出连接器状态
-    };
-
-    // 初始化连接器状态
-    this.initializeConnectors();
-  }
-
-  // 初始化连接器状态
-  initializeConnectors() {
-    this.connectors.signal_input = this.categoryConf.signal_input.map(() => ({
-      connected: false,
-      connectionId: null,
-    }));
-    this.connectors.signal_output = this.categoryConf.signal_output.map(() => ({
-      connected: false,
-      connectionIds: [], // 输出可以连接多个
-    }));
-    this.connectors.var_input = this.categoryConf.var_input.map(() => ({
-      connected: false,
-      connectionId: null,
-    }));
-    this.connectors.var_output = this.categoryConf.var_output.map(() => ({
-      connected: false,
-      connectionIds: [], // 输出可以连接多个
-    }));
-  }
-
-  // 生成唯一ID的静态方法
-  static _generateUniqueId() {
-    return `block_${++Block._idCounter}_${Date.now()}`;
-  }
-
-  // 根据类别获取颜色
-  getColorByCategory() {
-    const color = safeGet(BLOCK_COLOR_MAP, this.categoryIndex);
-    return color ? color : "#FFFFFF";
-  }
-
-  // 获取类别名称
-  getCategoryName() {
-    return this.categoryConf.name;
-  }
-
-  // 获取类别图标
-  getCategoryIcon() {
-    // 默认图标
-    return equipment;
-  }
-
-  // 获取块的中心点
-  getCenter() {
-    return {
-      x: this.x + this.width / 2,
-      y: this.y + this.height / 2,
-    };
-  }
-
-  // 创建块的静态方法
-  static createBlock(x, y, placeState, categoryConf) {
-    return new Block(x, y, placeState, categoryConf);
-  }
-
-  // 创建块的深拷贝
-  clone() {
-    const clonedBlock = new Block(
-      this.x,
-      this.y,
-      this.place_state,
-      this.categoryConf
-    );
-    // 注意：clone会自动生成新的ID，这通常是我们想要的行为
-    return clonedBlock;
-  }
-}
 
 // 画布状态
 const scale = ref(1); // 缩放比例
@@ -295,8 +185,8 @@ const canvasStyle = computed(() => {
 
 // 原始块 - 基于可用类别动态生成
 const originalBlocks = computed(() =>
-  blockCategories.value.map((category) =>
-    Block.createBlock(0, 0, Block.PLACE_STATE.original, category)
+  blockCategories.value.map((category, index) =>
+    Block.createBlock(0, 0, Block.PLACE_STATE.original, category, index)
   )
 );
 
@@ -408,7 +298,7 @@ function calculateConnectorRelativePosition(block, type, index) {
   const connectorWidth = 8;
   const connectorHeight = 10;
   const lineBlockSpacing = 2; // 连接器与块边界的间距
-  const connectorSpacing = 5; // 同组内连接器间距
+  const connectorSpacing = 8; // 同组内连接器间距
   const topBottomMargin = 6 + connectorHeight / 2; // 顶部边距
   const borderWidth = 1;
 
@@ -838,7 +728,8 @@ function startDrag(block, event) {
       mouseX,
       mouseY,
       Block.PLACE_STATE.placed,
-      block.categoryConf
+      block.categoryConf,
+      block.categoryIndex
     );
     placedBlocks.value.push(newBlock);
     potentialDragBlock.value = newBlock;
@@ -1940,7 +1831,6 @@ onMounted(() => {
 
   // 获取所有类别定义
   getBlockCategories();
-  // getBlockCategories(true);
 });
 
 // 在组件卸载时移除键盘事件监听器
@@ -1982,29 +1872,32 @@ function getBlockCategories(fromFiles = false) {
     window.ipcApi
       .loadBlockCategories()
       .then((categoriesJSON) => {
+        categoriesJSON = JSON.parse(categoriesJSON);
         if (categoriesJSON && categoriesJSON.length > 0) {
           // 清空现有类别
           blockCategories.value = [];
           // 添加新类别
-          categoriesJSON.forEach((categoryJSON) => {
-            categoryJSON = JSON.parse(categoryJSON);
-            const blockCategory =
-              convertJSON_TO_BlockCategoryObject(categoryJSON);
+          categoriesJSON.forEach((item) => {
+            const blockCategory = convertJSON_TO_BlockCategoryObject(item);
             blockCategories.value.push(blockCategory);
           });
           // 按id排序
           blockCategories.value.sort((a, b) => (a.id || 0) - (b.id || 0));
-        } else {
-          console.warn("没有获取到任何类别定义");
         }
       })
       .catch((error) => {
-        console.error("加载类别定义失败", error);
+        let errorMessage = window.ipcApi.extractErrorMessage(error);
+        ElNotification({
+          title: "加载失败",
+          message: errorMessage,
+          showClose: false,
+          type: "error",
+          duration: 2500,
+          customClass: "default-notification",
+        });
       })
       .finally(() => {
-        setTimeout(() => {
-          loading.close();
-        }, 400);
+        loading.close();
       });
   } else {
     // 从服务端获取类别定义
@@ -2018,7 +1911,7 @@ function getBlockCategories(fromFiles = false) {
           response.data.categories.forEach((categoryJSON) => {
             const blockCategory =
               convertJSON_TO_BlockCategoryObject(categoryJSON);
-            blockCategory.id = blockCategories.value.length + 1;
+            blockCategory.id = blockCategories.value.length;
             blockCategories.value.push(blockCategory);
           });
         } else {
@@ -2048,8 +1941,17 @@ function saveBlockCatetoriesToFile() {
   );
   window.ipcApi
     .saveBlockCategories(JSON.stringify(categoriesJSON))
+    .then()
     .catch((error) => {
-      console.error("保存模型定义失败", error);
+      let errorMessage = window.ipcApi.extractErrorMessage(error);
+      ElNotification({
+        title: "保存失败",
+        message: errorMessage,
+        showClose: false,
+        type: "error",
+        duration: 2500,
+        customClass: "default-notification",
+      });
     })
     .finally(() => {
       setTimeout(() => {
@@ -2113,6 +2015,10 @@ function convertJSON_TO_BlockCategoryObject(categoryJSON) {
     Algorithms,
     categoryJSON.description
   );
+  // 设置ID以确保categoryIndex正确
+  if (categoryJSON.id !== undefined) {
+    category.id = categoryJSON.id;
+  }
   return category;
 }
 
@@ -2175,10 +2081,6 @@ function convertBlockCategoryObject_TO_JSON(category) {
       Code: algorithm.code,
     })),
   };
-}
-
-function safeGet(list, index) {
-  return index >= 0 && index < list.length ? list[index] : null;
 }
 
 function getWorkspace() {
@@ -2325,18 +2227,24 @@ function loadWorkspace(workspace) {
       try {
         // 查找对应的类别定义
         let categoryConf;
+        let categoryIndex = 0;
+
         if (
           blockInfo.categoryIndex !== undefined &&
           blockInfo.categoryIndex >= 0 &&
           blockInfo.categoryIndex < blockCategories.value.length
         ) {
           // 使用索引查找类别
-          categoryConf = blockCategories.value[blockInfo.categoryIndex];
+          categoryIndex = blockInfo.categoryIndex;
+          categoryConf = blockCategories.value[categoryIndex];
         } else {
           // 使用名称查找类别
           categoryConf = blockCategories.value.find(
             (cat) => cat.name === blockInfo.categoryName
           );
+          if (categoryConf) {
+            categoryIndex = blockCategories.value.indexOf(categoryConf);
+          }
         }
 
         if (!categoryConf) {
@@ -2359,14 +2267,18 @@ function loadWorkspace(workspace) {
             blockInfo.categoryConf.description,
             blockInfo.categoryConf.icon
           );
+          // 将新类别添加到类别列表中
+          blockCategories.value.push(categoryConf);
+          categoryIndex = blockCategories.value.length - 1;
         }
 
-        // 创建新块实例
+        // 创建新块实例，传入正确的 categoryIndex
         const block = new Block(
           blockInfo.x,
           blockInfo.y,
           Block.PLACE_STATE.placed,
-          categoryConf
+          categoryConf,
+          categoryIndex
         );
 
         // 使用原始ID（重要：保持引用一致性）

@@ -47,11 +47,11 @@ provide("scale", scale);
 
 let workspace = {
   version: "1.0",
-  timestamp: 1748536338081,
+  timestamp: 1748591683970,
   canvas: {
     scale: 1,
-    offsetX: 1187.75,
-    offsetY: 812.5,
+    offsetX: 468.5,
+    offsetY: 373.5,
   },
   blockCategories: [
     {
@@ -224,11 +224,11 @@ let workspace = {
   ],
   blocks: [
     {
-      id: "block_10_1748536296890",
-      x: -851.25,
-      y: -584.5,
-      width: 100,
-      height: 100,
+      id: "block_8_1748591671475",
+      x: -389.5,
+      y: -284.5,
+      width: 200,
+      height: 200,
       categoryName: "输送机",
       categoryIndex: 0,
       categoryConf: {
@@ -284,11 +284,11 @@ let workspace = {
       },
     },
     {
-      id: "block_11_1748536298997",
-      x: -587.25,
-      y: -587.5,
-      width: 100,
-      height: 100,
+      id: "block_10_1748591674170",
+      x: 25.5,
+      y: -216.5,
+      width: 200,
+      height: 200,
       categoryName: "提升机",
       categoryIndex: 1,
       categoryConf: {
@@ -352,234 +352,48 @@ let workspace = {
         ],
       },
     },
-    {
-      id: "block_12_1748536299830",
-      x: -872.75,
-      y: -438.5,
-      width: 100,
-      height: 100,
-      categoryName: "移栽机",
-      categoryIndex: 2,
-      categoryConf: {
-        name: "移栽机",
-        signal_input: [
-          {
-            name: "StartTransfer",
-            description: "启动移栽信号",
-          },
-          {
-            name: "EmergencyStop",
-            description: "急停信号",
-          },
-          {
-            name: "WorkpieceDetected",
-            description: "工件到位检测信号",
-          },
-        ],
-        signal_output: [
-          {
-            name: "TransferComplete",
-            description: "移栽完成信号",
-          },
-          {
-            name: "Alarm",
-            description: "异常报警信号",
-          },
-        ],
-        var_input: [
-          {
-            name: "CurrentPosition",
-            type: "float",
-            description: "当前移栽臂位置坐标(mm)",
-          },
-          {
-            name: "TargetPosition",
-            type: "float",
-            description: "目标移栽位置坐标(mm)",
-          },
-          {
-            name: "WorkpieceWeight",
-            type: "float",
-            description: "工件重量(kg)",
-          },
-        ],
-        var_output: [
-          {
-            name: "MoveSpeed",
-            type: "float",
-            description: "移栽臂移动速度(mm/s)",
-          },
-          {
-            name: "GripperForce",
-            type: "float",
-            description: "夹爪夹持力(N)",
-          },
-        ],
-      },
-    },
-    {
-      id: "block_13_1748536333392",
-      x: -406.75,
-      y: -445.5,
-      width: 100,
-      height: 100,
-      categoryName: "移栽机",
-      categoryIndex: 2,
-      categoryConf: {
-        name: "移栽机",
-        signal_input: [
-          {
-            name: "StartTransfer",
-            description: "启动移栽信号",
-          },
-          {
-            name: "EmergencyStop",
-            description: "急停信号",
-          },
-          {
-            name: "WorkpieceDetected",
-            description: "工件到位检测信号",
-          },
-        ],
-        signal_output: [
-          {
-            name: "TransferComplete",
-            description: "移栽完成信号",
-          },
-          {
-            name: "Alarm",
-            description: "异常报警信号",
-          },
-        ],
-        var_input: [
-          {
-            name: "CurrentPosition",
-            type: "float",
-            description: "当前移栽臂位置坐标(mm)",
-          },
-          {
-            name: "TargetPosition",
-            type: "float",
-            description: "目标移栽位置坐标(mm)",
-          },
-          {
-            name: "WorkpieceWeight",
-            type: "float",
-            description: "工件重量(kg)",
-          },
-        ],
-        var_output: [
-          {
-            name: "MoveSpeed",
-            type: "float",
-            description: "移栽臂移动速度(mm/s)",
-          },
-          {
-            name: "GripperForce",
-            type: "float",
-            description: "夹爪夹持力(N)",
-          },
-        ],
-      },
-    },
   ],
   connections: [
     {
-      id: "connection_4",
+      id: "connection_1",
       type: "signal",
       start: {
-        blockId: "block_10_1748536296890",
+        blockId: "block_8_1748591671475",
         type: "signal_output",
         index: 0,
       },
       end: {
-        blockId: "block_11_1748536298997",
+        blockId: "block_10_1748591674170",
         type: "signal_input",
         index: 0,
       },
     },
     {
-      id: "connection_5",
-      type: "signal",
-      start: {
-        blockId: "block_10_1748536296890",
-        type: "signal_output",
-        index: 1,
-      },
-      end: {
-        blockId: "block_11_1748536298997",
-        type: "signal_input",
-        index: 2,
-      },
-    },
-    {
-      id: "connection_6",
+      id: "connection_2",
       type: "var",
       start: {
-        blockId: "block_12_1748536299830",
+        blockId: "block_8_1748591671475",
         type: "var_output",
         index: 0,
       },
       end: {
-        blockId: "block_11_1748536298997",
+        blockId: "block_10_1748591674170",
         type: "var_input",
-        index: 1,
+        index: 0,
       },
     },
     {
-      id: "connection_7",
+      id: "connection_3",
       type: "var",
       start: {
-        blockId: "block_12_1748536299830",
+        blockId: "block_8_1748591671475",
         type: "var_output",
         index: 1,
       },
       end: {
-        blockId: "block_11_1748536298997",
+        blockId: "block_10_1748591674170",
         type: "var_input",
-        index: 0,
-      },
-    },
-    {
-      id: "connection_8",
-      type: "var",
-      start: {
-        blockId: "block_10_1748536296890",
-        type: "var_output",
-        index: 0,
-      },
-      end: {
-        blockId: "block_11_1748536298997",
-        type: "var_input",
-        index: 2,
-      },
-    },
-    {
-      id: "connection_9",
-      type: "signal",
-      start: {
-        blockId: "block_11_1748536298997",
-        type: "signal_output",
-        index: 0,
-      },
-      end: {
-        blockId: "block_13_1748536333392",
-        type: "signal_input",
-        index: 0,
-      },
-    },
-    {
-      id: "connection_10",
-      type: "var",
-      start: {
-        blockId: "block_11_1748536298997",
-        type: "var_output",
-        index: 0,
-      },
-      end: {
-        blockId: "block_13_1748536333392",
-        type: "var_input",
-        index: 0,
+        index: 1,
       },
     },
   ],

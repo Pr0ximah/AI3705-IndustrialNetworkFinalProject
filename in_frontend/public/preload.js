@@ -44,5 +44,16 @@ contextBridge.exposeInMainWorld("ipcApi", {
   // 从本地加载ID的块类型
   loadBlockCategoryById: (id) => {
     return ipcRenderer.invoke("load-block-category-by-id", id);
-  }
+  },
+
+  // 提取错误消息
+  extractErrorMessage: (error) => {
+    if (error instanceof Error) {
+      const errorMessage = error.message.includes("Error:")
+        ? error.message.split("Error:").pop().trim()
+        : error.message;
+      return errorMessage;
+    }
+    return String(error);
+  },
 });

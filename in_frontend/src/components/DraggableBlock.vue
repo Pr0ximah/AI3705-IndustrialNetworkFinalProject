@@ -67,6 +67,49 @@
       </div>
     </div>
 
+    <!-- 左侧标签区域 -->
+    <div class="labels-region left-labels-region">
+      <div class="label-group">
+        <span
+          v-for="signal in block.categoryConf.signal_input"
+          :key="signal.name"
+          class="connector-label left-label signal-label"
+        >
+          {{ signal.name }}
+        </span>
+      </div>
+      <div class="label-group">
+        <span
+          v-for="variable in block.categoryConf.var_input"
+          :key="variable.name"
+          class="connector-label left-label var-label"
+        >
+          {{ variable.name }}
+        </span>
+      </div>
+    </div>
+
+    <!-- 右侧标签区域 -->
+    <div class="labels-region right-labels-region">
+      <div class="label-group">
+        <span
+          v-for="signal in block.categoryConf.signal_output"
+          :key="signal.name"
+          class="connector-label right-label signal-label"
+        >
+          {{ signal.name }}
+        </span>
+      </div>
+      <div class="label-group">
+        <span
+          v-for="variable in block.categoryConf.var_output"
+          :key="variable.name"
+          class="connector-label right-label var-label"
+        >
+          {{ variable.name }}
+        </span>
+      </div>
+    </div>
     <img :src="block.getCategoryIcon()" class="icon" draggable="false" />
     {{ block.getCategoryName() }}
   </div>
@@ -242,9 +285,65 @@ const handleConnectorMouseUp = (type, index, event) => {
   transform: scale(1.3);
 }
 
-.icon {
-  width: 20px;
-  height: 20px;
-  margin-right: 4px;
+/* 标签区域样式 */
+.labels-region {
+  position: absolute;
+  display: flex;
+  width: 80px;
+  flex-direction: column;
+  justify-content: space-between;
+  height: calc(100% - 10px);
+}
+
+.left-labels-region {
+  left: 5px;
+}
+
+.right-labels-region {
+  right: 5px;
+}
+
+/* 连接器标签样式 */
+.connector-label {
+  font-size: 9px;
+  color: #666;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 1px 4px;
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  height: 10px;
+  display: flex;
+  align-items: center;
+  min-width: 20px;
+  justify-content: center;
+}
+
+.left-label {
+  text-align: left;
+}
+
+.right-label {
+  text-align: right;
+}
+
+.signal-label {
+  border-left: 2px solid #ff6b6b;
+}
+
+.var-label {
+  border-left: 2px solid #4ecdc4;
+}
+
+.right-label.signal-label {
+  border-left: none;
+  border-right: 2px solid #ff6b6b;
+}
+
+.right-label.var-label {
+  border-left: none;
+  border-right: 2px solid #4ecdc4;
 }
 </style>

@@ -11,7 +11,10 @@ let blockEditorWindow = null;
 
 // 持久化数据目录
 const userDataPath = app.getPath("userData");
-const categoriesSaveDir = path.join(userDataPath, "blockCategories");
+const blockCategoriesFilePath = path.join(
+  userDataPath,
+  "block-categories.json"
+);
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
@@ -167,60 +170,34 @@ ipcMain.on("canvas:double-click-block", (event, categoryId) => {
 });
 
 ipcMain.handle("save-block-categories", async (event, categories) => {
-  if (!fs.existsSync(categoriesSaveDir)) {
-    fs.mkdirSync(categoriesSaveDir, { recursive: true });
-  }
-
   // Parse categories from JSON string to object list
   const categoriesList =
     typeof categories === "string" ? JSON.parse(categories) : categories;
 
-  categoriesList.forEach((element) => {
-    const categoryPath = path.join(
-      categoriesSaveDir,
-      `${element.name}_${element.id}.json`
+  try {
+    fs.writeFileSync(
+      blockCategoriesFilePath,
+      JSON.stringify(categoriesList, null, 2)
     );
-    if (!fs.existsSync(categoriesSaveDir)) {
-      fs.mkdirSync(categoriesSaveDir, { recursive: true });
-    }
-    try {
-      fs.writeFileSync(categoryPath, JSON.stringify(element, null, 2));
-      return { success: true, path: categoryPath };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
+  } catch (error) {
+    throw new Error(`保存功能块配置失败！错误： ${error.message}`);
+  }
 });
 
 ipcMain.handle("load-block-categories", async (event) => {
-  if (!fs.existsSync(categoriesSaveDir)) {
-    return [];
+  if (!fs.existsSync(blockCategoriesFilePath)) {
+    throw new Error("功能块配置文件保存路径不存在！请重新生成。");
   }
-
-  const files = fs.readdirSync(categoriesSaveDir);
-  const categories = files
-    .filter((file) => file.endsWith(".json"))
-    .map((file) => {
-      const filePath = path.join(categoriesSaveDir, file);
-      return fs.readFileSync(filePath, "utf-8");
-    });
-
+  const categories = fs.readFileSync(blockCategoriesFilePath, "utf-8");
   return categories;
 });
 
 ipcMain.handle("load-block-category-by-id", async (event, id) => {
-  if (!fs.existsSync(categoriesSaveDir)) {
-    return null;
+  if (!fs.existsSync(blockCategoriesFilePath)) {
+    throw new Error("功能块配置文件保存路径不存在！请重新生成。");
   }
 
-  const files = fs.readdirSync(categoriesSaveDir);
-  const categoryFile = files.find((file) => file.includes(`_${id}.json`));
-
-  if (!categoryFile) {
-    return null;
-  }
-
-  const filePath = path.join(categoriesSaveDir, categoryFile);
-  const categoryData = fs.readFileSync(filePath, "utf-8");
-  return categoryData;
+  let categories = fs.readFileSync(blockCategoriesFilePath, "utf-8");
+  categories = JSON.parse(categories);
+  return categories[id];
 });

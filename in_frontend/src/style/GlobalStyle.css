@@ -67,6 +67,12 @@ body {
 .connector-group {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+
+.label-group {
+  display: flex;
+  flex-direction: column;
   gap: 5px;
 }
 
