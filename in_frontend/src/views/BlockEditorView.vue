@@ -6,25 +6,15 @@
     class="block-editor-window-control"
   />
   <div class="block-editor-view">
-    <div class="editor-container">
-      <BlockEditor />
-    </div>
-    <div class="preview-container">
-      <BlockPreview />
-    </div>
+    <BlockPreview />ƒ
+    <BlockEditor />
   </div>
 </template>
 
 <script setup>
 import WindowControl from "@/components/WindowControl.vue";
-import { ref, onMounted } from "vue";
-
-const blockID = ref(null);
-
-onMounted(() => {
-  blockID.value = window.ipcApi.getBlockId();
-  console.log("Block ID:", blockID.value);
-});
+import BlockEditor from "@/components/BlockEditor.vue";
+import BlockPreview from "@/components/BlockPreview.vue";
 </script>
 
 <style scoped>

@@ -61,8 +61,8 @@ class AlgorithmConf {
   constructor(name, description, inputVars, outputVars, code) {
     this.name = name;
     this.description = description;
-    this.inputVars = inputVars; // 数组，包含 VarConf 对象
-    this.outputVars = outputVars; // 数组，包含 VarConf 对象
+    this.inputVars = inputVars; // 数组，包含 Var name
+    this.outputVars = outputVars; // 数组，包含 Var name
     this.code = code; // 算法代码
     assert(typeof code === "string", "Code must be a string");
   }
@@ -78,7 +78,8 @@ class CategoryConf {
     internalVar,
     ECC,
     algorithms,
-    description
+    description,
+    id
   ) {
     this.name = name;
     this.var_input = var_input; // 数组，包含 VarConf 对象
@@ -89,6 +90,7 @@ class CategoryConf {
     this.ECC = ECC; // 数组，包含 ECState 和 ECTransitions 对象
     this.algorithms = algorithms; // 数组，包含 AlgorithmConf 对象
     this.description = description;
+    this.id = id; // 唯一标识符
   }
 }
 

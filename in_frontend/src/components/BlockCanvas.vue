@@ -1550,7 +1550,7 @@ function selectConnection(connection, event) {
 function doubleClickBlock(block, event) {
   // 阻止事件冒泡
   event.stopPropagation();
-  window.ipcApi.send("block-editor:double-click-block", block.id);
+  window.ipcApi.send("canvas:double-click-block", block.categoryConf.id);
 }
 
 // 检查连接器是否激活（正在连接时的视觉反馈）
@@ -2069,6 +2069,7 @@ onMounted(() => {
 
   // 获取所有类别定义
   getBlockCategories();
+  // getBlockCategories(true);
 });
 
 // 在组件卸载时移除键盘事件监听器
@@ -2098,29 +2099,86 @@ function handleWindowBlur(event) {
   onMouseLeave(event);
 }
 
-function getBlockCategories() {
+function getBlockCategories(fromFiles = false) {
   const loading = ElLoading.service({
     lock: true,
     customClass: "default-loading",
     text: "正在读取模型定义...",
     background: "rgba(255, 255, 255, 0.7)",
   });
-  service
-    .get("/inputs/categories")
-    .then((response) => {
-      if (response.data.categories && response.data.categories.length > 0) {
-        // 清空现有类别
-        blockCategories.value = [];
-        // 添加新类别
-        response.data.categories.forEach((categoryJSON) => {
-          blockCategories.value.push(createBlockCategoryByJSON(categoryJSON));
-        });
-      } else {
-        console.warn("没有获取到任何类别定义");
-      }
-    })
+  if (fromFiles) {
+    // 从已有文件加载类别定义
+    window.ipcApi
+      .loadBlockCategories()
+      .then((categoriesJSON) => {
+        if (categoriesJSON && categoriesJSON.length > 0) {
+          // 清空现有类别
+          blockCategories.value = [];
+          // 添加新类别
+          categoriesJSON.forEach((categoryJSON) => {
+            categoryJSON = JSON.parse(categoryJSON);
+            const blockCategory =
+              convertJSON_TO_BlockCategoryObject(categoryJSON);
+            blockCategories.value.push(blockCategory);
+          });
+          // 按id排序
+          blockCategories.value.sort((a, b) => (a.id || 0) - (b.id || 0));
+        } else {
+          console.warn("没有获取到任何类别定义");
+        }
+      })
+      .catch((error) => {
+        console.error("加载类别定义失败", error);
+      })
+      .finally(() => {
+        setTimeout(() => {
+          loading.close();
+        }, 400);
+      });
+  } else {
+    // 从服务端获取类别定义
+    service
+      .get("/inputs/categories")
+      .then((response) => {
+        if (response.data.categories && response.data.categories.length > 0) {
+          // 清空现有类别
+          blockCategories.value = [];
+          // 添加新类别
+          response.data.categories.forEach((categoryJSON) => {
+            const blockCategory =
+              convertJSON_TO_BlockCategoryObject(categoryJSON);
+            blockCategory.id = blockCategories.value.length + 1;
+            blockCategories.value.push(blockCategory);
+          });
+        } else {
+          console.warn("没有获取到任何类别定义");
+        }
+      })
+      .catch((error) => {
+        console.error("获取类别定义失败", error);
+      })
+      .finally(() => {
+        setTimeout(() => {
+          loading.close();
+        }, 400);
+      });
+  }
+}
+
+function saveBlockCatetoriesToFile() {
+  const loading = ElLoading.service({
+    lock: true,
+    customClass: "default-loading",
+    text: "正在保存模型定义...",
+    background: "rgba(255, 255, 255, 0.7)",
+  });
+  const categoriesJSON = blockCategories.value.map((category) =>
+    convertBlockCategoryObject_TO_JSON(category)
+  );
+  window.ipcApi
+    .saveBlockCategories(JSON.stringify(categoriesJSON))
     .catch((error) => {
-      console.error("获取类别定义失败", error);
+      console.error("保存模型定义失败", error);
     })
     .finally(() => {
       setTimeout(() => {
@@ -2129,7 +2187,7 @@ function getBlockCategories() {
     });
 }
 
-function createBlockCategoryByJSON(categoryJSON) {
+function convertJSON_TO_BlockCategoryObject(categoryJSON) {
   let varInputs = categoryJSON.var_input.map(
     (v) => new VarConf(v.name, v.type, v.description)
   );
@@ -2185,6 +2243,67 @@ function createBlockCategoryByJSON(categoryJSON) {
     categoryJSON.description
   );
   return category;
+}
+
+function convertBlockCategoryObject_TO_JSON(category) {
+  return {
+    name: category.name,
+    id: category.id,
+    description: category.description,
+    signal_input: category.signal_input.map((signal) => ({
+      name: signal.name,
+      description: signal.description,
+    })),
+    signal_output: category.signal_output.map((signal) => ({
+      name: signal.name,
+      description: signal.description,
+    })),
+    var_input: category.var_input.map((variable) => ({
+      name: variable.name,
+      type: variable.type,
+      description: variable.description,
+    })),
+    var_output: category.var_output.map((variable) => ({
+      name: variable.name,
+      type: variable.type,
+      description: variable.description,
+    })),
+    InternalVars: category.internalVar.map((variable) => ({
+      name: variable.name,
+      type: variable.type,
+      initialValue: variable.initialValue,
+      description: variable.description,
+    })),
+    ECC: {
+      ECStates: category.ECC.ECStates.map((state) => ({
+        name: state.name,
+        comment: state.comment,
+        x: state.x,
+        y: state.y,
+        ecAction: state.ecAction
+          ? {
+              alogorithm: state.ecAction.alogorithm,
+              output: state.ecAction.output,
+            }
+          : null,
+      })),
+      ECTransitions: category.ECC.ECTransitions.map((transition) => ({
+        source: transition.source,
+        destination: transition.destination,
+        condition: transition.condition,
+        comment: transition.comment,
+        x: transition.x,
+        y: transition.y,
+      })),
+    },
+    Algorithms: category.algorithms.map((algorithm) => ({
+      Name: algorithm.name,
+      Comment: algorithm.description,
+      input: algorithm.inputVars,
+      Output: algorithm.outputVars,
+      Code: algorithm.code,
+    })),
+  };
 }
 
 function safeGet(list, index) {
@@ -2579,6 +2698,7 @@ defineExpose({
   getWorkspace,
   loadWorkspace,
   clearWorkspace,
+  saveBlockCatetoriesToFile,
   clearWorkspaceValid,
   scale,
 });

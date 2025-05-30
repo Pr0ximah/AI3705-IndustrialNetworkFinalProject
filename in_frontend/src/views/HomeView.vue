@@ -32,7 +32,6 @@ import CanvasControl from "@/components/CanvasControl.vue";
 import WindowControl from "@/components/WindowControl.vue";
 import { ElContainer, ElHeader, ElMain } from "element-plus";
 import { computed, ref, provide } from "vue";
-import service from "@/util/ajax_inst";
 
 const blockCanvasRef = ref(null);
 const clearWorkspaceValid = computed(() => {
@@ -595,17 +594,7 @@ function test2() {
 }
 
 function test3() {
-  service
-    .get("/")
-    .then((response) => {
-      console.log("Response from server:", response);
-    })
-    .catch((error) => {
-      console.error("Error fetching data:", error);
-    })
-    .finally(() => {
-      console.log("Request completed");
-    });
+  blockCanvasRef.value.saveBlockCatetoriesToFile();
 }
 </script>
 

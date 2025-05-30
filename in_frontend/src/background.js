@@ -4,9 +4,14 @@ import { app, protocol, BrowserWindow, Menu, ipcMain } from "electron";
 import { createProtocol } from "vue-cli-plugin-electron-builder/lib";
 import path from "path";
 import installExtension, { VUEJS3_DEVTOOLS } from "electron-devtools-installer";
+const fs = require("fs");
 const isDevelopment = process.env.NODE_ENV !== "production";
 let mainWindow = null;
 let blockEditorWindow = null;
+
+// 持久化数据目录
+const userDataPath = app.getPath("userData");
+const categoriesSaveDir = path.join(userDataPath, "blockCategories");
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
@@ -122,7 +127,7 @@ ipcMain.on("toggle-maximize-window", (event, windowName) => {
   }
 });
 
-ipcMain.on("block-editor:double-click-block", (event, blockId) => {
+ipcMain.on("canvas:double-click-block", (event, categoryId) => {
   if (!blockEditorWindow) {
     // Create block editor window
     blockEditorWindow = new BrowserWindow({
@@ -137,7 +142,7 @@ ipcMain.on("block-editor:double-click-block", (event, blockId) => {
         nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
         contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
         preload: path.join(__static, "preload.js"),
-        additionalArguments: [`--block-id=${blockId}`],
+        additionalArguments: [`--category-id=${categoryId}`],
       },
     });
 
@@ -159,4 +164,63 @@ ipcMain.on("block-editor:double-click-block", (event, blockId) => {
     // Load the app with route when not in development
     blockEditorWindow.loadURL(`app://./index.html#/block-editor`);
   }
+});
+
+ipcMain.handle("save-block-categories", async (event, categories) => {
+  if (!fs.existsSync(categoriesSaveDir)) {
+    fs.mkdirSync(categoriesSaveDir, { recursive: true });
+  }
+
+  // Parse categories from JSON string to object list
+  const categoriesList =
+    typeof categories === "string" ? JSON.parse(categories) : categories;
+
+  categoriesList.forEach((element) => {
+    const categoryPath = path.join(
+      categoriesSaveDir,
+      `${element.name}_${element.id}.json`
+    );
+    if (!fs.existsSync(categoriesSaveDir)) {
+      fs.mkdirSync(categoriesSaveDir, { recursive: true });
+    }
+    try {
+      fs.writeFileSync(categoryPath, JSON.stringify(element, null, 2));
+      return { success: true, path: categoryPath };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+});
+
+ipcMain.handle("load-block-categories", async (event) => {
+  if (!fs.existsSync(categoriesSaveDir)) {
+    return [];
+  }
+
+  const files = fs.readdirSync(categoriesSaveDir);
+  const categories = files
+    .filter((file) => file.endsWith(".json"))
+    .map((file) => {
+      const filePath = path.join(categoriesSaveDir, file);
+      return fs.readFileSync(filePath, "utf-8");
+    });
+
+  return categories;
+});
+
+ipcMain.handle("load-block-category-by-id", async (event, id) => {
+  if (!fs.existsSync(categoriesSaveDir)) {
+    return null;
+  }
+
+  const files = fs.readdirSync(categoriesSaveDir);
+  const categoryFile = files.find((file) => file.includes(`_${id}.json`));
+
+  if (!categoryFile) {
+    return null;
+  }
+
+  const filePath = path.join(categoriesSaveDir, categoryFile);
+  const categoryData = fs.readFileSync(filePath, "utf-8");
+  return categoryData;
 });

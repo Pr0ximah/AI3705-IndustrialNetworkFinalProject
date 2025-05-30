@@ -16,14 +16,33 @@ contextBridge.exposeInMainWorld("ipcApi", {
   },
 
   // 获取启动参数
-  getProcessArgv: () => {
-    return process.argv;
+  getProcessArgv: (name) => {
+    const args = process.argv;
+    if (name) {
+      const arg = args.find((arg) => arg.startsWith(`--${name}=`));
+      return arg ? arg.split("=")[1] : null;
+    }
+    return args.reduce((acc, arg) => {
+      if (arg.startsWith("--")) {
+        const [key, value] = arg.split("=");
+        acc[key.slice(2)] = value || true; // 如果没有值，则设置为true
+      }
+      return acc;
+    }, {});
   },
 
-  // 获取特定的block-id参数
-  getBlockId: () => {
-    const args = process.argv;
-    const blockIdArg = args.find((arg) => arg.startsWith("--block-id="));
-    return blockIdArg ? blockIdArg.split("=")[1] : null;
+  // 保存块类型到本地
+  saveBlockCategories: (categories) => {
+    return ipcRenderer.invoke("save-block-categories", categories);
   },
+
+  // 从本地加载块类型
+  loadBlockCategories: () => {
+    return ipcRenderer.invoke("load-block-categories");
+  },
+
+  // 从本地加载ID的块类型
+  loadBlockCategoryById: (id) => {
+    return ipcRenderer.invoke("load-block-category-by-id", id);
+  }
 });
