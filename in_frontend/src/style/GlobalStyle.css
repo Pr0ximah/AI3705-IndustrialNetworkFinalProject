@@ -13,9 +13,7 @@ html {
   --color-important-light: #ff7b7b;
   --color-important-dark: #ff0000;
   --signal-connector-color: #ffb300;
-  --signal-connector-color-dark: #de7e00;
-  --var-connector-color: #00e229;
-  --var-connector-color-dark: #00b460;
+  --var-connector-color: #00d427;
   --connector-extend: 8px;
 }
 
@@ -48,59 +46,6 @@ body {
   padding: 20px;
 }
 
-/* 普通块样式 */
-.drag-block {
-  border-radius: 8px;
-  user-select: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  font-weight: 600;
-  font-size: small;
-  transition: box-shadow 0.2s;
-  border: 1px solid var(--color-dark-0);
-}
-
-/* 拖拽中的样式 */
-.drag-block.dragging {
-  opacity: 0.95;
-  box-shadow: 0 0 5px 3px rgba(0, 0, 0, 0.3);
-}
-
-/* 选中样式 */
-.drag-block.selected:not(.dragging) {
-  z-index: 2;
-  box-shadow: 0 0 5px 2px rgba(0, 0, 0, 0.5);
-}
-
-.drag-block::before {
-  content: "";
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  border: 2px solid var(--color-dark-2);
-  border-radius: 6px;
-  z-index: 10;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.drag-block.selected:not(.dragging)::before {
-  opacity: 1;
-}
-
-.drag-block .icon {
-  width: 40px;
-  height: 40px;
-  margin-top: 5px;
-  margin-bottom: 5px;
-}
-
 .connector-region {
   position: absolute;
   width: var(--connector-extend);
@@ -112,11 +57,11 @@ body {
 }
 
 .left-connector-region {
-  left: calc(-1 * var(--connector-extend));
+  left: calc(-1 * var(--connector-extend) - 1px);
 }
 
 .right-connector-region {
-  right: calc(-1 * var(--connector-extend));
+  right: calc(-1 * var(--connector-extend) + 1px);
 }
 
 .connector-group {
@@ -127,8 +72,11 @@ body {
 
 .connector {
   width: calc(var(--connector-extend) - 1px);
-  height: 10px;
+  border-radius: 2px;
+  cursor: pointer;
+  height: 8px;
   transition: transform 0.1s ease;
+  border: 1px solid #666;
 }
 
 .signal-connector {
@@ -395,11 +343,11 @@ body {
 }
 
 .connection-line.signal-connection {
-  stroke: var(--signal-connector-color-dark);
+  stroke: var(--signal-connector-color);
 }
 
 .connection-line.var-connection {
-  stroke: var(--var-connector-color-dark);
+  stroke: var(--var-connector-color);
 }
 
 .connection-line:hover {
@@ -433,11 +381,11 @@ body {
 }
 
 .connector.connected.var-connector {
-  background-color: var(--var-connector-color-dark);
+  background-color: var(--var-connector-color);
 }
 
 .connector.connected.signal-connector {
-  background-color: var(--signal-connector-color-dark);
+  background-color: var(--signal-connector-color);
 }
 
 .connector.snapped {

@@ -12,58 +12,14 @@
       <div class="sidebar-title" :style="sidebarTitleStyle">组件库</div>
       <div class="block-sidebar">
         <!-- 侧边栏内容 -->
-        <div
+        <DraggableBlock
           v-for="(block, index) in originalBlocks"
           :key="'block-' + index"
-          :style="{
-            width: block.width + 'px',
-            height: block.height + 'px',
-            backgroundColor: block.color,
-            cursor: draggingBlock === block ? 'grabbing' : 'grab',
-          }"
-          @mousedown="startDrag(block, $event)"
-          class="drag-block"
-          :class="{
-            selected: selectedBlock === block,
-          }"
-        >
-          <!-- 左侧接口区域 -->
-          <div class="connector-region left-connector-region">
-            <div class="connector-group">
-              <div
-                class="connector signal-connector"
-                v-for="signal in block.categoryConf.signal_input"
-                :key="signal.name"
-              />
-            </div>
-            <div class="connector-group">
-              <div
-                class="connector var-connector"
-                v-for="variable in block.categoryConf.var_input"
-                :key="variable.name"
-              />
-            </div>
-          </div>
-          <!-- 右侧接口区域 -->
-          <div class="connector-region right-connector-region">
-            <div class="connector-group">
-              <div
-                class="connector signal-connector"
-                v-for="signal in block.categoryConf.signal_output"
-                :key="signal.name"
-              />
-            </div>
-            <div class="connector-group">
-              <div
-                class="connector var-connector"
-                v-for="variable in block.categoryConf.var_output"
-                :key="variable.name"
-              />
-            </div>
-          </div>
-          <img :src="block.getCategoryIcon()" class="icon" draggable="false" />
-          {{ block.getCategoryName() }}
-        </div>
+          :block="block"
+          :is-selected="selectedBlock === block"
+          :is-dragging="draggingBlock === block"
+          @mousedown="startDrag"
+        />
       </div>
     </div>
 
@@ -126,134 +82,19 @@
         />
 
         <!-- 所有可拖拽的块统一渲染 -->
-        <div
+        <DraggableBlock
           v-for="(block, index) in placedBlocks"
           :key="'block-' + index"
-          :style="{
-            left: block.x + 'px',
-            top: block.y + 'px',
-            width: block.width + 'px',
-            height: block.height + 'px',
-            backgroundColor: block.color,
-            position: 'absolute',
-            cursor: draggingBlock === block ? 'grabbing' : 'grab',
-            zIndex: draggingBlock === block ? 10 : -1,
-          }"
-          @mousedown="startDrag(block, $event)"
-          @click.stop="selectBlock(block, $event)"
-          @dblclick.stop="doubleClickBlock(block, $event)"
-          class="drag-block"
-          :class="{
-            selected: selectedBlock === block || selectedBlocks.has(block),
-            dragging: draggingBlocks.has(block), // 修改：使用draggingBlocks检查
-          }"
-        >
-          <!-- 左侧接口区域 -->
-          <div class="connector-region left-connector-region">
-            <div class="connector-group">
-              <div
-                class="connector signal-connector"
-                v-for="(signal, signalIndex) in block.categoryConf.signal_input"
-                :key="signal.name"
-                :class="{
-                  active: isConnectorActive(block, 'signal_input', signalIndex),
-                  connected: isConnectorConnected(
-                    block,
-                    'signal_input',
-                    signalIndex
-                  ),
-                  snapped: isConnectorSnapped(
-                    block,
-                    'signal_input',
-                    signalIndex
-                  ),
-                }"
-                @mousedown.stop="
-                  startConnection(block, 'signal_input', signalIndex, $event)
-                "
-                @mouseup.stop="
-                  endConnection(block, 'signal_input', signalIndex, $event)
-                "
-              />
-            </div>
-            <div class="connector-group">
-              <div
-                class="connector var-connector"
-                v-for="(variable, varIndex) in block.categoryConf.var_input"
-                :key="variable.name"
-                :class="{
-                  active: isConnectorActive(block, 'var_input', varIndex),
-                  connected: isConnectorConnected(block, 'var_input', varIndex),
-                  snapped: isConnectorSnapped(block, 'var_input', varIndex),
-                }"
-                @mousedown.stop="
-                  startConnection(block, 'var_input', varIndex, $event)
-                "
-                @mouseup.stop="
-                  endConnection(block, 'var_input', varIndex, $event)
-                "
-              />
-            </div>
-          </div>
-          <!-- 右侧接口区域 -->
-          <div class="connector-region right-connector-region">
-            <div class="connector-group">
-              <div
-                class="connector signal-connector"
-                v-for="(signal, signalIndex) in block.categoryConf
-                  .signal_output"
-                :key="signal.name"
-                :class="{
-                  active: isConnectorActive(
-                    block,
-                    'signal_output',
-                    signalIndex
-                  ),
-                  connected: isConnectorConnected(
-                    block,
-                    'signal_output',
-                    signalIndex
-                  ),
-                  snapped: isConnectorNearby(
-                    block,
-                    'signal_output',
-                    signalIndex
-                  ),
-                }"
-                @mousedown.stop="
-                  startConnection(block, 'signal_output', signalIndex, $event)
-                "
-                @mouseup.stop="
-                  endConnection(block, 'signal_output', signalIndex, $event)
-                "
-              />
-            </div>
-            <div class="connector-group">
-              <div
-                class="connector var-connector"
-                v-for="(variable, varIndex) in block.categoryConf.var_output"
-                :key="variable.name"
-                :class="{
-                  active: isConnectorActive(block, 'var_output', varIndex),
-                  connected: isConnectorConnected(
-                    block,
-                    'var_output',
-                    varIndex
-                  ),
-                  snapped: isConnectorNearby(block, 'var_output', varIndex),
-                }"
-                @mousedown.stop="
-                  startConnection(block, 'var_output', varIndex, $event)
-                "
-                @mouseup.stop="
-                  endConnection(block, 'var_output', varIndex, $event)
-                "
-              />
-            </div>
-          </div>
-          <img :src="block.getCategoryIcon()" class="icon" draggable="false" />
-          {{ block.getCategoryName() }}
-        </div>
+          :block="block"
+          :is-selected="selectedBlock === block"
+          :is-in-selected-group="selectedBlocks.has(block)"
+          :is-dragging="draggingBlocks.has(block)"
+          @mousedown="startDrag"
+          @click="selectBlock"
+          @double-click="doubleClickBlock"
+          @connector-mousedown="startConnection"
+          @connector-mouseup="endConnection"
+        />
       </div>
       <!-- 删除区域 -->
       <div
@@ -278,7 +119,9 @@ import {
   markRaw,
   defineExpose,
   nextTick,
+  provide,
 } from "vue";
+import DraggableBlock from "./DraggableBlock.vue";
 import {
   VarConf,
   SignalConf,
@@ -1125,6 +968,7 @@ function checkConnectorNearbyToStartConnect() {
     }
   }
   potentialSelectConnector.value = null; // 重置潜在连接器
+
   const mousePos = {
     x: currentMouseX.value,
     y: currentMouseY.value,
@@ -1156,6 +1000,33 @@ function checkConnectorNearbyToStartConnect() {
         potentialSelectConnector.value = {
           block,
           type: "var_output",
+          index: i,
+        };
+      }
+    }
+
+    // 也要检查输入连接器用于连接结束
+    for (let i = 0; i < block.categoryConf.signal_input.length; i++) {
+      const pos = getConnectorPosition(block, "signal_input", i).value;
+      const dist = closeEnoughDist(mousePos, pos);
+      if (dist !== null && dist < minDist) {
+        minDist = dist;
+        potentialSelectConnector.value = {
+          block,
+          type: "signal_input",
+          index: i,
+        };
+      }
+    }
+
+    for (let i = 0; i < block.categoryConf.var_input.length; i++) {
+      const pos = getConnectorPosition(block, "var_input", i).value;
+      const dist = closeEnoughDist(mousePos, pos);
+      if (dist !== null && dist < minDist) {
+        minDist = dist;
+        potentialSelectConnector.value = {
+          block,
+          type: "var_input",
           index: i,
         };
       }
@@ -2690,6 +2561,12 @@ function loadWorkspace(workspace) {
     return false;
   }
 }
+
+// 提供连接器状态检查函数给子组件
+provide("isConnectorActive", isConnectorActive);
+provide("isConnectorConnected", isConnectorConnected);
+provide("isConnectorSnapped", isConnectorSnapped);
+provide("isConnectorNearby", isConnectorNearby);
 
 defineExpose({
   resetCanvas: adjustCanvas,
