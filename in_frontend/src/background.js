@@ -6,9 +6,11 @@ import path from "path";
 import installExtension, { VUEJS3_DEVTOOLS } from "electron-devtools-installer";
 const fs = require("fs");
 const { dialog } = require("electron");
+const { spawn } = require("child_process");
 const isDevelopment = process.env.NODE_ENV !== "production";
 let mainWindow = null;
 let blockEditorWindow = null;
+let serviceProcess = null;
 
 // 持久化数据目录
 const userDataPath = app.getPath("userData");
@@ -17,6 +19,51 @@ const userDataPath = app.getPath("userData");
 //   "block-categories.json"
 // );
 let blockCategoriesFilePath = "";
+
+// 启动服务进程
+function startServiceProcess() {
+  const isWindows = process.platform === "win32";
+  const executableName = isWindows ? "service.exe" : "service";
+
+  // 确定可执行文件路径
+  let executablePath;
+  if (isDevelopment) {
+    // 开发环境下的路径
+    executablePath = path.join(
+      app.getAppPath(),
+      "../resources",
+      executableName
+    );
+    console.log(`开发环境下的服务可执行文件路径: ${executablePath}`);
+  } else {
+    // 生产环境下的路径
+    executablePath = path.join(process.resourcesPath, executableName);
+  }
+
+  try {
+    // 检查文件是否存在
+    if (!fs.existsSync(executablePath)) {
+      console.error(`服务可执行文件不存在: ${executablePath}`);
+      return;
+    }
+
+    // 启动子进程
+    serviceProcess = spawn(executablePath, [], {
+      detached: false,
+      stdio: "pipe",
+    });
+
+    // 处理子进程退出
+    serviceProcess.on("close", (code) => {
+      console.log(`服务进程退出，退出码: ${code}`);
+      serviceProcess = null;
+    });
+
+    console.log("服务进程已启动");
+  } catch (error) {
+    console.error(`启动服务进程时发生错误: ${error.message}`);
+  }
+}
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
@@ -133,22 +180,34 @@ app.on("ready", async () => {
     }
   }
   createWindow();
+  startServiceProcess(); // 启动服务进程
 });
 
-// Exit cleanly on request from parent process in development mode.
-if (isDevelopment) {
-  if (process.platform === "win32") {
-    process.on("message", (data) => {
-      if (data === "graceful-exit") {
-        app.quit();
-      }
-    });
-  } else {
-    process.on("SIGTERM", () => {
-      app.quit();
-    });
+// 在应用退出前关闭服务进程
+app.on("will-quit", () => {
+  // 关闭服务进程
+  console.log("应用即将退出，关闭服务进程...");
+  if (serviceProcess) {
+    // 在Windows上使用process.kill()，在其他平台上尝试先发送SIGTERM信号
+    if (process.platform === "win32") {
+      serviceProcess.kill();
+    } else {
+      serviceProcess.kill("SIGTERM");
+
+      // 如果进程在一段时间后仍未退出，强制终止
+      const killTimeout = setTimeout(() => {
+        if (serviceProcess) {
+          serviceProcess.kill("SIGKILL");
+        }
+      }, 2000);
+
+      // 如果进程已经退出，清除超时
+      serviceProcess.on("exit", () => {
+        clearTimeout(killTimeout);
+      });
+    }
   }
-}
+});
 
 ipcMain.on("close-window", (event, windowName) => {
   if (windowName === "main" && mainWindow) {
