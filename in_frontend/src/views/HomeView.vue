@@ -1061,6 +1061,7 @@ onMounted(() => {
     if (!workspace_saved) {
       ElNotification({
         title: "工作区保存错误！",
+        showClose: false,
         message: "请先保存工作区再关闭编辑器。",
         type: "warning",
         duration: 2000,

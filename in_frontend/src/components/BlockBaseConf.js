@@ -1,6 +1,12 @@
 import assert from "assert";
 
 const VAR_TYPE = ["int", "float", "bool", "Time"];
+const VAR_TYPE_COLOR_MAP = {
+  int: "#3B82F6",
+  float: "#8B5CF6",
+  bool: "#EF4444",
+  Time: "#6B7280",
+};
 
 class VarConf {
   constructor(name, type, description) {
@@ -104,4 +110,5 @@ export {
   AlgorithmConf,
   CategoryConf,
   VAR_TYPE,
+  VAR_TYPE_COLOR_MAP,
 };

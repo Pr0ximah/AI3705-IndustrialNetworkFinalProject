@@ -157,7 +157,7 @@ const selectedConnection = ref(null); // 当前选中的连接线
 const isConnecting = ref(false); // 是否正在连接
 const connectingStart = ref(null); // 连接开始位置
 let connectionIdCounter = 0;
-let potentialConnectTarget = null; // 潜在连接目标（用于连接线吸附）
+let potentialConnectTarget = ref(null); // 潜在连接目标（用于连接线吸附）
 let potentialSelectConnector = ref(null);
 
 // 当前鼠标位置（用于连接线绘制）
@@ -657,8 +657,8 @@ function onMouseLeave(event) {
   }
 
   // 结束连接状态
-  if (potentialConnectTarget) {
-    potentialConnectTarget = null; // 清除潜在连接目标
+  if (potentialConnectTarget.value) {
+    potentialConnectTarget.value = null; // 清除潜在连接目标
   }
   if (isConnecting.value) {
     connectingStart.value = null;
@@ -803,7 +803,7 @@ function checkLineSnap() {
       return null; // 不在吸附范围内
     }
   }
-  potentialConnectTarget = null; // 重置潜在连接目标
+  potentialConnectTarget.value = null; // 重置潜在连接目标
 
   // 检查是否有块在连接线附近
   if (!isConnecting.value || !connectingStart.value) return;
@@ -827,7 +827,7 @@ function checkLineSnap() {
         const dist = closeEnoughDist(mousePos, pos);
         if (dist !== null && dist < minDist) {
           minDist = dist;
-          potentialConnectTarget = {
+          potentialConnectTarget.value = {
             block,
             type: "signal_input",
             index: i,
@@ -837,15 +837,24 @@ function checkLineSnap() {
     } else if (startType.includes("var")) {
       // 检查变量输入连接器
       for (let i = 0; i < block.categoryConf.var_input.length; i++) {
-        const pos = getConnectorPosition(block, "var_input", i).value;
-        const dist = closeEnoughDist(mousePos, pos);
-        if (dist !== null && dist < minDist) {
-          minDist = dist;
-          potentialConnectTarget = {
-            block,
-            type: "var_input",
-            index: i,
-          };
+        // 检查变量类型是否一致
+        const startVarType =
+          connectingStart.value.block.categoryConf.var_output[
+            connectingStart.value.index
+          ]?.type;
+        const targetVarType = block.categoryConf.var_input[i]?.type;
+
+        if (startVarType && targetVarType && startVarType === targetVarType) {
+          const pos = getConnectorPosition(block, "var_input", i).value;
+          const dist = closeEnoughDist(mousePos, pos);
+          if (dist !== null && dist < minDist) {
+            minDist = dist;
+            potentialConnectTarget.value = {
+              block,
+              type: "var_input",
+              index: i,
+            };
+          }
         }
       }
     }
@@ -894,33 +903,6 @@ function checkConnectorNearbyToStartConnect() {
         potentialSelectConnector.value = {
           block,
           type: "var_output",
-          index: i,
-        };
-      }
-    }
-
-    // 也要检查输入连接器用于连接结束
-    for (let i = 0; i < block.categoryConf.signal_input.length; i++) {
-      const pos = getConnectorPosition(block, "signal_input", i).value;
-      const dist = closeEnoughDist(mousePos, pos);
-      if (dist !== null && dist < minDist) {
-        minDist = dist;
-        potentialSelectConnector.value = {
-          block,
-          type: "signal_input",
-          index: i,
-        };
-      }
-    }
-
-    for (let i = 0; i < block.categoryConf.var_input.length; i++) {
-      const pos = getConnectorPosition(block, "var_input", i).value;
-      const dist = closeEnoughDist(mousePos, pos);
-      if (dist !== null && dist < minDist) {
-        minDist = dist;
-        potentialSelectConnector.value = {
-          block,
-          type: "var_input",
           index: i,
         };
       }
@@ -1103,13 +1085,13 @@ function onMouseUp() {
     return;
   }
 
-  if (potentialConnectTarget) {
+  if (potentialConnectTarget.value) {
     // 如果有潜在连接目标，尝试创建连接
     const success = createConnection(
       connectingStart.value,
-      potentialConnectTarget
+      potentialConnectTarget.value
     );
-    potentialConnectTarget = null; // 清除潜在连接目标
+    potentialConnectTarget.value = null; // 清除潜在连接目标
   }
   if (isConnecting.value) {
     connectingStart.value = null;
@@ -1334,7 +1316,11 @@ function isConnectorActive(block, type, index) {
   // 可连接的目标连接器高亮
   if (
     (type === "signal_input" || type === "var_input") &&
-    !block.connectors[type][index].connected
+    !block.connectors[type][index].connected &&
+    (connectingStart.value.type.includes("signal") ||
+      connectingStart.value.block.categoryConf.var_output[
+        connectingStart.value.index
+      ]?.type === block.categoryConf.var_input[index]?.type)
   ) {
     const startIsSignal = connectingStart.value.type.includes("signal");
     const targetIsSignal = type.includes("signal");
@@ -1357,11 +1343,11 @@ function isConnectorConnected(block, type, index) {
 
 function isConnectorSnapped(block, type, index) {
   // 检查连接器是否被吸附到其他块
-  if (potentialConnectTarget) {
+  if (potentialConnectTarget.value) {
     return (
-      potentialConnectTarget.block === block &&
-      potentialConnectTarget.type === type &&
-      potentialConnectTarget.index === index
+      potentialConnectTarget.value.block === block &&
+      potentialConnectTarget.value.type === type &&
+      potentialConnectTarget.value.index === index
     );
   }
   return false;
@@ -1579,36 +1565,68 @@ function endConnection(block, type, index, event) {
     return;
   }
 
+  console.log(block);
+  console.log(connectingStart.value.block);
+
   // 检查是否是有效的连接目标
   if (type.includes("input")) {
     // 检查连接类型是否匹配（信号对信号，变量对变量）
-    const startIsSignal = connectingStart.value.type.includes("signal");
-    const targetIsSignal = type.includes("signal");
+    const startType = connectingStart.value.type.includes("signal")
+      ? "信号连接器"
+      : "变量连接器";
+    const targetType = type.includes("signal") ? "信号连接器" : "变量连接器";
 
-    if (
-      startIsSignal === targetIsSignal &&
-      connectingStart.value.block !== block
+    if (startType !== targetType) {
+      ElNotification({
+        title: "连接失败",
+        showClose: false,
+        message: `无法将【${startType}】连接到【${targetType}】`,
+        type: "warning",
+        duration: 3000,
+      });
+    } else if (
+      startType === "变量连接器" &&
+      connectingStart.value.block.categoryConf.var_output[
+        connectingStart.value.index
+      ]?.type !== block.categoryConf.var_input[index]?.type
     ) {
+      // 检查变量类型是否匹配
+      ElNotification({
+        title: "连接失败",
+        showClose: false,
+        message: `无法将类型为【${
+          connectingStart.value.block.categoryConf.var_output[
+            connectingStart.value.index
+          ]?.type
+        }】的变量连接到类型为【${
+          block.categoryConf.var_input[index]?.type
+        }】的变量连接器`,
+        type: "warning",
+        duration: 3000,
+      });
+    } else if (connectingStart.value.block === block) {
+      // 如果起始块和目标块相同，提示错误
+      ElNotification({
+        title: "连接失败",
+        showClose: false,
+        message: "不允许连接到自身",
+        type: "warning",
+        duration: 3000,
+      });
+    } else {
       // 尝试创建连接
-      const success = createConnection(
-        {
-          block: connectingStart.value.block,
-          type: connectingStart.value.type,
-          index: connectingStart.value.index,
-        },
-        {
-          block: block,
-          type: type,
-          index: index,
-        }
-      );
+      const success = createConnection(connectingStart.value, {
+        block: block,
+        type: type,
+        index: index,
+      });
     }
   }
 
   // 重置连接状态
   isConnecting.value = false;
   connectingStart.value = null;
-  potentialConnectTarget = null; // 清除潜在连接目标
+  potentialConnectTarget.value = null; // 清除潜在连接目标
 }
 
 // 生成连接线的 SVG 路径（横平竖直，带避让）

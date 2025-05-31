@@ -83,6 +83,7 @@
           v-for="variable in block.categoryConf.var_input"
           :key="variable.name"
           class="connector-label left-label var-label"
+          :style="getVarTypeStyle(variable.type)"
         >
           {{ variable.name }}
         </span>
@@ -105,6 +106,7 @@
           v-for="variable in block.categoryConf.var_output"
           :key="variable.name"
           class="connector-label right-label var-label"
+          :style="getVarTypeStyle(variable.type)"
         >
           {{ variable.name }}
         </span>
@@ -117,6 +119,7 @@
 
 <script setup>
 import { computed, inject, defineProps, defineEmits } from "vue";
+import { VAR_TYPE_COLOR_MAP } from "./BlockBaseConf"; // 导入颜色映射
 
 const props = defineProps({
   block: {
@@ -186,6 +189,15 @@ const getConnectorClasses = (type, index) => ({
     isConnectorNearby(props.block, type, index),
 });
 
+// 根据变量类型获取样式
+const getVarTypeStyle = (type) => {
+  const color = VAR_TYPE_COLOR_MAP[type] || "#4ecdc4"; // 默认颜色
+  return {
+    borderLeftColor: color,
+    borderRightColor: color,
+  };
+};
+
 // 事件处理函数
 const handleMouseDown = (event) => {
   emit("mousedown", props.block, event);
@@ -254,10 +266,10 @@ const handleConnectorMouseUp = (type, index, event) => {
   background-color: #4ecdc4;
 }
 
-.connector:hover {
+/* .connector:hover {
   transform: scale(1.2);
   box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
-}
+} */
 
 .var-connector.active {
   background-color: #ffd93d;
@@ -330,20 +342,20 @@ const handleConnectorMouseUp = (type, index, event) => {
 }
 
 .signal-label {
-  border-left: 2px solid #ff6b6b;
+  border-left: 10px solid #ff5100;
 }
 
 .var-label {
-  border-left: 2px solid #4ecdc4;
+  border-left: 10px solid; /* 移除固定颜色，由内联样式控制 */
 }
 
 .right-label.signal-label {
   border-left: none;
-  border-right: 2px solid #ff6b6b;
+  border-right: 10px solid #ff5100;
 }
 
 .right-label.var-label {
   border-left: none;
-  border-right: 2px solid #4ecdc4;
+  border-right: 10px solid; /* 移除固定颜色，由内联样式控制 */
 }
 </style>
