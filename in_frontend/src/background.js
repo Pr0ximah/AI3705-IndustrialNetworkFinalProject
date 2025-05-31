@@ -182,8 +182,6 @@ ipcMain.on("canvas:double-click-block", (event, categoryId) => {
     const centerX = mainBounds.x + (mainBounds.width - blockEditorWidth) / 2;
     const centerY = mainBounds.y + (mainBounds.height - blockEditorHeight) / 2;
 
-    console.log(centerX, centerY);
-
     // Create block editor window
     blockEditorWindow = new BrowserWindow({
       width: blockEditorWidth,
@@ -261,6 +259,7 @@ ipcMain.handle("load-block-categories", async (event) => {
 });
 
 ipcMain.handle("load-block-category-by-id", async (event, id) => {
+  console.log(id);
   try {
     if (!fs.existsSync(blockCategoriesFilePath)) {
       throw new Error("功能块配置文件保存路径不存在！请重新生成。");

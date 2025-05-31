@@ -331,12 +331,18 @@ function initBlock(_categoryConf, _currentCategoryId) {
 function validateData() {
   // 验证信号输入
   if (categoryConf.value?.signal_input) {
+    const signalInputNames = new Set();
     for (let i = 0; i < categoryConf.value.signal_input.length; i++) {
       const item = categoryConf.value.signal_input[i];
       if (!item.name.trim()) {
         ElMessage.error(`信号输入第${i + 1}项的名称不能为空`);
         return false;
       }
+      if (signalInputNames.has(item.name.trim())) {
+        ElMessage.error(`信号输入中存在重复的名称："${item.name.trim()}"`);
+        return false;
+      }
+      signalInputNames.add(item.name.trim());
       if (!item.description.trim()) {
         ElMessage.error(`信号输入第${i + 1}项的描述不能为空`);
         return false;
@@ -346,12 +352,18 @@ function validateData() {
 
   // 验证信号输出
   if (categoryConf.value?.signal_output) {
+    const signalOutputNames = new Set();
     for (let i = 0; i < categoryConf.value.signal_output.length; i++) {
       const item = categoryConf.value.signal_output[i];
       if (!item.name.trim()) {
         ElMessage.error(`信号输出第${i + 1}项的名称不能为空`);
         return false;
       }
+      if (signalOutputNames.has(item.name.trim())) {
+        ElMessage.error(`信号输出中存在重复的名称："${item.name.trim()}"`);
+        return false;
+      }
+      signalOutputNames.add(item.name.trim());
       if (!item.description.trim()) {
         ElMessage.error(`信号输出第${i + 1}项的描述不能为空`);
         return false;
@@ -361,12 +373,18 @@ function validateData() {
 
   // 验证变量输入
   if (categoryConf.value?.var_input) {
+    const varInputNames = new Set();
     for (let i = 0; i < categoryConf.value.var_input.length; i++) {
       const item = categoryConf.value.var_input[i];
       if (!item.name.trim()) {
         ElMessage.error(`变量输入第${i + 1}项的名称不能为空`);
         return false;
       }
+      if (varInputNames.has(item.name.trim())) {
+        ElMessage.error(`变量输入中存在重复的名称："${item.name.trim()}"`);
+        return false;
+      }
+      varInputNames.add(item.name.trim());
       if (!item.type) {
         ElMessage.error(`变量输入第${i + 1}项的类型不能为空`);
         return false;
@@ -380,12 +398,18 @@ function validateData() {
 
   // 验证变量输出
   if (categoryConf.value?.var_output) {
+    const varOutputNames = new Set();
     for (let i = 0; i < categoryConf.value.var_output.length; i++) {
       const item = categoryConf.value.var_output[i];
       if (!item.name.trim()) {
         ElMessage.error(`变量输出第${i + 1}项的名称不能为空`);
         return false;
       }
+      if (varOutputNames.has(item.name.trim())) {
+        ElMessage.error(`变量输出中存在重复的名称："${item.name.trim()}"`);
+        return false;
+      }
+      varOutputNames.add(item.name.trim());
       if (!item.type) {
         ElMessage.error(`变量输出第${i + 1}项的类型不能为空`);
         return false;

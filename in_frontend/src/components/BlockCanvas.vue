@@ -1833,7 +1833,7 @@ onMounted(() => {
   initializeCanvas();
 
   // 获取所有类别定义
-  getBlockCategories();
+  getBlockCategories(true);
 });
 
 // 在组件卸载时移除键盘事件监听器
@@ -1872,7 +1872,7 @@ function getBlockCategories(fromFiles = false) {
   });
   if (fromFiles) {
     // 从已有文件加载类别定义
-    window.ipcApi
+    return window.ipcApi
       .loadBlockCategories()
       .then((categoriesJSON) => {
         categoriesJSON = JSON.parse(categoriesJSON);
@@ -2096,30 +2096,9 @@ function getWorkspace() {
       offsetX: offsetX.value,
       offsetY: offsetY.value,
     },
-    // 保存类别定义
-    blockCategories: blockCategories.value.map((category) => ({
-      name: category.name,
-      description: category.description,
-      icon: category.icon,
-      signal_input: category.signal_input.map((signal) => ({
-        name: signal.name,
-        description: signal.description,
-      })),
-      signal_output: category.signal_output.map((signal) => ({
-        name: signal.name,
-        description: signal.description,
-      })),
-      var_input: category.var_input.map((variable) => ({
-        name: variable.name,
-        type: variable.type,
-        description: variable.description,
-      })),
-      var_output: category.var_output.map((variable) => ({
-        name: variable.name,
-        type: variable.type,
-        description: variable.description,
-      })),
-    })),
+    blockCategories: blockCategories.value.map((category) =>
+      convertBlockCategoryObject_TO_JSON(category)
+    ),
     blocks: placedBlocks.value.map((block) => ({
       id: block.id,
       x: block.x,
@@ -2128,50 +2107,48 @@ function getWorkspace() {
       height: block.height,
       categoryName: block.categoryConf.name,
       categoryIndex: block.categoryIndex,
-      categoryConf: {
-        name: block.categoryConf.name,
-        signal_input: block.categoryConf.signal_input.map((signal) => ({
-          name: signal.name,
-          description: signal.description,
-        })),
-        signal_output: block.categoryConf.signal_output.map((signal) => ({
-          name: signal.name,
-          description: signal.description,
-        })),
-        var_input: block.categoryConf.var_input.map((variable) => ({
-          name: variable.name,
-          type: variable.type,
-          description: variable.description,
-        })),
-        var_output: block.categoryConf.var_output.map((variable) => ({
-          name: variable.name,
-          type: variable.type,
-          description: variable.description,
-        })),
-        description: block.categoryConf.description,
-        icon: block.categoryConf.icon,
-      },
+      categoryConf: convertBlockCategoryObject_TO_JSON(block.categoryConf),
     })),
-    connections: connections.value.map((connection) => ({
-      id: connection.id,
-      type: connection.type,
-      start: {
-        blockId: connection.start.blockId,
-        type: connection.start.type,
-        index: connection.start.index,
-      },
-      end: {
-        blockId: connection.end.blockId,
-        type: connection.end.type,
-        index: connection.end.index,
-      },
-    })),
+    connections: connections.value.map((connection) => {
+      // 查找起始和结束块以获取连接器名称
+      const startBlock = placedBlocks.value.find(
+        (b) => b.id === connection.start.blockId
+      );
+      const endBlock = placedBlocks.value.find(
+        (b) => b.id === connection.end.blockId
+      );
+
+      const startConnectorName =
+        startBlock?.categoryConf[connection.start.type]?.[
+          connection.start.index
+        ]?.name;
+      const endConnectorName =
+        endBlock?.categoryConf[connection.end.type]?.[connection.end.index]
+          ?.name;
+
+      return {
+        id: connection.id,
+        type: connection.type,
+        start: {
+          blockId: connection.start.blockId,
+          type: connection.start.type,
+          index: connection.start.index,
+          connectorName: startConnectorName, // 添加连接器名称
+        },
+        end: {
+          blockId: connection.end.blockId,
+          type: connection.end.type,
+          index: connection.end.index,
+          connectorName: endConnectorName, // 添加连接器名称
+        },
+      };
+    }),
   };
 
   return workspace;
 }
 
-function loadWorkspace(workspace) {
+function loadWorkspace(workspace, useCurrentCategoryConf = false) {
   console.log("加载工作区数据");
   try {
     // 清空当前工作区
@@ -2189,39 +2166,33 @@ function loadWorkspace(workspace) {
       categoryData,
     });
 
-    // 1. 首先恢复类别定义
-    if (categoryData.length > 0) {
-      blockCategories.value = [];
-      categoryData.forEach((categoryInfo) => {
-        try {
-          const category = new CategoryConf(
-            categoryInfo.name,
-            categoryInfo.var_input.map(
-              (v) => new VarConf(v.name, v.type, v.description)
-            ),
-            categoryInfo.var_output.map(
-              (v) => new VarConf(v.name, v.type, v.description)
-            ),
-            categoryInfo.signal_input.map(
-              (s) => new SignalConf(s.name, s.description)
-            ),
-            categoryInfo.signal_output.map(
-              (s) => new SignalConf(s.name, s.description)
-            ),
-            categoryInfo.description,
-            categoryInfo.icon
-          );
-          blockCategories.value.push(category);
-          console.log(`恢复类别定义: ${category.name}`);
-        } catch (error) {
-          console.error("恢复类别定义失败:", categoryInfo, error);
-        }
-      });
-    } else {
-      // 如果没有保存的类别数据，使用默认类别
-      console.log("未找到保存的类别数据，使用默认类别");
-      getBlockCategories();
+    // 1. 首先恢复类别定义(不使用当前类别配置)
+    if (!useCurrentCategoryConf) {
+      if (categoryData.length > 0) {
+        blockCategories.value = [];
+        categoryData.forEach((categoryInfo) => {
+          try {
+            const category = convertJSON_TO_BlockCategoryObject(categoryInfo);
+            blockCategories.value.push(category);
+            console.log(`恢复类别定义: ${category.name}`);
+          } catch (error) {
+            console.error("恢复类别定义失败:", categoryInfo, error);
+          }
+        });
+      } else {
+        ElNotification({
+          title: "加载失败",
+          message: "没有找到任何类别定义",
+          showClose: false,
+          type: "error",
+          duration: 2500,
+          customClass: "default-notification",
+        });
+        return;
+      }
     }
+
+    console.log("恢复类别定义完成", blockCategories.value);
 
     // 重建块映射表，用于快速查找
     const blockMap = new Map();
@@ -2315,30 +2286,78 @@ function loadWorkspace(workspace) {
           return;
         }
 
-        // 验证连接器索引有效性
+        // 根据连接器名称查找正确的索引，而不是依赖保存的索引
+        let startConnectorIndex = -1;
+        let endConnectorIndex = -1;
+
+        // 查找起始连接器索引
+        if (connInfo.start.connectorName) {
+          const startConnectors = startBlock.categoryConf[connInfo.start.type];
+          if (startConnectors) {
+            startConnectorIndex = startConnectors.findIndex(
+              (connector) => connector.name === connInfo.start.connectorName
+            );
+          }
+        }
+
+        // 查找目标连接器索引
+        if (connInfo.end.connectorName) {
+          const endConnectors = endBlock.categoryConf[connInfo.end.type];
+          if (endConnectors) {
+            endConnectorIndex = endConnectors.findIndex(
+              (connector) => connector.name === connInfo.end.connectorName
+            );
+          }
+        }
+
+        // 如果没有找到连接器名称，忽略该连接
+        if (startConnectorIndex === -1 || endConnectorIndex === -1) {
+          return;
+        }
+
+        // 验证找到的连接器索引有效性
         const startConnectors = startBlock.categoryConf[connInfo.start.type];
         const endConnectors = endBlock.categoryConf[connInfo.end.type];
 
         if (
           !startConnectors ||
-          connInfo.start.index >= startConnectors.length
+          startConnectorIndex >= startConnectors.length ||
+          startConnectorIndex < 0
         ) {
-          console.error("无效的起始连接器:", connInfo.start);
+          console.error("无效的起始连接器索引:", {
+            type: connInfo.start.type,
+            index: startConnectorIndex,
+            connectorName: connInfo.start.connectorName,
+            availableConnectors: startConnectors?.map((c) => c.name),
+          });
           return;
         }
 
-        if (!endConnectors || connInfo.end.index >= endConnectors.length) {
-          console.error("无效的目标连接器:", connInfo.end);
+        if (
+          !endConnectors ||
+          endConnectorIndex >= endConnectors.length ||
+          endConnectorIndex < 0
+        ) {
+          console.error("无效的目标连接器索引:", {
+            type: connInfo.end.type,
+            index: endConnectorIndex,
+            connectorName: connInfo.end.connectorName,
+            availableConnectors: endConnectors?.map((c) => c.name),
+          });
           return;
         }
 
         // 检查目标连接器是否已被占用（输入连接器只能有一个连接）
         if (connInfo.end.type.includes("input")) {
           if (
-            endBlock.connectors[connInfo.end.type][connInfo.end.index].connected
+            endBlock.connectors[connInfo.end.type][endConnectorIndex].connected
           ) {
             console.warn(
-              `目标连接器已被占用: ${connInfo.end.blockId}.${connInfo.end.type}[${connInfo.end.index}]`
+              `目标连接器已被占用: ${connInfo.end.blockId}.${
+                connInfo.end.type
+              }[${endConnectorIndex}] (${
+                connInfo.end.connectorName || "unnamed"
+              })`
             );
             return;
           }
@@ -2348,8 +2367,14 @@ function loadWorkspace(workspace) {
         const connection = {
           id: connInfo.id,
           type: connInfo.type,
-          start: connInfo.start,
-          end: connInfo.end,
+          start: {
+            ...connInfo.start,
+            index: startConnectorIndex, // 使用查找到的正确索引
+          },
+          end: {
+            ...connInfo.end,
+            index: endConnectorIndex, // 使用查找到的正确索引
+          },
           // 重新创建响应式位置计算 - 确保引用正确的块实例
           startPosition: computed(() => {
             // 重新查找块以确保响应式更新
@@ -2360,7 +2385,7 @@ function loadWorkspace(workspace) {
             const pos = getConnectorPosition(
               currentStartBlock,
               connInfo.start.type,
-              connInfo.start.index
+              startConnectorIndex
             );
             return pos.value;
           }),
@@ -2373,7 +2398,7 @@ function loadWorkspace(workspace) {
             const pos = getConnectorPosition(
               currentEndBlock,
               connInfo.end.type,
-              connInfo.end.index
+              endConnectorIndex
             );
             return pos.value;
           }),
@@ -2385,7 +2410,7 @@ function loadWorkspace(workspace) {
         // 更新起始块（输出连接器）
         if (connInfo.start.type.includes("output")) {
           const startConnector =
-            startBlock.connectors[connInfo.start.type][connInfo.start.index];
+            startBlock.connectors[connInfo.start.type][startConnectorIndex];
           startConnector.connected = true;
           if (!startConnector.connectionIds) {
             startConnector.connectionIds = [];
@@ -2396,13 +2421,13 @@ function loadWorkspace(workspace) {
         // 更新目标块（输入连接器）
         if (connInfo.end.type.includes("input")) {
           const endConnector =
-            endBlock.connectors[connInfo.end.type][connInfo.end.index];
+            endBlock.connectors[connInfo.end.type][endConnectorIndex];
           endConnector.connected = true;
           endConnector.connectionId = connInfo.id;
         }
 
         console.log(
-          `重建连接: ${connInfo.id} (${connInfo.start.blockId} -> ${connInfo.end.blockId})`
+          `重建连接: ${connInfo.id} (${connInfo.start.blockId}[${startConnectors[startConnectorIndex].name}] -> ${connInfo.end.blockId}[${endConnectors[endConnectorIndex].name}])`
         );
       } catch (error) {
         console.error("重建连接失败:", connInfo, error);
