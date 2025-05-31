@@ -261,7 +261,6 @@ ipcMain.handle("load-block-categories", async (event) => {
 });
 
 ipcMain.handle("load-block-category-by-id", async (event, id) => {
-  console.log(id);
   try {
     if (!fs.existsSync(blockCategoriesFilePath)) {
       throw new Error("功能块配置文件保存路径不存在！请重新生成。");
@@ -281,7 +280,6 @@ ipcMain.handle("load-block-category-by-id", async (event, id) => {
 });
 
 ipcMain.on("open-block-editor-signal", () => {
-  console.log("Received open-block-editor-signal");
   if (mainWindow) {
     mainWindow.webContents.send("open-block-editor-signal");
   }
@@ -308,8 +306,6 @@ ipcMain.handle("save-modified-block-category", async (event, category) => {
     } else {
       categories[parsedCategory.id] = parsedCategory;
     }
-
-    console.log(JSON.stringify(categories, null, 2));
 
     fs.writeFileSync(
       blockCategoriesFilePath,

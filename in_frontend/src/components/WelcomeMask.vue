@@ -71,7 +71,7 @@
 
 <script setup>
 import { ref, defineEmits } from "vue";
-import { ElIcon } from "element-plus";
+import { ElIcon, ElNotification } from "element-plus";
 import CreateProject from "./CreateProject.vue";
 const createProjCompRef = ref(null);
 const projectPath = ref("");

@@ -13,7 +13,7 @@
     <div class="tips">
       <ElIcon size="14" style="margin-right: 8px"><Files /></ElIcon>
       <div>
-        你的项目将会储存在 {{ projectPath + "/" + projectName }} 文件夹下
+        你的项目将会储存在 {{ projectPath }} 内的 {{ projectName }} 文件夹下
       </div>
     </div>
     <div class="input-item">
@@ -217,16 +217,28 @@ async function createProject() {
     const test_categories = [
       {
         name: "输送机",
+        id: 0,
+        signal_input: [
+          {
+            name: "StartCmd",
+            description: "启动命令信号",
+          },
+          {
+            name: "MaterialDetected",
+            description: "物料到位传感器信号",
+          },
+        ],
+        signal_output: [
+          {
+            name: "MaterialPresent",
+            description: "物料存在状态信号",
+          },
+        ],
         var_input: [
           {
             name: "MaterialPosition",
             type: "bool",
             description: "物料位置检测信号，TRUE表示物料到位",
-          },
-          {
-            name: "SpeedReference",
-            type: "float",
-            description: "输送机速度设定值(0-100%)",
           },
         ],
         var_output: [
@@ -241,42 +253,14 @@ async function createProject() {
             description: "故障状态码，0表示正常",
           },
         ],
-        signal_input: [
-          {
-            name: "StartCmd",
-            description: "启动命令信号",
-          },
-          {
-            name: "StopCmd",
-            description: "急停命令信号",
-          },
-          {
-            name: "MaterialDetected",
-            description: "物料到位传感器信号",
-          },
-        ],
-        signal_output: [
-          {
-            name: "MotorRun",
-            description: "电机运行控制信号",
-          },
-          {
-            name: "MaterialPresent",
-            description: "物料存在状态信号",
-          },
-        ],
         InternalVars: [
           {
             name: "IsRunning",
             type: "bool",
-            InitalVaule: "FALSE",
-            description: "输送机运行状态标志",
           },
           {
             name: "RunTimer",
             type: "Time",
-            InitalVaule: "T#0s",
-            description: "运行时间累计",
           },
         ],
         ECC: {
@@ -286,6 +270,7 @@ async function createProject() {
               comment: "待机状态",
               x: 50,
               y: 50,
+              ecAction: null,
             },
             {
               name: "Accelerating",
@@ -383,28 +368,28 @@ async function createProject() {
           {
             Name: "RunConveyor",
             Comment: "输送机正常运行控制",
-            Input: "SpeedReference, MaterialDetected",
+            input: "SpeedReference, MaterialDetected",
             Output: "MotorSpeed, MaterialPresent",
             Code: "IF NOT MaterialDetected THEN\n    MotorSpeed := SpeedReference;\n    MaterialPresent := FALSE;\nELSE\n    MotorSpeed := 0;\n    MaterialPresent := TRUE;\nEND_IF;",
           },
           {
             Name: "RampUp",
             Comment: "加速斜坡控制",
-            Input: "SpeedReference",
+            input: "SpeedReference",
             Output: "MotorSpeed",
             Code: "MotorSpeed := MotorSpeed + (SpeedReference * 0.1);\nMotorSpeed := LIMIT(0, MotorSpeed, SpeedReference);",
           },
           {
             Name: "RampDown",
             Comment: "减速斜坡控制",
-            Input: "",
+            input: "",
             Output: "MotorSpeed",
             Code: "MotorSpeed := MotorSpeed - (SpeedReference * 0.2);\nMotorSpeed := LIMIT(0, MotorSpeed, SpeedReference);",
           },
           {
             Name: "EmergencyStop",
             Comment: "紧急停止控制",
-            Input: "",
+            input: "",
             Output: "MotorSpeed",
             Code: "MotorSpeed := 0;",
           },
@@ -412,6 +397,35 @@ async function createProject() {
       },
       {
         name: "提升机",
+        id: 1,
+        signal_input: [
+          {
+            name: "PositionReached",
+            description: "位置到达信号",
+          },
+          {
+            name: "test",
+            description: "123",
+          },
+          {
+            name: "ddd",
+            description: "safsd",
+          },
+        ],
+        signal_output: [
+          {
+            name: "LiftRunning",
+            description: "提升机运行中信号",
+          },
+          {
+            name: "OverloadAlarm",
+            description: "超载报警信号",
+          },
+          {
+            name: "TargetReached",
+            description: "目标位置到达信号",
+          },
+        ],
         var_input: [
           {
             name: "CurrentPosition",
@@ -441,46 +455,14 @@ async function createProject() {
             description: "位置误差(米)",
           },
         ],
-        signal_input: [
-          {
-            name: "StartLift",
-            description: "启动提升信号",
-          },
-          {
-            name: "EmergencyStop",
-            description: "急停信号",
-          },
-          {
-            name: "PositionReached",
-            description: "位置到达信号",
-          },
-        ],
-        signal_output: [
-          {
-            name: "LiftRunning",
-            description: "提升机运行中信号",
-          },
-          {
-            name: "OverloadAlarm",
-            description: "超载报警信号",
-          },
-          {
-            name: "TargetReached",
-            description: "目标位置到达信号",
-          },
-        ],
         InternalVars: [
           {
             name: "IsMoving",
             type: "bool",
-            InitalVaule: "FALSE",
-            description: "提升机移动状态标志",
           },
           {
             name: "IsOverloaded",
             type: "bool",
-            InitalVaule: "FALSE",
-            description: "超载状态标志",
           },
         ],
         ECC: {
@@ -490,6 +472,7 @@ async function createProject() {
               comment: "待机状态",
               x: 50,
               y: 50,
+              ecAction: null,
             },
             {
               name: "MovingUp",
@@ -585,14 +568,14 @@ async function createProject() {
           {
             Name: "CalculateSpeed",
             Comment: "计算电机运行速度",
-            Input: "CurrentPosition, TargetPosition, LoadWeight",
+            input: "CurrentPosition, TargetPosition, LoadWeight",
             Output: "MotorSpeed, PositionError",
             Code: "PositionError := ABS(TargetPosition - CurrentPosition);\nIF LoadWeight > MaxLoad THEN\n    IsOverloaded := TRUE;\n    MotorSpeed := 0;\nELSE\n    MotorSpeed := MIN(MaxSpeed, PositionError * SpeedFactor);\nEND_IF;",
           },
           {
             Name: "EmergencyStop",
             Comment: "紧急停止处理",
-            Input: "EmergencyStop, IsOverloaded",
+            input: "EmergencyStop, IsOverloaded",
             Output: "OverloadAlarm",
             Code: "IF EmergencyStop OR IsOverloaded THEN\n    OverloadAlarm := TRUE;\n    MotorSpeed := 0;\nELSE\n    OverloadAlarm := FALSE;\nEND_IF;",
           },
@@ -600,6 +583,31 @@ async function createProject() {
       },
       {
         name: "移栽机",
+        id: 2,
+        signal_input: [
+          {
+            name: "StartTransfer",
+            description: "启动移栽信号",
+          },
+          {
+            name: "EmergencyStop",
+            description: "急停信号",
+          },
+          {
+            name: "WorkpieceDetected",
+            description: "工件到位检测信号",
+          },
+        ],
+        signal_output: [
+          {
+            name: "TransferComplete",
+            description: "移栽完成信号",
+          },
+          {
+            name: "Alarm",
+            description: "异常报警信号",
+          },
+        ],
         var_input: [
           {
             name: "CurrentPosition",
@@ -629,42 +637,14 @@ async function createProject() {
             description: "夹爪夹持力(N)",
           },
         ],
-        signal_input: [
-          {
-            name: "StartTransfer",
-            description: "启动移栽信号",
-          },
-          {
-            name: "EmergencyStop",
-            description: "急停信号",
-          },
-          {
-            name: "WorkpieceDetected",
-            description: "工件到位检测信号",
-          },
-        ],
-        signal_output: [
-          {
-            name: "TransferComplete",
-            description: "移栽完成信号",
-          },
-          {
-            name: "Alarm",
-            description: "异常报警信号",
-          },
-        ],
         InternalVars: [
           {
             name: "IsMoving",
             type: "bool",
-            InitalVaule: "FALSE",
-            description: "移栽臂移动状态标志",
           },
           {
             name: "IsGripping",
             type: "bool",
-            InitalVaule: "FALSE",
-            description: "夹爪夹持状态标志",
           },
         ],
         ECC: {
@@ -674,6 +654,7 @@ async function createProject() {
               comment: "待机状态",
               x: 50,
               y: 50,
+              ecAction: null,
             },
             {
               name: "MovingToPick",
@@ -781,28 +762,28 @@ async function createProject() {
           {
             Name: "CalculateMovePath",
             Comment: "计算移栽臂移动路径和速度",
-            Input: "CurrentPosition, TargetPosition, WorkpieceWeight",
+            input: "CurrentPosition, TargetPosition, WorkpieceWeight",
             Output: "MoveSpeed",
             Code: "VAR\n    Distance : REAL := ABS(TargetPosition - CurrentPosition);\n    MaxSpeed : REAL := 500.0; (* mm/s *)\n    WeightFactor : REAL := 1.0 - (WorkpieceWeight * 0.01);\nEND_VAR\n\nMoveSpeed := MIN(Distance * 0.5, MaxSpeed) * WeightFactor;",
           },
           {
             Name: "CalculateGripForce",
             Comment: "根据工件重量计算夹持力",
-            Input: "WorkpieceWeight",
+            input: "WorkpieceWeight",
             Output: "GripperForce",
             Code: "GripperForce := WorkpieceWeight * 9.8 * 1.5; (* 安全系数1.5 *)",
           },
           {
             Name: "ReleaseWorkpiece",
             Comment: "释放工件控制",
-            Input: "IsGripping",
+            input: "IsGripping",
             Output: "TransferComplete",
             Code: "IsGripping := FALSE;\nTransferComplete := TRUE;",
           },
           {
             Name: "EmergencyStop",
             Comment: "紧急停止处理",
-            Input: "EmergencyStop",
+            input: "EmergencyStop",
             Output: "Alarm",
             Code: "MoveSpeed := 0.0;\nGripperForce := 0.0;\nAlarm := TRUE;",
           },
