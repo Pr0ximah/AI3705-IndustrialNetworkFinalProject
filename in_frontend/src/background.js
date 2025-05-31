@@ -18,6 +18,7 @@ const userDataPath = app.getPath("userData");
 //   userDataPath,
 //   "block-categories.json"
 // );
+let projectPath = "";
 let blockCategoriesFilePath = "";
 
 // 启动服务进程
@@ -34,7 +35,6 @@ function startServiceProcess() {
       "../resources",
       executableName
     );
-    console.log(`开发环境下的服务可执行文件路径: ${executablePath}`);
   } else {
     // 生产环境下的路径
     executablePath = path.join(process.resourcesPath, executableName);
@@ -394,8 +394,9 @@ ipcMain.handle("create-project", async (event) => {
 
 ipcMain.handle(
   "create-project-dir",
-  async (event, projectPath, projectName) => {
-    let proj_path = path.join(projectPath, projectName);
+  async (event, _projectPath, projectName) => {
+    let proj_path = path.join(_projectPath, projectName);
+    projectPath = proj_path; // 更新全局项目路径
     if (fs.existsSync(proj_path)) {
       const result = await dialog.showMessageBox(mainWindow, {
         type: "warning",
@@ -428,10 +429,11 @@ ipcMain.handle("open-project-dir", async (event) => {
     });
 
     if (result.canceled) {
-      throw new Error("用户取消");
+      throw new Error("CANCEL");
     }
 
     const selectedPath = result.filePaths[0];
+    projectPath = selectedPath; // 更新全局项目路径
     const blockCategoriesFile = path.join(
       selectedPath,
       "block-categories.json"
@@ -445,6 +447,130 @@ ipcMain.handle("open-project-dir", async (event) => {
 
     blockCategoriesFilePath = blockCategoriesFile;
     return selectedPath;
+  } catch (error) {
+    throw error;
+  }
+});
+
+ipcMain.handle("save-workspace", async (event, workspace, name) => {
+  try {
+    // 打开对话框让用户选择保存目录
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "选择保存位置",
+      properties: ["openDirectory"],
+      buttonLabel: "选择文件夹",
+      defaultPath: projectPath || app.getPath("documents"),
+    });
+
+    if (result.canceled) {
+      throw new Error("CANCEL");
+    }
+
+    const selectedDir = result.filePaths[0];
+    // 确保文件名以.json结尾
+    const fileName = `${name}.json`;
+    const filePath = path.join(selectedDir, fileName);
+
+    // 检查文件是否已存在
+    if (fs.existsSync(filePath)) {
+      const overwriteResult = await dialog.showMessageBox(mainWindow, {
+        type: "warning",
+        title: "文件已存在",
+        message: `文件 "${fileName}" 已存在，是否要覆盖该文件？`,
+        buttons: ["取消", "覆盖"],
+        defaultId: 0,
+        cancelId: 0,
+      });
+
+      if (overwriteResult.response === 0) {
+        throw new Error("CANCEL");
+      }
+    }
+
+    // 将workspace数据写入JSON文件
+    const workspaceData =
+      typeof workspace === "string"
+        ? workspace
+        : JSON.stringify(workspace, null, 2);
+
+    fs.writeFileSync(filePath, workspaceData);
+
+    return {
+      path: filePath,
+    };
+  } catch (error) {
+    throw error;
+  }
+});
+
+ipcMain.handle("load-workspace", async (event) => {
+  try {
+    // 打开对话框让用户选择工作区文件
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "选择组态文件",
+      properties: ["openFile"],
+      buttonLabel: "选择文件",
+      filters: [{ name: "JSON Files", extensions: ["json"] }],
+    });
+
+    if (result.canceled) {
+      throw new Error("CANCEL");
+    }
+
+    const filePath = result.filePaths[0];
+    const workspaceData = fs.readFileSync(filePath, "utf-8");
+    return workspaceData;
+  } catch (error) {
+    throw error;
+  }
+});
+
+ipcMain.handle("select-code-output-path", async (event) => {
+  try {
+    // 打开对话框让用户选择代码输出目录
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "选择代码生成文件夹",
+      properties: ["openDirectory"],
+      buttonLabel: "选择文件夹",
+      defaultPath: projectPath || app.getPath("documents"),
+    });
+
+    if (result.canceled) {
+      throw new Error("CANCEL");
+    }
+
+    const selectedDir = result.filePaths[0];
+
+    // 检查目录是否为空
+    const files = fs.readdirSync(selectedDir);
+    if (files.length > 0) {
+      // 目录非空，询问用户是否清空
+      const confirmResult = await dialog.showMessageBox(mainWindow, {
+        type: "warning",
+        title: "文件夹非空",
+        message: "所选文件夹不为空，是否要清空该文件夹？",
+        detail: "清空操作将永久删除文件夹中的所有内容，无法恢复。",
+        buttons: ["取消", "清空并继续"],
+        defaultId: 0,
+        cancelId: 0,
+      });
+
+      if (confirmResult.response === 0) {
+        throw new Error("CANCEL");
+      }
+
+      // 用户确认清空文件夹
+      for (const file of files) {
+        const filePath = path.join(selectedDir, file);
+        if (fs.lstatSync(filePath).isDirectory()) {
+          fs.rmSync(filePath, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(filePath);
+        }
+      }
+    }
+
+    return selectedDir;
   } catch (error) {
     throw error;
   }

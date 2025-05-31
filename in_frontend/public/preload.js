@@ -76,4 +76,19 @@ contextBridge.exposeInMainWorld("ipcApi", {
   openProjectDir: () => {
     return ipcRenderer.invoke("open-project-dir");
   },
+
+  // 保存工作区到文件
+  saveWorkspace: (workspace, name) => {
+    return ipcRenderer.invoke("save-workspace", workspace, name);
+  },
+
+  // 从文件加载工作区
+  loadWorkspace: () => {
+    return ipcRenderer.invoke("load-workspace");
+  },
+
+  // 选择转换代码存储路径
+  selectCodeOutputPath: () => {
+    return ipcRenderer.invoke("select-code-output-path");
+  },
 });

@@ -448,15 +448,13 @@ body {
 }
 
 .default-message-box .el-button.cancel-btn {
-  background-color: #ffffff;
+  color: black;
   border-color: gray;
-  font-weight: 600;
 }
 
 .default-message-box .el-button.cancel-btn:hover {
-  background-color: var(--color-light-3);
   color: black;
-  border-color: black;
+  background-color: rgba(0, 0, 0, 0.1);
 }
 
 .default-message-box .el-button.confirm-btn {
@@ -466,6 +464,7 @@ body {
 
 .default-message-box .el-button.confirm-btn:hover {
   background-color: var(--color-dark-2);
+  border-color: transparent;
 }
 
 .default-loading .el-loading-spinner .circular {

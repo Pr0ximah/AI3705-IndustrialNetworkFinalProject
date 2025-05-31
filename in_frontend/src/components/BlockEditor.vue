@@ -291,7 +291,6 @@ import {
   ElInput,
   ElSelect,
   ElOption,
-  ElMessage,
   ElNotification,
 } from "element-plus";
 import { Close } from "@element-plus/icons-vue";
@@ -335,16 +334,37 @@ function validateData() {
     for (let i = 0; i < categoryConf.value.signal_input.length; i++) {
       const item = categoryConf.value.signal_input[i];
       if (!item.name.trim()) {
-        ElMessage.error(`信号输入第${i + 1}项的名称不能为空`);
+        ElNotification({
+          title: "信号输入错误",
+          showClose: false,
+          message: `信号输入第${i + 1}项的名称不能为空`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
       if (signalInputNames.has(item.name.trim())) {
-        ElMessage.error(`信号输入中存在重复的名称："${item.name.trim()}"`);
+        ElNotification({
+          title: "信号输入错误",
+          showClose: false,
+          message: `信号输入中存在重复的名称："${item.name.trim()}"`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
       signalInputNames.add(item.name.trim());
       if (!item.description.trim()) {
-        ElMessage.error(`信号输入第${i + 1}项的描述不能为空`);
+        ElNotification({
+          title: "信号输入错误",
+          showClose: false,
+          message: `信号输入第${i + 1}项的描述不能为空`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
     }
@@ -356,16 +376,37 @@ function validateData() {
     for (let i = 0; i < categoryConf.value.signal_output.length; i++) {
       const item = categoryConf.value.signal_output[i];
       if (!item.name.trim()) {
-        ElMessage.error(`信号输出第${i + 1}项的名称不能为空`);
+        ElNotification({
+          title: "信号输出错误",
+          showClose: false,
+          message: `信号输出第${i + 1}项的名称不能为空`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
       if (signalOutputNames.has(item.name.trim())) {
-        ElMessage.error(`信号输出中存在重复的名称："${item.name.trim()}"`);
+        ElNotification({
+          title: "信号输出错误",
+          showClose: false,
+          message: `信号输出中存在重复的名称："${item.name.trim()}"`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
       signalOutputNames.add(item.name.trim());
       if (!item.description.trim()) {
-        ElMessage.error(`信号输出第${i + 1}项的描述不能为空`);
+        ElNotification({
+          title: "信号输出错误",
+          showClose: false,
+          message: `信号输出第${i + 1}项的描述不能为空`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
     }
@@ -377,20 +418,48 @@ function validateData() {
     for (let i = 0; i < categoryConf.value.var_input.length; i++) {
       const item = categoryConf.value.var_input[i];
       if (!item.name.trim()) {
-        ElMessage.error(`变量输入第${i + 1}项的名称不能为空`);
+        ElNotification({
+          title: "变量输入错误",
+          showClose: false,
+          message: `变量输入第${i + 1}项的名称不能为空`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
       if (varInputNames.has(item.name.trim())) {
-        ElMessage.error(`变量输入中存在重复的名称："${item.name.trim()}"`);
+        ElNotification({
+          title: "变量输入错误",
+          showClose: false,
+          message: `变量输入中存在重复的名称："${item.name.trim()}"`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
       varInputNames.add(item.name.trim());
       if (!item.type) {
-        ElMessage.error(`变量输入第${i + 1}项的类型不能为空`);
+        ElNotification({
+          title: "变量输入错误",
+          showClose: false,
+          message: `变量输入第${i + 1}项的类型不能为空`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
       if (!item.description.trim()) {
-        ElMessage.error(`变量输入第${i + 1}项的描述不能为空`);
+        ElNotification({
+          title: "变量输入错误",
+          showClose: false,
+          message: `变量输入第${i + 1}项的描述不能为空`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
     }
@@ -402,20 +471,48 @@ function validateData() {
     for (let i = 0; i < categoryConf.value.var_output.length; i++) {
       const item = categoryConf.value.var_output[i];
       if (!item.name.trim()) {
-        ElMessage.error(`变量输出第${i + 1}项的名称不能为空`);
+        ElNotification({
+          title: "变量输出错误",
+          showClose: false,
+          message: `变量输出第${i + 1}项的名称不能为空`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
       if (varOutputNames.has(item.name.trim())) {
-        ElMessage.error(`变量输出中存在重复的名称："${item.name.trim()}"`);
+        ElNotification({
+          title: "变量输出错误",
+          showClose: false,
+          message: `变量输出中存在重复的名称："${item.name.trim()}"`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
       varOutputNames.add(item.name.trim());
       if (!item.type) {
-        ElMessage.error(`变量输出第${i + 1}项的类型不能为空`);
+        ElNotification({
+          title: "变量输出错误",
+          showClose: false,
+          message: `变量输出第${i + 1}项的类型不能为空`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
       if (!item.description.trim()) {
-        ElMessage.error(`变量输出第${i + 1}项的描述不能为空`);
+        ElNotification({
+          title: "变量输出错误",
+          showClose: false,
+          message: `变量输出第${i + 1}项的描述不能为空`,
+          type: "error",
+          duration: 2000,
+          customClass: "default-notification",
+        });
         return false;
       }
     }
@@ -437,7 +534,14 @@ function closeWindow(saveChanges) {
     window.ipcApi
       .saveModifiedBlockCategory(categoryConfJSON)
       .then(() => {
-        ElMessage.success("保存成功");
+        ElNotification({
+          title: "保存成功",
+          showClose: false,
+          message: "功能块配置已成功保存",
+          type: "success",
+          duration: 2000,
+          customClass: "default-notification",
+        });
       })
       .catch((error) => {
         let errorMessage = window.ipcApi.extractErrorMessage(error);

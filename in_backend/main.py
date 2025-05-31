@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from inputs import input_router
+from outputs import output_router
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -17,6 +18,7 @@ def main():
     )
 
     app.include_router(input_router)
+    app.include_router(output_router)
 
     uvicorn.run(app, host="127.0.0.1", port=17991, log_level="info")
 

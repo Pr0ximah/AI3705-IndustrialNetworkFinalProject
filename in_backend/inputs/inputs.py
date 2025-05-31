@@ -1,7 +1,5 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-import json
-from pathlib import Path
 
 input_router = APIRouter(prefix="/inputs", tags=["输入相关接口"])
 
@@ -14,26 +12,12 @@ class ProjectConfig(BaseModel):
     conf: str
 
 
-@input_router.get("/categories")
-async def get_categories():
-    """
-    获取可用的功能块类别配置
-    """
-    categories_file = Path(__file__).parent / "categories.json"
-    if not categories_file.exists():
-        return {"error": "Categories file not found."}
-
-    with open(categories_file, "r", encoding="utf-8") as f:
-        categories = json.load(f)
-
-    return {"categories": categories}
-
-
 @input_router.post("/create_project")
 async def create_project(project_conf: ProjectConfig):
     """
     创建新项目
     """
+    print("接收到的项目配置:", project_conf.conf)
     # 只读取并返回接收到的JSON数据
     return {
         "status": "success",

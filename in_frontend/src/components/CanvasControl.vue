@@ -14,8 +14,8 @@
       @click="clearWorkspace"
       class="clear-btn"
     >
-      清空工作区
       <Delete class="icon" />
+      清空组态
     </button>
     <div class="scale-text" style="margin-left: 5px">
       <ZoomIn class="icon" />

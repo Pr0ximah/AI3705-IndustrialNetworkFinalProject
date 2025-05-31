@@ -65,6 +65,7 @@
           emit('passCreateProject');
         }
       "
+      @back="projectPath = ''"
     />
   </div>
 </template>
@@ -98,6 +99,9 @@ function openProject() {
     })
     .catch((error) => {
       let errorMessage = window.ipcApi.extractErrorMessage(error);
+      if (errorMessage === "CANCEL") {
+        return;
+      }
       ElNotification({
         title: "打开项目失败",
         message: errorMessage,

@@ -475,7 +475,7 @@ function clearWorkspace(confirm_clear = true) {
       selectedConnection.value = null;
       return;
     }
-    ElMessageBox.confirm("确定要清空工作区吗？", "提示", {
+    ElMessageBox.confirm("确定要清空组态吗？", "提示", {
       confirmButtonText: "确定",
       cancelButtonText: "取消",
       type: "warning",
@@ -819,7 +819,7 @@ function checkLineSnap() {
 
   // 检查所有块的连接器位置
   for (const block of placedBlocks.value) {
-    if (block === startBlock) continue; // 跳过起始块
+    if (block.id === startBlock.id) continue; // 跳过起始块
     if (startType.includes("signal")) {
       // 检查信号输入连接器
       for (let i = 0; i < block.categoryConf.signal_input.length; i++) {
@@ -871,6 +871,8 @@ function checkConnectorNearbyToStartConnect() {
     }
   }
   potentialSelectConnector.value = null; // 重置潜在连接器
+
+  if (isConnecting.value || connectingStart.value) return;
 
   const mousePos = {
     x: currentMouseX.value,
@@ -1142,19 +1144,15 @@ function onMouseUp() {
 function createConnection(start, end) {
   // 检查输入连接器是否已经被占用
   if (end.block.connectors[end.type][end.index].connected) {
-    ElMessageBox({
+    ElNotification({
       title: "连接失败",
+      showClose: false,
       message: `${end.block.categoryConf.name} 的 ${
         connectorTypeNames[end.type]
       } 连接器已被占用`,
       type: "warning",
-      showClose: false,
-      showConfirmButton: false,
-      closeOnClickModal: true,
-      closeOnPressEscape: true,
-      customClass: "default-message-box",
-    }).catch(() => {
-      // do nothing
+      duration: 3000,
+      customClass: "default-notification",
     });
     return false;
   }
@@ -1583,6 +1581,7 @@ function endConnection(block, type, index, event) {
         message: `无法将【${startType}】连接到【${targetType}】`,
         type: "warning",
         duration: 3000,
+        customClass: "default-notification",
       });
     } else if (
       startType === "变量连接器" &&
@@ -1603,6 +1602,7 @@ function endConnection(block, type, index, event) {
         }】的变量连接器`,
         type: "warning",
         duration: 3000,
+        customClass: "default-notification",
       });
     } else if (connectingStart.value.block === block) {
       // 如果起始块和目标块相同，提示错误
@@ -1612,6 +1612,7 @@ function endConnection(block, type, index, event) {
         message: "不允许连接到自身",
         type: "warning",
         duration: 3000,
+        customClass: "default-notification",
       });
     } else {
       // 尝试创建连接
@@ -2169,7 +2170,6 @@ function getWorkspace() {
 }
 
 function loadWorkspace(workspace, useCurrentCategoryConf = false) {
-  console.log("加载工作区数据");
   try {
     // 清空当前工作区
     clearWorkspace(false);
@@ -2178,13 +2178,6 @@ function loadWorkspace(workspace, useCurrentCategoryConf = false) {
     const connectionData = workspace.connections || [];
     const canvasData = workspace.canvas || {};
     const categoryData = workspace.blockCategories || [];
-
-    console.log("加载工作区数据", {
-      blockData,
-      connectionData,
-      canvasData,
-      categoryData,
-    });
 
     // 1. 首先恢复类别定义(不使用当前类别配置)
     if (!useCurrentCategoryConf) {

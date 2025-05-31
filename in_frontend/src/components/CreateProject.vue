@@ -1,5 +1,8 @@
 <template>
   <div class="main custom-scrollbar">
+    <button class="back-btn custom-button" @click="emit('back')">
+      <ElIcon><Back /></ElIcon>
+    </button>
     <div class="title">创建新项目</div>
     <div class="input-item">
       <div class="label">项目名称</div>
@@ -101,7 +104,7 @@ import {
   ElNotification,
   ElLoading,
 } from "element-plus";
-import { Files, Close } from "@element-plus/icons-vue";
+import { Files, Close, Back } from "@element-plus/icons-vue";
 import { defineProps, ref, defineEmits } from "vue";
 import service from "@/util/ajax_inst";
 const props = defineProps({
@@ -110,7 +113,7 @@ const props = defineProps({
     required: true,
   },
 });
-const emit = defineEmits(["createProject"]);
+const emit = defineEmits(["createProject", "back"]);
 
 const projectName = ref("");
 const projectDescription = ref("");
@@ -176,6 +179,7 @@ async function createProject() {
       message: "项目名称不能为空",
       type: "warning",
       duration: 3000,
+      customClass: "default-notification",
     });
     return;
   }
@@ -186,6 +190,7 @@ async function createProject() {
       message: "请至少添加一个功能块",
       type: "warning",
       duration: 3000,
+      customClass: "default-notification",
     });
     return;
   }
@@ -827,6 +832,7 @@ async function createProject() {
   justify-content: flex-start;
   align-items: center;
   overflow-y: auto;
+  position: relative;
 }
 
 .title {
@@ -1019,5 +1025,21 @@ span .collapse-title:hover {
   background-color: var(--color-dark-0);
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.2);
   cursor: pointer;
+}
+
+.back-btn {
+  position: absolute;
+  width: 60px;
+  height: 40px;
+  top: 20px;
+  left: 20px;
+  z-index: 1000;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.back-btn:hover {
+  background-color: rgba(65, 112, 255, 0.2);
 }
 </style>
