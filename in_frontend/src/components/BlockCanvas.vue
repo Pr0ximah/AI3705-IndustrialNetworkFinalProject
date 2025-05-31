@@ -1840,18 +1840,19 @@ function getConnectingPath() {
   }).value;
 }
 
+function initWorkspace() {
+  // 初始化画布（只在启动时执行一次）
+  initializeCanvas();
+  // 获取所有类别定义
+  getBlockCategories(true);
+}
+
 onMounted(() => {
   window.addEventListener("keydown", handleKeyDown);
 
   // 添加全局鼠标事件监听，处理鼠标移出浏览器窗口的情况
   document.addEventListener("mouseleave", handleDocumentMouseLeave);
   window.addEventListener("blur", handleWindowBlur);
-
-  // 初始化画布（只在启动时执行一次）
-  initializeCanvas();
-
-  // 获取所有类别定义
-  getBlockCategories(true);
 });
 
 // 在组件卸载时移除键盘事件监听器
@@ -1999,12 +2000,12 @@ function convertJSON_TO_BlockCategoryObject(categoryJSON) {
   );
   let ECStates = [];
   categoryJSON.ECC.ECStates.forEach((state) => {
-    let ECAtion = null;
+    let ecAction = null;
     if (state.ecAction) {
-      ECAtion = new ECAction(state.ecAction.alogorithm, state.ecAction.output);
+      ecAction = new ECAction(state.ecAction.algorithm, state.ecAction.output);
     }
     ECStates.push(
-      new ECState(state.name, state.comment, state.x, state.y, ECAtion)
+      new ECState(state.name, state.comment, state.x, state.y, ecAction)
     );
   });
   let ECTransitions = categoryJSON.ECC.ECTransitions.map(
@@ -2080,7 +2081,7 @@ function convertBlockCategoryObject_TO_JSON(category) {
         y: state.y,
         ecAction: state.ecAction
           ? {
-              alogorithm: state.ecAction.alogorithm,
+              algorithm: state.ecAction.algorithm,
               output: state.ecAction.output,
             }
           : null,
@@ -2106,6 +2107,7 @@ function convertBlockCategoryObject_TO_JSON(category) {
 
 function getWorkspace() {
   // 序列化当前工作区状态
+  console.log(blockCategories.value);
   const workspace = {
     version: "1.0",
     timestamp: Date.now(),
@@ -2536,6 +2538,7 @@ defineExpose({
   clearWorkspace,
   saveBlockCatetoriesToFile,
   getBlockCategories,
+  initWorkspace,
   clearWorkspaceValid,
   scale,
 });

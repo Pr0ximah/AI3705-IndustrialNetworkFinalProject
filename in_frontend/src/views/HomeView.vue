@@ -16,11 +16,16 @@
           gap: 10px;
         "
       >
-        <CanvasControl />
+        <CanvasControl v-if="!showWelcome" />
         <WindowControl />
       </div>
     </ElHeader>
     <ElMain class="container-main">
+      <WelcomeMask
+        v-if="showWelcome"
+        style="z-index: 500"
+        @pass-create-project="projectCreated"
+      />
       <BlockCanvas ref="blockCanvasRef" />
     </ElMain>
     <div :style="{ opacity: showMask ? 1 : 0 }" class="homeview-mask" />
@@ -33,6 +38,7 @@ import CanvasControl from "@/components/CanvasControl.vue";
 import WindowControl from "@/components/WindowControl.vue";
 import { ElContainer, ElHeader, ElMain, ElNotification } from "element-plus";
 import { computed, ref, provide, onMounted, onBeforeUnmount } from "vue";
+import WelcomeMask from "@/components/WelcomeMask.vue";
 import service from "@/util/ajax_inst";
 
 const blockCanvasRef = ref(null);
@@ -43,6 +49,7 @@ const scale = computed(() => {
   return blockCanvasRef.value?.scale ?? 1;
 });
 const showMask = ref(false);
+const showWelcome = ref(true);
 
 provide("blockCanvasRef", blockCanvasRef);
 provide("clearWorkspaceValid", clearWorkspaceValid);
@@ -50,7 +57,7 @@ provide("scale", scale);
 
 let workspace = {
   version: "1.0",
-  timestamp: 1748655396037,
+  timestamp: 1748682713838,
   canvas: {
     scale: 1,
     offsetX: 473.5,
@@ -64,6 +71,10 @@ let workspace = {
         {
           name: "StartCmd",
           description: "启动命令信号",
+        },
+        {
+          name: "StopCmd",
+          description: "急停命令信号",
         },
         {
           name: "MaterialDetected",
@@ -129,6 +140,7 @@ let workspace = {
             x: 200,
             y: 50,
             ecAction: {
+              algorithm: "RampUp",
               output: "MotorRun",
             },
           },
@@ -138,6 +150,7 @@ let workspace = {
             x: 350,
             y: 50,
             ecAction: {
+              algorithm: "RunConveyor",
               output: "MotorRun",
             },
           },
@@ -147,6 +160,7 @@ let workspace = {
             x: 200,
             y: 150,
             ecAction: {
+              algorithm: "RampDown",
               output: "MotorRun",
             },
           },
@@ -156,6 +170,7 @@ let workspace = {
             x: 350,
             y: 150,
             ecAction: {
+              algorithm: "EmergencyStop",
               output: "MotorRun",
             },
           },
@@ -215,24 +230,28 @@ let workspace = {
         {
           Name: "RunConveyor",
           Comment: "输送机正常运行控制",
+          input: "SpeedReference, MaterialDetected",
           Output: "MotorSpeed, MaterialPresent",
           Code: "IF NOT MaterialDetected THEN\n    MotorSpeed := SpeedReference;\n    MaterialPresent := FALSE;\nELSE\n    MotorSpeed := 0;\n    MaterialPresent := TRUE;\nEND_IF;",
         },
         {
           Name: "RampUp",
           Comment: "加速斜坡控制",
+          input: "SpeedReference",
           Output: "MotorSpeed",
           Code: "MotorSpeed := MotorSpeed + (SpeedReference * 0.1);\nMotorSpeed := LIMIT(0, MotorSpeed, SpeedReference);",
         },
         {
           Name: "RampDown",
           Comment: "减速斜坡控制",
+          input: "",
           Output: "MotorSpeed",
           Code: "MotorSpeed := MotorSpeed - (SpeedReference * 0.2);\nMotorSpeed := LIMIT(0, MotorSpeed, SpeedReference);",
         },
         {
           Name: "EmergencyStop",
           Comment: "紧急停止控制",
+          input: "",
           Output: "MotorSpeed",
           Code: "MotorSpeed := 0;",
         },
@@ -323,6 +342,7 @@ let workspace = {
             x: 200,
             y: 50,
             ecAction: {
+              algorithm: "CalculateSpeed",
               output: "MotorSpeed",
             },
           },
@@ -332,6 +352,7 @@ let workspace = {
             x: 200,
             y: 150,
             ecAction: {
+              algorithm: "CalculateSpeed",
               output: "MotorSpeed",
             },
           },
@@ -341,6 +362,7 @@ let workspace = {
             x: 350,
             y: 100,
             ecAction: {
+              algorithm: "EmergencyStop",
               output: "OverloadAlarm",
             },
           },
@@ -408,12 +430,14 @@ let workspace = {
         {
           Name: "CalculateSpeed",
           Comment: "计算电机运行速度",
+          input: "CurrentPosition, TargetPosition, LoadWeight",
           Output: "MotorSpeed, PositionError",
           Code: "PositionError := ABS(TargetPosition - CurrentPosition);\nIF LoadWeight > MaxLoad THEN\n    IsOverloaded := TRUE;\n    MotorSpeed := 0;\nELSE\n    MotorSpeed := MIN(MaxSpeed, PositionError * SpeedFactor);\nEND_IF;",
         },
         {
           Name: "EmergencyStop",
           Comment: "紧急停止处理",
+          input: "EmergencyStop, IsOverloaded",
           Output: "OverloadAlarm",
           Code: "IF EmergencyStop OR IsOverloaded THEN\n    OverloadAlarm := TRUE;\n    MotorSpeed := 0;\nELSE\n    OverloadAlarm := FALSE;\nEND_IF;",
         },
@@ -500,6 +524,7 @@ let workspace = {
             x: 200,
             y: 50,
             ecAction: {
+              algorithm: "CalculateMovePath",
               output: "MoveSpeed",
             },
           },
@@ -509,6 +534,7 @@ let workspace = {
             x: 350,
             y: 50,
             ecAction: {
+              algorithm: "CalculateGripForce",
               output: "GripperForce",
             },
           },
@@ -518,6 +544,7 @@ let workspace = {
             x: 200,
             y: 150,
             ecAction: {
+              algorithm: "CalculateMovePath",
               output: "MoveSpeed",
             },
           },
@@ -527,6 +554,7 @@ let workspace = {
             x: 50,
             y: 150,
             ecAction: {
+              algorithm: "ReleaseWorkpiece",
               output: "TransferComplete",
             },
           },
@@ -536,6 +564,7 @@ let workspace = {
             x: 350,
             y: 150,
             ecAction: {
+              algorithm: "EmergencyStop",
               output: "Alarm",
             },
           },
@@ -595,24 +624,28 @@ let workspace = {
         {
           Name: "CalculateMovePath",
           Comment: "计算移栽臂移动路径和速度",
+          input: "CurrentPosition, TargetPosition, WorkpieceWeight",
           Output: "MoveSpeed",
           Code: "VAR\n    Distance : REAL := ABS(TargetPosition - CurrentPosition);\n    MaxSpeed : REAL := 500.0; (* mm/s *)\n    WeightFactor : REAL := 1.0 - (WorkpieceWeight * 0.01);\nEND_VAR\n\nMoveSpeed := MIN(Distance * 0.5, MaxSpeed) * WeightFactor;",
         },
         {
           Name: "CalculateGripForce",
           Comment: "根据工件重量计算夹持力",
+          input: "WorkpieceWeight",
           Output: "GripperForce",
           Code: "GripperForce := WorkpieceWeight * 9.8 * 1.5; (* 安全系数1.5 *)",
         },
         {
           Name: "ReleaseWorkpiece",
           Comment: "释放工件控制",
+          input: "IsGripping",
           Output: "TransferComplete",
           Code: "IsGripping := FALSE;\nTransferComplete := TRUE;",
         },
         {
           Name: "EmergencyStop",
           Comment: "紧急停止处理",
+          input: "EmergencyStop",
           Output: "Alarm",
           Code: "MoveSpeed := 0.0;\nGripperForce := 0.0;\nAlarm := TRUE;",
         },
@@ -621,199 +654,9 @@ let workspace = {
   ],
   blocks: [
     {
-      id: "block_4_1748655390356",
-      x: -386.5,
-      y: -240.5,
-      width: 190,
-      height: 190,
-      categoryName: "输送机",
-      categoryIndex: 0,
-      categoryConf: {
-        name: "输送机",
-        id: 0,
-        signal_input: [
-          {
-            name: "StartCmd",
-            description: "启动命令信号",
-          },
-          {
-            name: "MaterialDetected",
-            description: "物料到位传感器信号",
-          },
-        ],
-        signal_output: [
-          {
-            name: "MotorRun",
-            description: "电机运行控制信号",
-          },
-          {
-            name: "MaterialPresent",
-            description: "物料存在状态信号",
-          },
-        ],
-        var_input: [
-          {
-            name: "MaterialPosition",
-            type: "bool",
-            description: "物料位置检测信号，TRUE表示物料到位",
-          },
-          {
-            name: "SpeedReference",
-            type: "float",
-            description: "输送机速度设定值(0-100%)",
-          },
-        ],
-        var_output: [
-          {
-            name: "MotorSpeed",
-            type: "float",
-            description: "电机实际运行速度反馈",
-          },
-          {
-            name: "FaultStatus",
-            type: "int",
-            description: "故障状态码，0表示正常",
-          },
-        ],
-        InternalVars: [
-          {
-            name: "IsRunning",
-            type: "bool",
-          },
-          {
-            name: "RunTimer",
-            type: "Time",
-          },
-        ],
-        ECC: {
-          ECStates: [
-            {
-              name: "Idle",
-              comment: "待机状态",
-              x: 50,
-              y: 50,
-              ecAction: null,
-            },
-            {
-              name: "Accelerating",
-              comment: "加速阶段",
-              x: 200,
-              y: 50,
-              ecAction: {
-                output: "MotorRun",
-              },
-            },
-            {
-              name: "Running",
-              comment: "正常运行",
-              x: 350,
-              y: 50,
-              ecAction: {
-                output: "MotorRun",
-              },
-            },
-            {
-              name: "Decelerating",
-              comment: "减速停止",
-              x: 200,
-              y: 150,
-              ecAction: {
-                output: "MotorRun",
-              },
-            },
-            {
-              name: "EmergencyStop",
-              comment: "急停状态",
-              x: 350,
-              y: 150,
-              ecAction: {
-                output: "MotorRun",
-              },
-            },
-          ],
-          ECTransitions: [
-            {
-              source: "Idle",
-              destination: "Accelerating",
-              condition: "StartCmd AND NOT MaterialDetected",
-              comment: "收到启动命令且无物料",
-              x: 125,
-              y: 30,
-            },
-            {
-              source: "Accelerating",
-              destination: "Running",
-              condition: "MotorSpeed >= SpeedReference",
-              comment: "达到设定速度",
-              x: 275,
-              y: 30,
-            },
-            {
-              source: "Running",
-              destination: "Decelerating",
-              condition: "StopCmd OR MaterialDetected",
-              comment: "收到停止信号或检测到物料",
-              x: 350,
-              y: 100,
-            },
-            {
-              source: "Decelerating",
-              destination: "Idle",
-              condition: "MotorSpeed <= 0",
-              comment: "完全停止",
-              x: 275,
-              y: 150,
-            },
-            {
-              source: "Running",
-              destination: "EmergencyStop",
-              condition: "StopCmd",
-              comment: "急停命令",
-              x: 350,
-              y: 100,
-            },
-            {
-              source: "EmergencyStop",
-              destination: "Idle",
-              condition: "ResetCmd",
-              comment: "复位后返回待机",
-              x: 350,
-              y: 200,
-            },
-          ],
-        },
-        Algorithms: [
-          {
-            Name: "RunConveyor",
-            Comment: "输送机正常运行控制",
-            Output: "MotorSpeed, MaterialPresent",
-            Code: "IF NOT MaterialDetected THEN\n    MotorSpeed := SpeedReference;\n    MaterialPresent := FALSE;\nELSE\n    MotorSpeed := 0;\n    MaterialPresent := TRUE;\nEND_IF;",
-          },
-          {
-            Name: "RampUp",
-            Comment: "加速斜坡控制",
-            Output: "MotorSpeed",
-            Code: "MotorSpeed := MotorSpeed + (SpeedReference * 0.1);\nMotorSpeed := LIMIT(0, MotorSpeed, SpeedReference);",
-          },
-          {
-            Name: "RampDown",
-            Comment: "减速斜坡控制",
-            Output: "MotorSpeed",
-            Code: "MotorSpeed := MotorSpeed - (SpeedReference * 0.2);\nMotorSpeed := LIMIT(0, MotorSpeed, SpeedReference);",
-          },
-          {
-            Name: "EmergencyStop",
-            Comment: "紧急停止控制",
-            Output: "MotorSpeed",
-            Code: "MotorSpeed := 0;",
-          },
-        ],
-      },
-    },
-    {
-      id: "block_5_1748655391269",
-      x: 6.5,
-      y: -205.5,
+      id: "block_4_1748682704088",
+      x: -336.5,
+      y: -183.5,
       width: 190,
       height: 190,
       categoryName: "提升机",
@@ -903,6 +746,7 @@ let workspace = {
               x: 200,
               y: 50,
               ecAction: {
+                algorithm: "CalculateSpeed",
                 output: "MotorSpeed",
               },
             },
@@ -912,6 +756,7 @@ let workspace = {
               x: 200,
               y: 150,
               ecAction: {
+                algorithm: "CalculateSpeed",
                 output: "MotorSpeed",
               },
             },
@@ -921,6 +766,7 @@ let workspace = {
               x: 350,
               y: 100,
               ecAction: {
+                algorithm: "EmergencyStop",
                 output: "OverloadAlarm",
               },
             },
@@ -988,14 +834,435 @@ let workspace = {
           {
             Name: "CalculateSpeed",
             Comment: "计算电机运行速度",
+            input: "CurrentPosition, TargetPosition, LoadWeight",
             Output: "MotorSpeed, PositionError",
             Code: "PositionError := ABS(TargetPosition - CurrentPosition);\nIF LoadWeight > MaxLoad THEN\n    IsOverloaded := TRUE;\n    MotorSpeed := 0;\nELSE\n    MotorSpeed := MIN(MaxSpeed, PositionError * SpeedFactor);\nEND_IF;",
           },
           {
             Name: "EmergencyStop",
             Comment: "紧急停止处理",
+            input: "EmergencyStop, IsOverloaded",
             Output: "OverloadAlarm",
             Code: "IF EmergencyStop OR IsOverloaded THEN\n    OverloadAlarm := TRUE;\n    MotorSpeed := 0;\nELSE\n    OverloadAlarm := FALSE;\nEND_IF;",
+          },
+        ],
+      },
+    },
+    {
+      id: "block_5_1748682705739",
+      x: 21.5,
+      y: -246.5,
+      width: 190,
+      height: 190,
+      categoryName: "输送机",
+      categoryIndex: 0,
+      categoryConf: {
+        name: "输送机",
+        id: 0,
+        signal_input: [
+          {
+            name: "StartCmd",
+            description: "启动命令信号",
+          },
+          {
+            name: "StopCmd",
+            description: "急停命令信号",
+          },
+          {
+            name: "MaterialDetected",
+            description: "物料到位传感器信号",
+          },
+        ],
+        signal_output: [
+          {
+            name: "MotorRun",
+            description: "电机运行控制信号",
+          },
+          {
+            name: "MaterialPresent",
+            description: "物料存在状态信号",
+          },
+        ],
+        var_input: [
+          {
+            name: "MaterialPosition",
+            type: "bool",
+            description: "物料位置检测信号，TRUE表示物料到位",
+          },
+          {
+            name: "SpeedReference",
+            type: "float",
+            description: "输送机速度设定值(0-100%)",
+          },
+        ],
+        var_output: [
+          {
+            name: "MotorSpeed",
+            type: "float",
+            description: "电机实际运行速度反馈",
+          },
+          {
+            name: "FaultStatus",
+            type: "int",
+            description: "故障状态码，0表示正常",
+          },
+        ],
+        InternalVars: [
+          {
+            name: "IsRunning",
+            type: "bool",
+          },
+          {
+            name: "RunTimer",
+            type: "Time",
+          },
+        ],
+        ECC: {
+          ECStates: [
+            {
+              name: "Idle",
+              comment: "待机状态",
+              x: 50,
+              y: 50,
+              ecAction: null,
+            },
+            {
+              name: "Accelerating",
+              comment: "加速阶段",
+              x: 200,
+              y: 50,
+              ecAction: {
+                algorithm: "RampUp",
+                output: "MotorRun",
+              },
+            },
+            {
+              name: "Running",
+              comment: "正常运行",
+              x: 350,
+              y: 50,
+              ecAction: {
+                algorithm: "RunConveyor",
+                output: "MotorRun",
+              },
+            },
+            {
+              name: "Decelerating",
+              comment: "减速停止",
+              x: 200,
+              y: 150,
+              ecAction: {
+                algorithm: "RampDown",
+                output: "MotorRun",
+              },
+            },
+            {
+              name: "EmergencyStop",
+              comment: "急停状态",
+              x: 350,
+              y: 150,
+              ecAction: {
+                algorithm: "EmergencyStop",
+                output: "MotorRun",
+              },
+            },
+          ],
+          ECTransitions: [
+            {
+              source: "Idle",
+              destination: "Accelerating",
+              condition: "StartCmd AND NOT MaterialDetected",
+              comment: "收到启动命令且无物料",
+              x: 125,
+              y: 30,
+            },
+            {
+              source: "Accelerating",
+              destination: "Running",
+              condition: "MotorSpeed >= SpeedReference",
+              comment: "达到设定速度",
+              x: 275,
+              y: 30,
+            },
+            {
+              source: "Running",
+              destination: "Decelerating",
+              condition: "StopCmd OR MaterialDetected",
+              comment: "收到停止信号或检测到物料",
+              x: 350,
+              y: 100,
+            },
+            {
+              source: "Decelerating",
+              destination: "Idle",
+              condition: "MotorSpeed <= 0",
+              comment: "完全停止",
+              x: 275,
+              y: 150,
+            },
+            {
+              source: "Running",
+              destination: "EmergencyStop",
+              condition: "StopCmd",
+              comment: "急停命令",
+              x: 350,
+              y: 100,
+            },
+            {
+              source: "EmergencyStop",
+              destination: "Idle",
+              condition: "ResetCmd",
+              comment: "复位后返回待机",
+              x: 350,
+              y: 200,
+            },
+          ],
+        },
+        Algorithms: [
+          {
+            Name: "RunConveyor",
+            Comment: "输送机正常运行控制",
+            input: "SpeedReference, MaterialDetected",
+            Output: "MotorSpeed, MaterialPresent",
+            Code: "IF NOT MaterialDetected THEN\n    MotorSpeed := SpeedReference;\n    MaterialPresent := FALSE;\nELSE\n    MotorSpeed := 0;\n    MaterialPresent := TRUE;\nEND_IF;",
+          },
+          {
+            Name: "RampUp",
+            Comment: "加速斜坡控制",
+            input: "SpeedReference",
+            Output: "MotorSpeed",
+            Code: "MotorSpeed := MotorSpeed + (SpeedReference * 0.1);\nMotorSpeed := LIMIT(0, MotorSpeed, SpeedReference);",
+          },
+          {
+            Name: "RampDown",
+            Comment: "减速斜坡控制",
+            input: "",
+            Output: "MotorSpeed",
+            Code: "MotorSpeed := MotorSpeed - (SpeedReference * 0.2);\nMotorSpeed := LIMIT(0, MotorSpeed, SpeedReference);",
+          },
+          {
+            Name: "EmergencyStop",
+            Comment: "紧急停止控制",
+            input: "",
+            Output: "MotorSpeed",
+            Code: "MotorSpeed := 0;",
+          },
+        ],
+      },
+    },
+    {
+      id: "block_6_1748682708653",
+      x: -251.5,
+      y: 59.5,
+      width: 190,
+      height: 190,
+      categoryName: "移栽机",
+      categoryIndex: 2,
+      categoryConf: {
+        name: "移栽机",
+        id: 2,
+        signal_input: [
+          {
+            name: "StartTransfer",
+            description: "启动移栽信号",
+          },
+          {
+            name: "EmergencyStop",
+            description: "急停信号",
+          },
+          {
+            name: "WorkpieceDetected",
+            description: "工件到位检测信号",
+          },
+        ],
+        signal_output: [
+          {
+            name: "TransferComplete",
+            description: "移栽完成信号",
+          },
+          {
+            name: "Alarm",
+            description: "异常报警信号",
+          },
+        ],
+        var_input: [
+          {
+            name: "CurrentPosition",
+            type: "float",
+            description: "当前移栽臂位置坐标(mm)",
+          },
+          {
+            name: "TargetPosition",
+            type: "float",
+            description: "目标移栽位置坐标(mm)",
+          },
+          {
+            name: "WorkpieceWeight",
+            type: "float",
+            description: "工件重量(kg)",
+          },
+        ],
+        var_output: [
+          {
+            name: "MoveSpeed",
+            type: "float",
+            description: "移栽臂移动速度(mm/s)",
+          },
+          {
+            name: "GripperForce",
+            type: "float",
+            description: "夹爪夹持力(N)",
+          },
+        ],
+        InternalVars: [
+          {
+            name: "IsMoving",
+            type: "bool",
+          },
+          {
+            name: "IsGripping",
+            type: "bool",
+          },
+        ],
+        ECC: {
+          ECStates: [
+            {
+              name: "Idle",
+              comment: "待机状态",
+              x: 50,
+              y: 50,
+              ecAction: null,
+            },
+            {
+              name: "MovingToPick",
+              comment: "移动至取件位置",
+              x: 200,
+              y: 50,
+              ecAction: {
+                algorithm: "CalculateMovePath",
+                output: "MoveSpeed",
+              },
+            },
+            {
+              name: "Gripping",
+              comment: "夹取工件",
+              x: 350,
+              y: 50,
+              ecAction: {
+                algorithm: "CalculateGripForce",
+                output: "GripperForce",
+              },
+            },
+            {
+              name: "MovingToPlace",
+              comment: "移动至放件位置",
+              x: 200,
+              y: 150,
+              ecAction: {
+                algorithm: "CalculateMovePath",
+                output: "MoveSpeed",
+              },
+            },
+            {
+              name: "Releasing",
+              comment: "释放工件",
+              x: 50,
+              y: 150,
+              ecAction: {
+                algorithm: "ReleaseWorkpiece",
+                output: "TransferComplete",
+              },
+            },
+            {
+              name: "Emergency",
+              comment: "紧急停止状态",
+              x: 350,
+              y: 150,
+              ecAction: {
+                algorithm: "EmergencyStop",
+                output: "Alarm",
+              },
+            },
+          ],
+          ECTransitions: [
+            {
+              source: "Idle",
+              destination: "MovingToPick",
+              condition: "StartTransfer AND WorkpieceDetected",
+              comment: "收到启动信号且工件到位",
+              x: 125,
+              y: 30,
+            },
+            {
+              source: "MovingToPick",
+              destination: "Gripping",
+              condition: "CurrentPosition == TargetPosition",
+              comment: "到达取件位置",
+              x: 275,
+              y: 30,
+            },
+            {
+              source: "Gripping",
+              destination: "MovingToPlace",
+              condition: "IsGripping",
+              comment: "夹取完成",
+              x: 275,
+              y: 100,
+            },
+            {
+              source: "MovingToPlace",
+              destination: "Releasing",
+              condition: "CurrentPosition == TargetPosition",
+              comment: "到达放件位置",
+              x: 125,
+              y: 100,
+            },
+            {
+              source: "Releasing",
+              destination: "Idle",
+              condition: "NOT IsGripping",
+              comment: "释放完成返回待机",
+              x: 50,
+              y: 100,
+            },
+            {
+              source: "*",
+              destination: "Emergency",
+              condition: "EmergencyStop",
+              comment: "任何状态下收到急停信号",
+              x: 200,
+              y: 200,
+            },
+          ],
+        },
+        Algorithms: [
+          {
+            Name: "CalculateMovePath",
+            Comment: "计算移栽臂移动路径和速度",
+            input: "CurrentPosition, TargetPosition, WorkpieceWeight",
+            Output: "MoveSpeed",
+            Code: "VAR\n    Distance : REAL := ABS(TargetPosition - CurrentPosition);\n    MaxSpeed : REAL := 500.0; (* mm/s *)\n    WeightFactor : REAL := 1.0 - (WorkpieceWeight * 0.01);\nEND_VAR\n\nMoveSpeed := MIN(Distance * 0.5, MaxSpeed) * WeightFactor;",
+          },
+          {
+            Name: "CalculateGripForce",
+            Comment: "根据工件重量计算夹持力",
+            input: "WorkpieceWeight",
+            Output: "GripperForce",
+            Code: "GripperForce := WorkpieceWeight * 9.8 * 1.5; (* 安全系数1.5 *)",
+          },
+          {
+            Name: "ReleaseWorkpiece",
+            Comment: "释放工件控制",
+            input: "IsGripping",
+            Output: "TransferComplete",
+            Code: "IsGripping := FALSE;\nTransferComplete := TRUE;",
+          },
+          {
+            Name: "EmergencyStop",
+            Comment: "紧急停止处理",
+            input: "EmergencyStop",
+            Output: "Alarm",
+            Code: "MoveSpeed := 0.0;\nGripperForce := 0.0;\nAlarm := TRUE;",
           },
         ],
       },
@@ -1006,32 +1273,48 @@ let workspace = {
       id: "connection_1",
       type: "signal",
       start: {
-        blockId: "block_4_1748655390356",
+        blockId: "block_4_1748682704088",
         type: "signal_output",
         index: 0,
-        connectorName: "MotorRun",
+        connectorName: "LiftRunning",
       },
       end: {
-        blockId: "block_5_1748655391269",
+        blockId: "block_5_1748682705739",
         type: "signal_input",
         index: 0,
-        connectorName: "StartLift",
+        connectorName: "StartCmd",
       },
     },
     {
       id: "connection_2",
+      type: "signal",
+      start: {
+        blockId: "block_6_1748682708653",
+        type: "signal_output",
+        index: 0,
+        connectorName: "TransferComplete",
+      },
+      end: {
+        blockId: "block_5_1748682705739",
+        type: "signal_input",
+        index: 1,
+        connectorName: "StopCmd",
+      },
+    },
+    {
+      id: "connection_3",
       type: "var",
       start: {
-        blockId: "block_4_1748655390356",
+        blockId: "block_4_1748682704088",
         type: "var_output",
         index: 0,
         connectorName: "MotorSpeed",
       },
       end: {
-        blockId: "block_5_1748655391269",
+        blockId: "block_5_1748682705739",
         type: "var_input",
         index: 1,
-        connectorName: "TargetPosition",
+        connectorName: "SpeedReference",
       },
     },
   ],
@@ -1047,6 +1330,18 @@ function test2() {
 
 function test3() {
   blockCanvasRef.value.saveBlockCatetoriesToFile();
+}
+
+function projectCreated() {
+  showWelcome.value = false;
+  blockCanvasRef.value.initWorkspace();
+  ElNotification({
+    title: "欢迎使用",
+    showClose: false,
+    message: "欢迎使用本系统，祝您工作愉快！",
+    type: "success",
+    duration: 3000,
+  });
 }
 
 onMounted(() => {

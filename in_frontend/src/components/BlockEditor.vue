@@ -484,14 +484,44 @@ function deleteItem(type, index) {
   if (deleteButtonClickedMap[type].value[index]) {
     // 如果按钮已经被点击，执行删除操作
     categoryConf.value[type].splice(index, 1);
-    activeValuesMap[type].value.splice(index, 1);
     deleteButtonClickedMap[type].value.splice(index, 1);
-    // 更新 activeValues
-    activeValues.value = activeValues.value.filter(
-      (value) => value !== `${prefixMap[type]}-${index}`
-    );
+
+    // 更新activeValuesMap数组，移除被删除项，并重新计算索引
+    const prefix = prefixMap[type];
+    activeValuesMap[type].value = activeValuesMap[type].value
+      .filter((value) => {
+        const itemIndex = parseInt(value.split("-")[1]);
+        return itemIndex !== index;
+      })
+      .map((value) => {
+        const parts = value.split("-");
+        const itemIndex = parseInt(parts[1]);
+        // 对于索引大于被删除项的元素，减少索引
+        return itemIndex > index ? `${prefix}-${itemIndex - 1}` : value;
+      });
+
+    // 更新主activeValues
+    activeValues.value = activeValues.value
+      .filter((value) => value !== `${prefix}-${index}`)
+      .map((value) => {
+        // 只处理当前类型的值
+        if (value.startsWith(`${prefix}-`)) {
+          const itemIndex = parseInt(value.split("-")[1]);
+          // 对于索引大于被删除项的元素，减少索引
+          return itemIndex > index ? `${prefix}-${itemIndex - 1}` : value;
+        }
+        return value;
+      });
   } else {
+    // 首次点击时设置为确认状态
     deleteButtonClickedMap[type].value[index] = true;
+
+    // 3秒后自动重置按钮状态
+    setTimeout(() => {
+      if (deleteButtonClickedMap[type].value[index]) {
+        deleteButtonClickedMap[type].value[index] = false;
+      }
+    }, 3000);
   }
 }
 
@@ -503,7 +533,10 @@ function unsetDeleteButtonClicked(type, index) {
     var_output: varOutDeleteButtonClicked,
   };
 
-  deleteButtonClickedMap[type].value[index] = false;
+  // 确保索引有效，防止访问越界
+  if (index >= 0 && index < deleteButtonClickedMap[type].value.length) {
+    deleteButtonClickedMap[type].value[index] = false;
+  }
 }
 
 defineExpose({

@@ -61,4 +61,19 @@ contextBridge.exposeInMainWorld("ipcApi", {
   saveModifiedBlockCategory: (category) => {
     return ipcRenderer.invoke("save-modified-block-category", category);
   },
+
+  // 欢迎界面创建工程
+  createProject: () => {
+    return ipcRenderer.invoke("create-project");
+  },
+
+  // 创建工程目录
+  createProjectDir: (projectPath, projectName) => {
+    return ipcRenderer.invoke("create-project-dir", projectPath, projectName);
+  },
+
+  // 打开工程目录
+  openProjectDir: () => {
+    return ipcRenderer.invoke("open-project-dir");
+  },
 });

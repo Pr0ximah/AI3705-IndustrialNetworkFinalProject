@@ -3,11 +3,9 @@ from inputs import input_router
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
+
 def main():
-    origins = [
-    "http://localhost:17990",
-    "app://."
-    ]
+    origins = ["http://localhost:17990", "app://."]
 
     app = FastAPI()
     app.add_middleware(
@@ -19,8 +17,9 @@ def main():
     )
 
     app.include_router(input_router)
-    
+
     uvicorn.run(app, host="127.0.0.1", port=17991, log_level="info")
+
 
 if __name__ == "__main__":
     main()

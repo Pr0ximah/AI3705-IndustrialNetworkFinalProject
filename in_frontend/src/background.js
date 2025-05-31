@@ -5,16 +5,18 @@ import { createProtocol } from "vue-cli-plugin-electron-builder/lib";
 import path from "path";
 import installExtension, { VUEJS3_DEVTOOLS } from "electron-devtools-installer";
 const fs = require("fs");
+const { dialog } = require("electron");
 const isDevelopment = process.env.NODE_ENV !== "production";
 let mainWindow = null;
 let blockEditorWindow = null;
 
 // 持久化数据目录
 const userDataPath = app.getPath("userData");
-const blockCategoriesFilePath = path.join(
-  userDataPath,
-  "block-categories.json"
-);
+// const blockCategoriesFilePath = path.join(
+//   userDataPath,
+//   "block-categories.json"
+// );
+let blockCategoriesFilePath = "";
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
@@ -315,5 +317,80 @@ ipcMain.handle("save-modified-block-category", async (event, category) => {
     );
   } catch (error) {
     throw new Error(`保存修改的功能块配置失败！错误： ${error.message}`);
+  }
+});
+
+ipcMain.handle("create-project", async (event) => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "选择项目保存路径",
+      properties: ["openDirectory"],
+      buttonLabel: "选择文件夹",
+    });
+
+    if (result.canceled) {
+      return null;
+    }
+    return result.filePaths[0];
+  } catch (error) {
+    throw new Error(`选择文件夹失败！错误： ${error.message}`);
+  }
+});
+
+ipcMain.handle(
+  "create-project-dir",
+  async (event, projectPath, projectName) => {
+    let proj_path = path.join(projectPath, projectName);
+    if (fs.existsSync(proj_path)) {
+      const result = await dialog.showMessageBox(mainWindow, {
+        type: "warning",
+        title: "文件夹已存在",
+        message: `文件夹 "${projectName}" 已存在，是否要清空该文件夹？`,
+        buttons: ["取消", "清空并继续"],
+        defaultId: 0,
+        cancelId: 0,
+      });
+
+      if (result.response === 0) {
+        throw new Error("用户取消操作");
+      }
+
+      // 清空文件夹
+      fs.rmSync(proj_path, { recursive: true, force: true });
+    }
+    fs.mkdirSync(proj_path, { recursive: true });
+    blockCategoriesFilePath = path.join(proj_path, "block-categories.json");
+    return;
+  }
+);
+
+ipcMain.handle("open-project-dir", async (event) => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "选择项目文件夹",
+      properties: ["openDirectory"],
+      buttonLabel: "选择文件夹",
+    });
+
+    if (result.canceled) {
+      throw new Error("用户取消");
+    }
+
+    const selectedPath = result.filePaths[0];
+    const blockCategoriesFile = path.join(
+      selectedPath,
+      "block-categories.json"
+    );
+
+    if (!fs.existsSync(blockCategoriesFile)) {
+      throw new Error(
+        "所选文件夹中未找到 block-categories.json 文件，请选择有效的项目文件夹！"
+      );
+    }
+
+    blockCategoriesFilePath = blockCategoriesFile;
+    return selectedPath;
+  } catch (error) {
+    throw error;
   }
 });

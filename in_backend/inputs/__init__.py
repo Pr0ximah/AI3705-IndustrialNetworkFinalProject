@@ -1,1 +1,1 @@
-from .categories import input_router
+from .inputs import input_router
