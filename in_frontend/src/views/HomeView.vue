@@ -32,6 +32,15 @@
         />
       </Transition>
       <BlockCanvas ref="blockCanvasRef" />
+      <Transition name="select-workspace-fade" mode="out-in">
+        <SelectWorkspace
+          style="position: absolute; top: 0; left: 0; z-index: 1000"
+          v-if="showSelectWorkspace"
+          :workspaces="workspacelist"
+          @close="showSelectWorkspace = false"
+          @select="loadWorkspaceSelected"
+        />
+      </Transition>
     </ElMain>
     <div :style="{ opacity: showMask ? 1 : 0 }" class="homeview-mask" />
   </ElContainer>
@@ -52,6 +61,7 @@ import {
 import { computed, ref, provide, onMounted, onBeforeUnmount } from "vue";
 import WelcomeMask from "@/components/WelcomeMask.vue";
 import WorkspaceMenu from "@/components/WorkspaceMenu.vue";
+import SelectWorkspace from "@/components/SelectWorkspace.vue";
 import service from "@/util/ajax_inst";
 
 const blockCanvasRef = ref(null);
@@ -63,6 +73,8 @@ const scale = computed(() => {
 });
 const showMask = ref(false);
 const showWelcome = ref(true);
+const showSelectWorkspace = ref(false);
+const workspacelist = ref([]);
 
 provide("blockCanvasRef", blockCanvasRef);
 provide("clearWorkspaceValid", clearWorkspaceValid);
@@ -83,6 +95,13 @@ async function emitSaveWorkspace() {
         cancelButtonClass: "cancel-btn",
         confirmButtonClass: "confirm-btn",
         customClass: "default-message-box",
+        inputValidator: (value) => {
+          if (!value || value.trim() === "") {
+            return "组态名称不能为空";
+          }
+          return true;
+        },
+        inputErrorMessage: "请输入有效的组态名称",
       }
     );
     // 处理保存逻辑
@@ -120,32 +139,41 @@ async function emitSaveWorkspace() {
 }
 
 async function emitLoadWorkspace() {
+  workspacelist.value = await window.ipcApi.getWorkspaceList();
+  showSelectWorkspace.value = true;
+}
+
+async function loadWorkspaceSelected(name) {
+  showSelectWorkspace.value = false;
   let loading = null;
   try {
     loading = ElLoading.service({
       lock: true,
       customClass: "default-loading",
-      text: "正在保存组态...",
+      text: "正在加载组态...",
       background: "rgba(255, 255, 255, 0.7)",
     });
-    let res = await window.ipcApi.loadWorkspace();
-    console.log("loadWorkspace res:", res);
+    let res = await window.ipcApi.loadWorkspace(name);
     res = JSON.parse(res);
-    blockCanvasRef.value.loadWorkspace(res);
+    await blockCanvasRef.value.loadWorkspace(res);
+    ElNotification({
+      title: "组态加载成功",
+      showClose: false,
+      message: `组态【${name}】已成功加载`,
+      type: "success",
+      duration: 3000,
+      customClass: "default-notification",
+    });
   } catch (error) {
     let errorMessage = window.ipcApi.extractErrorMessage(error);
-    if (errorMessage === "CANCEL") {
-      // 用户取消保存
-    } else {
-      ElNotification({
-        title: "组态加载失败",
-        showClose: false,
-        message: `${error.message || error}`,
-        type: "error",
-        duration: 3000,
-        customClass: "default-notification",
-      });
-    }
+    ElNotification({
+      title: "组态加载失败",
+      showClose: false,
+      message: `${error.message || error}`,
+      type: "error",
+      duration: 3000,
+      customClass: "default-notification",
+    });
   }
   loading?.close();
 }
@@ -219,11 +247,15 @@ onMounted(() => {
   window.ipcApi.receive("open-block-editor-signal", () => {
     showMask.value = true;
   });
-  window.ipcApi.receive("close-block-editor-signal", () => {
+  window.ipcApi.receive("close-block-editor-signal", async () => {
     if (!blockCanvasRef.value) {
       return;
     }
+    // 从文件中加载刷新的功能块配置
+    const categoriesJSON = await window.ipcApi.loadBlockCategories();
+    blockCanvasRef.value.loadCategoriesConfigFromJSON(categoriesJSON);
     const workspace_saved = blockCanvasRef.value.getWorkspace();
+    console.log("workspace_saved", workspace_saved);
     if (!workspace_saved) {
       ElNotification({
         title: "编辑器保存错误！",
@@ -235,9 +267,7 @@ onMounted(() => {
       });
       return;
     }
-    blockCanvasRef.value.getBlockCategories(true).then(() => {
-      blockCanvasRef.value.loadWorkspace(workspace_saved, true);
-    });
+    await blockCanvasRef.value.loadWorkspace(workspace_saved);
     showMask.value = false;
   });
 });
@@ -294,6 +324,21 @@ onMounted(() => {
 .welcome-fade-leave-from {
   opacity: 1;
   transform: translateY(0);
+}
+
+.select-workspace-fade-enter-active,
+.select-workspace-fade-leave-active {
+  transition: opacity 0.15s ease-in-out;
+}
+
+.select-workspace-fade-enter-from,
+.select-workspace-fade-leave-to {
+  opacity: 0;
+}
+
+.select-workspace-fade-enter-to,
+.select-workspace-fade-leave-from {
+  opacity: 1;
 }
 
 .el-messagebox.default-message-box {

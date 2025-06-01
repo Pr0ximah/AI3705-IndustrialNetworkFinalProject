@@ -14,10 +14,6 @@ let serviceProcess = null;
 
 // 持久化数据目录
 const userDataPath = app.getPath("userData");
-// const blockCategoriesFilePath = path.join(
-//   userDataPath,
-//   "block-categories.json"
-// );
 let projectPath = "";
 let blockCategoriesFilePath = "";
 
@@ -414,8 +410,9 @@ ipcMain.handle(
       // 清空文件夹
       fs.rmSync(proj_path, { recursive: true, force: true });
     }
-    fs.mkdirSync(proj_path, { recursive: true });
-    blockCategoriesFilePath = path.join(proj_path, "block-categories.json");
+    let data_path = path.join(proj_path, "data");
+    fs.mkdirSync(data_path, { recursive: true });
+    blockCategoriesFilePath = path.join(data_path, "block-categories.json");
     return;
   }
 );
@@ -436,13 +433,12 @@ ipcMain.handle("open-project-dir", async (event) => {
     projectPath = selectedPath; // 更新全局项目路径
     const blockCategoriesFile = path.join(
       selectedPath,
+      "data",
       "block-categories.json"
     );
 
     if (!fs.existsSync(blockCategoriesFile)) {
-      throw new Error(
-        "所选文件夹中未找到 block-categories.json 文件，请选择有效的项目文件夹！"
-      );
+      throw new Error("所选文件夹中未找到 data 文件夹，请选择有效的项目！");
     }
 
     blockCategoriesFilePath = blockCategoriesFile;
@@ -454,37 +450,10 @@ ipcMain.handle("open-project-dir", async (event) => {
 
 ipcMain.handle("save-workspace", async (event, workspace, name) => {
   try {
-    // 打开对话框让用户选择保存目录
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: "选择保存位置",
-      properties: ["openDirectory"],
-      buttonLabel: "选择文件夹",
-      defaultPath: projectPath || app.getPath("documents"),
-    });
-
-    if (result.canceled) {
-      throw new Error("CANCEL");
-    }
-
-    const selectedDir = result.filePaths[0];
-    // 确保文件名以.json结尾
-    const fileName = `${name}.json`;
-    const filePath = path.join(selectedDir, fileName);
-
-    // 检查文件是否已存在
-    if (fs.existsSync(filePath)) {
-      const overwriteResult = await dialog.showMessageBox(mainWindow, {
-        type: "warning",
-        title: "文件已存在",
-        message: `文件 "${fileName}" 已存在，是否要覆盖该文件？`,
-        buttons: ["取消", "覆盖"],
-        defaultId: 0,
-        cancelId: 0,
-      });
-
-      if (overwriteResult.response === 0) {
-        throw new Error("CANCEL");
-      }
+    const basedir = path.join(projectPath, "sys", name);
+    const filePath = path.join(basedir, "workspace.sys");
+    if (!fs.existsSync(basedir)) {
+      fs.mkdirSync(basedir, { recursive: true });
     }
 
     // 将workspace数据写入JSON文件
@@ -496,30 +465,37 @@ ipcMain.handle("save-workspace", async (event, workspace, name) => {
     fs.writeFileSync(filePath, workspaceData);
 
     return {
-      path: filePath,
+      path: basedir,
     };
   } catch (error) {
     throw error;
   }
 });
 
-ipcMain.handle("load-workspace", async (event) => {
+ipcMain.handle("load-workspace", async (event, name) => {
   try {
-    // 打开对话框让用户选择工作区文件
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: "选择组态文件",
-      properties: ["openFile"],
-      buttonLabel: "选择文件",
-      filters: [{ name: "JSON Files", extensions: ["json"] }],
-    });
-
-    if (result.canceled) {
-      throw new Error("CANCEL");
+    const filePath = path.join(projectPath, "sys", name, "workspace.sys");
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`未找到工作区文件：${filePath}`);
     }
-
-    const filePath = result.filePaths[0];
     const workspaceData = fs.readFileSync(filePath, "utf-8");
     return workspaceData;
+  } catch (error) {
+    throw error;
+  }
+});
+
+ipcMain.handle("get-workspace-list", async (event) => {
+  try {
+    const workspaceDir = path.join(projectPath, "sys");
+
+    const items = fs.readdirSync(workspaceDir);
+    const workspaces = items.filter((item) => {
+      const itemPath = path.join(workspaceDir, item);
+      return fs.lstatSync(itemPath).isDirectory();
+    });
+
+    return workspaces;
   } catch (error) {
     throw error;
   }

@@ -1883,6 +1883,21 @@ function handleWindowBlur(event) {
   onMouseLeave(event);
 }
 
+function loadCategoriesConfigFromJSON(jsonString) {
+  let categoriesJSON = JSON.parse(jsonString);
+  if (categoriesJSON && categoriesJSON.length > 0) {
+    // 清空现有类别
+    blockCategories.value = [];
+    // 添加新类别
+    categoriesJSON.forEach((item) => {
+      const blockCategory = convertJSON_TO_BlockCategoryObject(item);
+      blockCategories.value.push(blockCategory);
+    });
+    // 按id排序
+    blockCategories.value.sort((a, b) => (a.id || 0) - (b.id || 0));
+  }
+}
+
 function getBlockCategories(fromFiles = false) {
   const loading = ElLoading.service({
     lock: true,
@@ -1895,18 +1910,7 @@ function getBlockCategories(fromFiles = false) {
     return window.ipcApi
       .loadBlockCategories()
       .then((categoriesJSON) => {
-        categoriesJSON = JSON.parse(categoriesJSON);
-        if (categoriesJSON && categoriesJSON.length > 0) {
-          // 清空现有类别
-          blockCategories.value = [];
-          // 添加新类别
-          categoriesJSON.forEach((item) => {
-            const blockCategory = convertJSON_TO_BlockCategoryObject(item);
-            blockCategories.value.push(blockCategory);
-          });
-          // 按id排序
-          blockCategories.value.sort((a, b) => (a.id || 0) - (b.id || 0));
-        }
+        loadCategoriesConfigFromJSON(categoriesJSON);
       })
       .catch((error) => {
         let errorMessage = window.ipcApi.extractErrorMessage(error);
@@ -2169,7 +2173,7 @@ function getWorkspace() {
   return workspace;
 }
 
-function loadWorkspace(workspace, useCurrentCategoryConf = false) {
+async function loadWorkspace(workspace) {
   try {
     // 清空当前工作区
     clearWorkspace(false);
@@ -2179,33 +2183,10 @@ function loadWorkspace(workspace, useCurrentCategoryConf = false) {
     const canvasData = workspace.canvas || {};
     const categoryData = workspace.blockCategories || [];
 
-    // 1. 首先恢复类别定义(不使用当前类别配置)
-    if (!useCurrentCategoryConf) {
-      if (categoryData.length > 0) {
-        blockCategories.value = [];
-        categoryData.forEach((categoryInfo) => {
-          try {
-            const category = convertJSON_TO_BlockCategoryObject(categoryInfo);
-            blockCategories.value.push(category);
-            console.log(`恢复类别定义: ${category.name}`);
-          } catch (error) {
-            console.error("恢复类别定义失败:", categoryInfo, error);
-          }
-        });
-      } else {
-        ElNotification({
-          title: "加载失败",
-          message: "没有找到任何类别定义",
-          showClose: false,
-          type: "error",
-          duration: 2500,
-          customClass: "default-notification",
-        });
-        return;
-      }
-    }
-
-    console.log("恢复类别定义完成", blockCategories.value);
+    // 重建类别定义
+    blockCategories.value = [
+      ...categoryData.map((cat) => convertJSON_TO_BlockCategoryObject(cat)),
+    ];
 
     // 重建块映射表，用于快速查找
     const blockMap = new Map();
@@ -2376,6 +2357,31 @@ function loadWorkspace(workspace, useCurrentCategoryConf = false) {
           }
         }
 
+        // 检查连接双方是否匹配
+        let start_is_var = connInfo.start.type.includes("var");
+        let end_is_var = connInfo.end.type.includes("var");
+        if (start_is_var !== end_is_var) {
+          // 如果连接器类型不匹配，忽略该连接
+          console.warn(
+            `连接器类型不匹配: ${connInfo.start.type} != ${connInfo.end.type} (${connInfo.start.blockId} -> ${connInfo.end.blockId})`
+          );
+          return;
+        }
+        if (start_is_var && end_is_var) {
+          // 如果都是变量连接器，检查类型是否匹配
+          const startVarType =
+            startBlock.categoryConf.var_output[startConnectorIndex].type;
+          const endVarType =
+            endBlock.categoryConf.var_input[endConnectorIndex].type;
+
+          if (startVarType !== endVarType) {
+            console.warn(
+              `变量连接器类型不匹配: ${startVarType} != ${endVarType} (${connInfo.start.blockId} -> ${connInfo.end.blockId})`
+            );
+            return;
+          }
+        }
+
         // 创建连接对象，使用正确的响应式计算属性
         const connection = {
           id: connInfo.id,
@@ -2498,6 +2504,20 @@ function loadWorkspace(workspace, useCurrentCategoryConf = false) {
     selectedConnection.value = null;
     selectedConnections.value.clear();
 
+    // 8. 保存块类别配置到系统数据目录
+    console.log(
+      blockCategories.value.map((category) =>
+        convertBlockCategoryObject_TO_JSON(category)
+      )
+    );
+    await window.ipcApi.saveBlockCategories(
+      JSON.stringify(
+        blockCategories.value.map((category) =>
+          convertBlockCategoryObject_TO_JSON(category)
+        )
+      )
+    );
+
     console.log(
       `工作区加载完成: ${categoryData.length} 个类别, ${blockData.length} 个块, ${connectionData.length} 个连接`
     );
@@ -2511,7 +2531,7 @@ function loadWorkspace(workspace, useCurrentCategoryConf = false) {
     console.error("加载工作区失败:", error);
     // 发生错误时清空工作区并恢复默认类别
     clearWorkspace(false);
-    getBlockCategories();
+    getBlockCategories(true);
     return false;
   }
 }
@@ -2531,6 +2551,7 @@ defineExpose({
   clearWorkspace,
   saveBlockCatetoriesToFile,
   getBlockCategories,
+  loadCategoriesConfigFromJSON,
   initWorkspace,
   clearWorkspaceValid,
   scale,

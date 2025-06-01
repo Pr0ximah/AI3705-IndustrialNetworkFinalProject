@@ -83,8 +83,13 @@ contextBridge.exposeInMainWorld("ipcApi", {
   },
 
   // 从文件加载工作区
-  loadWorkspace: () => {
-    return ipcRenderer.invoke("load-workspace");
+  loadWorkspace: (name) => {
+    return ipcRenderer.invoke("load-workspace", name);
+  },
+
+  // 获取工作区列表
+  getWorkspaceList: () => {
+    return ipcRenderer.invoke("get-workspace-list");
   },
 
   // 选择转换代码存储路径

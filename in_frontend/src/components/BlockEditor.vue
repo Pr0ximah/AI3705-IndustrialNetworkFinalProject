@@ -553,10 +553,11 @@ function closeWindow(saveChanges) {
           duration: 2500,
           customClass: "default-notification",
         });
+      })
+      .finally(() => {
+        // 关闭窗口
+        window.ipcApi.send("close-window", "block-editor");
       });
-
-    // 关闭窗口
-    window.ipcApi.send("close-window", "block-editor");
   } else {
     // 处理取消逻辑
     window.ipcApi.send("close-window", "block-editor");
