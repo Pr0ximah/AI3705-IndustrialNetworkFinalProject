@@ -15,7 +15,7 @@
       <div class="buttons">
         <button @click="emit('close')">取消</button>
         <button @click="emit('select', selectedWorkspace)" class="fill">
-          保存
+          加载
         </button>
       </div>
     </div>
@@ -56,7 +56,7 @@ defineProps({
 
 .wrapper {
   width: 400px;
-  height: 300px;
+  height: 250px;
   background-color: white;
   border-radius: 10px;
   border: 2px solid var(--color-dark-0);

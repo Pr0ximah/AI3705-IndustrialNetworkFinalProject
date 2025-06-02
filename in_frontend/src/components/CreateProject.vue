@@ -114,7 +114,6 @@ import {
   ElInput,
   ElCollapseItem,
   ElNotification,
-  ElLoading,
 } from "element-plus";
 import { Files, Close, Back } from "@element-plus/icons-vue";
 import { defineProps, ref, defineEmits } from "vue";
@@ -220,12 +219,6 @@ async function createProject() {
 
   // 打开加载界面
   showLoading.value = true;
-  // const loading = ElLoading.service({
-  //   lock: true,
-  //   customClass: "default-loading",
-  //   text: "正在创建项目...",
-  //   background: "rgba(255, 255, 255, 0.7)",
-  // });
 
   try {
     // 创建项目目录
@@ -242,13 +235,14 @@ async function createProject() {
     let result = null;
 
     // 使用EventSource监听项目创建进度
-    const categories_data = await new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
       const eventSource = new EventSource(
         `${process.env.VUE_APP_API_BASE_URL}/inputs/sse/${id}`
       );
 
       eventSource.onopen = () => {
-        LLM_messages.value = ["已连接到服务器，开始创建项目..."];
+        LLMLoadingRef.value.resetMsg();
+        LLMLoadingRef.value.addMsg("正在连接到服务器，准备创建项目...");
         console.log("SSE连接已打开");
       };
 
@@ -256,14 +250,15 @@ async function createProject() {
         const data = JSON.parse(event.data);
         const msg = data.message;
         const progress = data.progress;
+        const replace = data.replace || false;
         LLMLoadingRef.value.updateProgress(progress);
-        LLM_messages.value.push(msg);
+        LLMLoadingRef.value.addMsg(msg, replace);
         console.log(`进度: ${progress}, 消息: ${msg}`);
       });
 
       eventSource.addEventListener("complete", (event) => {
         result = JSON.parse(event.data);
-        LLM_messages.value.push("项目创建完成！正在处理...");
+        LLMLoadingRef.value.addMsg("项目创建完成！正在处理...");
         console.log("项目创建完成:", result);
       });
 
@@ -282,7 +277,9 @@ async function createProject() {
     await window.ipcApi.saveBlockCategories(result.result);
 
     // 触发创建项目成功事件
-    emit("createProject");
+    setTimeout(() => {
+      emit("createProject");
+    }, 2000);
   } catch (error) {
     let errorMessage = window.ipcApi.extractErrorMessage(error);
     ElNotification({
@@ -295,6 +292,7 @@ async function createProject() {
     });
   } finally {
     // 无论成功还是失败，都关闭加载界面
+    showLoading.value = false;
   }
 }
 </script>

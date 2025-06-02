@@ -489,7 +489,13 @@ ipcMain.handle("get-workspace-list", async (event) => {
   try {
     const workspaceDir = path.join(projectPath, "sys");
 
+    if (!fs.existsSync(workspaceDir)) {
+      return []; // 如果工作区目录不存在，返回空数组
+    }
     const items = fs.readdirSync(workspaceDir);
+    if (items.length === 0) {
+      return []; // 如果没有工作区，返回空数组
+    }
     const workspaces = items.filter((item) => {
       const itemPath = path.join(workspaceDir, item);
       return fs.lstatSync(itemPath).isDirectory();

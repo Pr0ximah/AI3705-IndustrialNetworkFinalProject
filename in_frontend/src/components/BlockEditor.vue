@@ -1,5 +1,6 @@
 <template>
   <div class="block-editor">
+    <div class="mask" :class="{ show: showMask }" />
     <div class="title">组件编辑器</div>
     <div class="edit custom-scrollbar">
       <ElCollapse v-model="activeValues" class="block-collapse">
@@ -306,6 +307,7 @@ const sigInDeleteButtonClicked = ref([]);
 const sigOutDeleteButtonClicked = ref([]);
 const varInDeleteButtonClicked = ref([]);
 const varOutDeleteButtonClicked = ref([]);
+const showMask = ref(false);
 
 // 定义可选的变量类型
 const validVarTypes = ref(VAR_TYPE);
@@ -523,6 +525,8 @@ function validateData() {
 
 function closeWindow(saveChanges) {
   if (saveChanges) {
+    showMask.value = true;
+
     // 验证数据
     if (!validateData()) {
       return;
@@ -542,8 +546,14 @@ function closeWindow(saveChanges) {
           duration: 2000,
           customClass: "default-notification",
         });
+        // 关闭窗口
+        setTimeout(() => {
+          showMask.value = false;
+          window.ipcApi.send("close-window", "block-editor");
+        }, 800);
       })
       .catch((error) => {
+        showMask.value = false;
         let errorMessage = window.ipcApi.extractErrorMessage(error);
         ElNotification({
           title: "保存失败",
@@ -553,10 +563,6 @@ function closeWindow(saveChanges) {
           duration: 2500,
           customClass: "default-notification",
         });
-      })
-      .finally(() => {
-        // 关闭窗口
-        window.ipcApi.send("close-window", "block-editor");
       });
   } else {
     // 处理取消逻辑
@@ -827,5 +833,26 @@ span .collapse-title {
 
 span .collapse-title:hover {
   font-weight: 600;
+}
+
+.mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(3px);
+  transform: opacity 0.1s ease;
+}
+
+.mask.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mask:not(.show) {
+  opacity: 0;
+  pointer-events: none;
 }
 </style>
