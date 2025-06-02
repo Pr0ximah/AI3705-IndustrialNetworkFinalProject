@@ -503,8 +503,12 @@ function clearWorkspace(confirm_clear = true) {
 }
 
 // 检查鼠标是否位于任何块上
-function isMouseOverBlock(event) {
+function isMouseOverBlock(event, check_sidebar = true) {
   for (const block of allBlocks.value) {
+    if (!check_sidebar && block.place_state === Block.PLACE_STATE.original) {
+      // 如果不检查侧边栏，跳过原始块
+      continue;
+    }
     // 计算块的真实位置（考虑缩放和偏移）
     let blockX, blockY;
     if (block.place_state === Block.PLACE_STATE.original) {
@@ -584,7 +588,7 @@ function onMouseDown(event) {
     }
 
     // 如果点击画布空白区域，清除选中或开始选择框
-    if (!isMouseOverBlock(event)) {
+    if (!isMouseOverBlock(event, false) && !isMouseOverSidebar(event)) {
       // 如果没有按住Ctrl/Cmd键，清除选中
       if (!event.ctrlKey && !event.metaKey) {
         selectedBlock.value = null;
@@ -594,7 +598,7 @@ function onMouseDown(event) {
       }
 
       // 如果按住Shift键且不在侧边栏区域，则开始平移画布
-      if (event.shiftKey && !isMouseOverSidebar(event)) {
+      if (event.shiftKey) {
         isPanning.value = true;
         lastMouseX.value = event.clientX;
         lastMouseY.value = event.clientY;
