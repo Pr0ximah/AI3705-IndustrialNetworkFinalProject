@@ -481,6 +481,7 @@ async def process_user_input(user_input, API_KEY):
 
     PROMPT_2_TEMPLATE = """利用之前生成的设备配置列表，进一步得到该设备的详细配置
 请根据设备列表生成该设备的详细配置，包括输入输出信号、状态机、算法等。请使用JSON格式，确保设备的配置都包含必要的字段。
+注意："type"只能是["int", "float", "bool", "string", "time"]中的一种，"description"字段应简洁明了。
 
 你的回答应该按照如下的配置格式示例：
 ```json
@@ -615,7 +616,7 @@ async def process_user_input(user_input, API_KEY):
             yield {
                 "event": "status",
                 "data": json.dumps(
-                    {"message": "开始生成设备配置列表", "progress": 10},
+                    {"message": "开始生成设备配置列表", "progress": 10, "next_progress": 30},
                     ensure_ascii=False,
                 ),
             }
@@ -626,7 +627,7 @@ async def process_user_input(user_input, API_KEY):
             yield {
                 "event": "status",
                 "data": json.dumps(
-                    {"message": "设备列表生成完成", "progress": 30}, ensure_ascii=False
+                    {"message": "设备列表生成完成", "progress": 30, "next_progress": 40}, ensure_ascii=False
                 ),
             }
 
@@ -671,6 +672,7 @@ async def process_user_input(user_input, API_KEY):
                         {
                             "message": f"正在生成 {device} 的配置 ({idx+1}/{total_devices})",
                             "progress": progress,
+                            "next_progress": progress + 10,
                         },
                         ensure_ascii=False,
                     ),
@@ -687,7 +689,7 @@ async def process_user_input(user_input, API_KEY):
                 yield {
                     "event": "device_config",
                     "data": json.dumps(
-                        {"device": device, "config": device_config}, ensure_ascii=False
+                        {"device": device, "config": device_config, "next_progress": progress+20}, ensure_ascii=False
                     ),
                 }
 
