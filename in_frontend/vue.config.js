@@ -8,9 +8,9 @@ module.exports = defineConfig({
     electronBuilder: {
       builderOptions: {
         // options placed here will be merged with default configuration in electron-builder
-        // appId: "",
-        // productName: "YourAppName", // 生成的 exe 文件名
-        copyright: "Copyright © 2025 AI3705 Group Z·Z·H.", // 版权信息
+        appId: "com.ai3705.tiangongzhilian", // 应用 ID
+        productName: "天工智联", // 生成的 exe 文件名
+        copyright: "Copyright © 2025 TianGong ZhiLian", // 版权信息
         directories: {
           output: "./dist_electron", // 输出目录
         },
@@ -21,6 +21,7 @@ module.exports = defineConfig({
               arch: ["x64"],
             },
           ],
+          icon: "public/logo.ico", // Windows 图标 (.ico 格式)
         },
         mac: {
           target: "dmg", // 或者 'zip', 'pkg' 等

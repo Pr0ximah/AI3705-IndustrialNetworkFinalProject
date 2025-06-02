@@ -111,12 +111,14 @@ async function createWindow() {
     minHeight: 600,
     frame: false,
     show: false, // 初始不显示窗口
+    icon: path.join(__dirname, "../assets/icon.png"), // 添加应用图标
     webPreferences: {
       // Use pluginOptions.nodeIntegration, leave this alone
       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
       nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
       contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
       preload: path.join(__static, "preload.js"),
+      devTools: isDevelopment, // 生产环境禁用开发者工具
     },
   });
 
@@ -254,6 +256,7 @@ ipcMain.on("canvas:double-click-block", (event, categoryId) => {
         contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
         preload: path.join(__static, "preload.js"),
         additionalArguments: [`--category-id=${categoryId}`],
+        devTools: isDevelopment, // 生产环境禁用开发者工具
       },
     });
 

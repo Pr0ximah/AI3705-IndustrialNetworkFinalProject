@@ -1,6 +1,11 @@
 {
-  "name": "in_frontend",
-  "version": "0.1.0",
+  "name": "tiangong-zhi-lian",
+  "version": "1.0.0",
+  "copyright": "Copyright © 2025 TianGong ZhiLian",
+  "productName": "天工智联",
+  "description": "天工智联 - 智能化的工业互联网组态生成平台",
+  "author": "TianGong ZhiLian Team 13 [SJTU 2025]",
+  "icon": "public/logo.ico",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
