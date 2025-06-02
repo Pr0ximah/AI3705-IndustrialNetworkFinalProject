@@ -43,22 +43,138 @@ function startServiceProcess() {
       return;
     }
 
-    // 启动子进程
-    serviceProcess = spawn(executablePath, [], {
-      detached: false,
-      stdio: "pipe",
+    // 启动子进程，关键是设置正确的选项来绑定进程
+    const spawnOptions = {
+      detached: false, // 不分离进程，与父进程绑定
+      stdio: ["pipe", "pipe", "pipe"], // 继承标准输入输出
+    };
+
+    // Windows下添加额外的选项确保进程绑定
+    if (isWindows) {
+      spawnOptions.windowsHide = true; // 隐藏子进程窗口
+    }
+
+    serviceProcess = spawn(executablePath, [], spawnOptions);
+
+    // 监听子进程的输出（可选，用于调试）
+    serviceProcess.stdout.on("data", (data) => {
+      console.log(`服务进程输出: ${data.toString().trim()}`);
+    });
+
+    serviceProcess.stderr.on("data", (data) => {
+      console.error(`服务进程错误: ${data.toString().trim()}`);
     });
 
     // 处理子进程退出
-    serviceProcess.on("close", (code) => {
-      console.log(`服务进程退出，退出码: ${code}`);
+    serviceProcess.on("close", (code, signal) => {
+      console.log(`服务进程退出，退出码: ${code}, 信号: ${signal}`);
       serviceProcess = null;
     });
 
-    console.log("服务进程已启动");
+    serviceProcess.on("error", (error) => {
+      console.error(`服务进程启动失败: ${error.message}`);
+      serviceProcess = null;
+    });
+
+    // 确保子进程在父进程退出时也退出
+    serviceProcess.on("disconnect", () => {
+      console.log("服务进程已断开连接");
+    });
+
+    console.log(`服务进程已启动，PID: ${serviceProcess.pid}`);
   } catch (error) {
     console.error(`启动服务进程时发生错误: ${error.message}`);
   }
+}
+
+// 关闭服务进程
+function stopServiceProcess() {
+  return new Promise((resolve) => {
+    if (!serviceProcess) {
+      resolve();
+      return;
+    }
+
+    console.log("正在关闭服务进程...");
+
+    const isWindows = process.platform === "win32";
+    let processKilled = false;
+
+    // 设置一个标志来跟踪进程是否已被杀死
+    const markProcessKilled = () => {
+      if (!processKilled) {
+        processKilled = true;
+        serviceProcess = null;
+        resolve();
+      }
+    };
+
+    if (isWindows) {
+      try {
+        // Windows下使用taskkill命令强制终止进程及其子进程
+        const { exec } = require("child_process");
+        exec(`taskkill /pid ${serviceProcess.pid} /T /F`, (error) => {
+          if (error) {
+            console.error(`taskkill命令执行失败: ${error.message}`);
+            // 如果taskkill失败，尝试直接kill
+            try {
+              process.kill(serviceProcess.pid, "SIGKILL");
+            } catch (killError) {
+              console.error(`直接kill失败: ${killError.message}`);
+            }
+          }
+          console.log("服务进程已强制终止");
+          markProcessKilled();
+        });
+
+        // 设置超时保险
+        setTimeout(() => {
+          if (!processKilled) {
+            console.log("超时强制终止进程");
+            try {
+              process.kill(serviceProcess.pid, "SIGKILL");
+            } catch (error) {
+              console.error(`超时强制终止失败: ${error.message}`);
+            }
+            markProcessKilled();
+          }
+        }, 2000);
+      } catch (error) {
+        console.error(`Windows终止进程失败: ${error.message}`);
+        markProcessKilled();
+      }
+    } else {
+      // Unix/Linux平台处理
+      try {
+        // 监听进程退出事件
+        serviceProcess.on("exit", () => {
+          if (!processKilled) {
+            console.log("服务进程已优雅退出");
+            markProcessKilled();
+          }
+        });
+
+        // 先尝试优雅关闭
+        serviceProcess.kill("SIGTERM");
+
+        // 设置超时，如果进程在指定时间内没有退出，强制终止
+        setTimeout(() => {
+          if (!processKilled && serviceProcess) {
+            console.log("强制终止服务进程");
+            try {
+              serviceProcess.kill("SIGKILL");
+            } catch (error) {
+              console.error(`强制终止失败: ${error.message}`);
+            }
+            markProcessKilled();
+          }
+        }, 3000);
+      } catch (error) {
+        console.error(`Unix终止进程失败: ${error.message}`);
+        markProcessKilled();
+      }
+    }
+  });
 }
 
 // Scheme must be registered before the app is ready
@@ -182,28 +298,76 @@ app.on("ready", async () => {
 });
 
 // 在应用退出前关闭服务进程
-app.on("will-quit", () => {
-  // 关闭服务进程
-  console.log("应用即将退出，关闭服务进程...");
+app.on("before-quit", async (event) => {
   if (serviceProcess) {
-    // 在Windows上使用process.kill()，在其他平台上尝试先发送SIGTERM信号
-    if (process.platform === "win32") {
-      serviceProcess.kill();
-    } else {
-      serviceProcess.kill("SIGTERM");
+    event.preventDefault(); // 阻止应用立即退出
+    console.log("应用准备退出，正在关闭服务进程...");
 
-      // 如果进程在一段时间后仍未退出，强制终止
-      const killTimeout = setTimeout(() => {
-        if (serviceProcess) {
-          serviceProcess.kill("SIGKILL");
-        }
-      }, 2000);
-
-      // 如果进程已经退出，清除超时
-      serviceProcess.on("exit", () => {
-        clearTimeout(killTimeout);
-      });
+    try {
+      await stopServiceProcess();
+      console.log("服务进程已关闭，应用现在可以安全退出");
+    } catch (error) {
+      console.error(`关闭服务进程时发生错误: ${error.message}`);
     }
+
+    // 确保子进程关闭后再退出应用
+    setTimeout(() => {
+      app.quit();
+    }, 500);
+  }
+});
+
+// 监听主进程的退出信号，确保清理子进程
+process.on("SIGINT", () => {
+  console.log("收到SIGINT信号，正在清理...");
+  if (serviceProcess) {
+    try {
+      if (process.platform === "win32") {
+        const { exec } = require("child_process");
+        exec(`taskkill /pid ${serviceProcess.pid} /T /F`);
+      } else {
+        serviceProcess.kill("SIGKILL");
+      }
+    } catch (error) {
+      console.error(`清理子进程失败: ${error.message}`);
+    }
+  }
+  process.exit(0);
+});
+
+process.on("SIGTERM", () => {
+  console.log("收到SIGTERM信号，正在清理...");
+  if (serviceProcess) {
+    try {
+      if (process.platform === "win32") {
+        const { exec } = require("child_process");
+        exec(`taskkill /pid ${serviceProcess.pid} /T /F`);
+      } else {
+        serviceProcess.kill("SIGKILL");
+      }
+    } catch (error) {
+      console.error(`清理子进程失败: ${error.message}`);
+    }
+  }
+  process.exit(0);
+});
+
+// 保留原有的will-quit事件作为最后的保险
+app.on("will-quit", () => {
+  console.log("应用即将退出，执行最后的清理...");
+  if (serviceProcess) {
+    console.log("强制终止残留的服务进程");
+    try {
+      if (process.platform === "win32") {
+        const { exec } = require("child_process");
+        exec(`taskkill /pid ${serviceProcess.pid} /T /F`);
+      } else {
+        serviceProcess.kill("SIGKILL");
+      }
+    } catch (error) {
+      console.error(`最后清理失败: ${error.message}`);
+    }
+    serviceProcess = null;
   }
 });
 

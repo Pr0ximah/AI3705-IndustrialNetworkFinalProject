@@ -68,33 +68,13 @@ async def create_project(
     """
     创建新项目 - 返回一个连接ID用于SSE监控
     """
-    # 测试数据，实际使用时使用project_conf
-    test_input = {
-        "name": "运输系统",
-        "description": "根据下表列出已知的三个设备（输送机、移栽机和提升机），设计并实现一个设备组态，以完成物料传递流程。其中，每个设备都有相应驱动器驱动设备执行（输出信号）及传感器反馈物料运输状态（输入信号）。",
-        "blocks": [
-            {
-                "name": "输送机",
-                "description": "用于水平运输物料，负责将物料从一个工作站传送到另一个工作站",
-            },
-            {
-                "name": "移栽机",
-                "description": "用于将物料从一个输送机转移到另一个输送机，负责物料的重新定位",
-            },
-            {
-                "name": "提升机",
-                "description": "用于垂直运输物料，负责将物料从低处提升到高处或从高处下降到低处",
-            },
-        ],
-    }
-
     # 生成唯一连接ID
     connection_id = str(uuid.uuid4())
 
     # 将项目配置和创建时间存储在active_connections字典中
     active_connections[connection_id] = {
-        # "project_conf": project_conf,  # 使用实际提交的配置
-        "project_conf": test_input,  # 使用测试数据
+        "project_conf": project_conf,  # 使用实际提交的配置
+        # "project_conf": test_input,  # 使用测试数据
         "created_at": datetime.now(),
     }
 
