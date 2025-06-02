@@ -1,0 +1,166 @@
+{
+  "name": "Conveyor",
+  "var_input": [
+    {
+      "name": "SpeedSetpoint",
+      "type": "float",
+      "description": "输送机速度设定值(0-100%)"
+    },
+    {
+      "name": "FaultReset",
+      "type": "bool",
+      "description": "故障复位信号"
+    }
+  ],
+  "var_output": [
+    {
+      "name": "CurrentSpeed",
+      "type": "float",
+      "description": "输送机当前运行速度"
+    },
+    {
+      "name": "FaultStatus",
+      "type": "bool",
+      "description": "故障状态指示"
+    }
+  ],
+  "signal_input": [
+    {
+      "name": "MaterialDetected",
+      "description": "物料到位检测信号(光电传感器)"
+    },
+    {
+      "name": "EmergencyStop",
+      "description": "急停按钮信号"
+    }
+  ],
+  "signal_output": [
+    {
+      "name": "MotorRun",
+      "description": "电机运行控制信号"
+    },
+    {
+      "name": "BeltRunning",
+      "description": "输送带运行状态信号"
+    }
+  ],
+  "InternalVars": [
+    {
+      "name": "IsRunning",
+      "type": "bool",
+      "InitalVaule": "FALSE",
+      "description": "输送机运行状态标志"
+    },
+    {
+      "name": "MaterialPresent",
+      "type": "bool",
+      "InitalVaule": "FALSE",
+      "description": "物料存在标志"
+    }
+  ],
+  "ECC": {
+    "ECStates": [
+      {
+        "name": "Idle",
+        "comment": "待机状态",
+        "x": 50,
+        "y": 50
+      },
+      {
+        "name": "Running",
+        "comment": "正常运行状态",
+        "x": 200,
+        "y": 50,
+        "ecAction": {
+          "algorithm": "RunConveyor",
+          "output": "MotorRun"
+        }
+      },
+      {
+        "name": "EmergencyStop",
+        "comment": "急停状态",
+        "x": 200,
+        "y": 150,
+        "ecAction": {
+          "algorithm": "EmergencyStop",
+          "output": "MotorRun"
+        }
+      },
+      {
+        "name": "MaterialHandling",
+        "comment": "物料处理状态",
+        "x": 350,
+        "y": 50,
+        "ecAction": {
+          "algorithm": "MaterialHandling",
+          "output": "BeltRunning"
+        }
+      }
+    ],
+    "ECTransitions": [
+      {
+        "source": "Idle",
+        "destination": "Running",
+        "condition": "NOT EmergencyStop AND SpeedSetpoint > 0",
+        "comment": "启动条件满足",
+        "x": 125,
+        "y": 30
+      },
+      {
+        "source": "Running",
+        "destination": "MaterialHandling",
+        "condition": "MaterialDetected",
+        "comment": "检测到物料",
+        "x": 275,
+        "y": 30
+      },
+      {
+        "source": "MaterialHandling",
+        "destination": "Running",
+        "condition": "NOT MaterialDetected",
+        "comment": "物料处理完成",
+        "x": 275,
+        "y": 70
+      },
+      {
+        "source": "Running",
+        "destination": "EmergencyStop",
+        "condition": "EmergencyStop",
+        "comment": "急停触发",
+        "x": 200,
+        "y": 100
+      },
+      {
+        "source": "EmergencyStop",
+        "destination": "Idle",
+        "condition": "FaultReset AND NOT EmergencyStop",
+        "comment": "急停复位",
+        "x": 125,
+        "y": 200
+      }
+    ]
+  },
+  "Algorithms": [
+    {
+      "Name": "RunConveyor",
+      "Comment": "输送机运行控制",
+      "Input": "SpeedSetpoint, MaterialDetected",
+      "Output": "MotorRun, CurrentSpeed",
+      "Code": "IF NOT MaterialDetected AND SpeedSetpoint > 0 THEN\n    MotorRun := TRUE;\n    CurrentSpeed := SpeedSetpoint;\nELSE\n    MotorRun := FALSE;\n    CurrentSpeed := 0;\nEND_IF;"
+    },
+    {
+      "Name": "EmergencyStop",
+      "Comment": "急停处理",
+      "Input": "EmergencyStop",
+      "Output": "MotorRun, FaultStatus",
+      "Code": "IF EmergencyStop THEN\n    MotorRun := FALSE;\n    FaultStatus := TRUE;\nEND_IF;"
+    },
+    {
+      "Name": "MaterialHandling",
+      "Comment": "物料处理控制",
+      "Input": "MaterialDetected",
+      "Output": "BeltRunning",
+      "Code": "IF MaterialDetected THEN\n    BeltRunning := TRUE;\nELSE\n    BeltRunning := FALSE;\nEND_IF;"
+    }
+  ]
+}

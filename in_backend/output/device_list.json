@@ -1,0 +1,20 @@
+[
+  {
+    "device": "conveyor",
+    "input_signal": "物料到位传感器（光电/接近开关）",
+    "output_signal": "电机启停控制信号",
+    "description": "用于水平运输物料，通过传感器检测物料位置并控制电机启停"
+  },
+  {
+    "device": "transfer_machine",
+    "input_signal": "物料方向检测传感器（光电/编码器）",
+    "output_signal": "转向机构控制信号",
+    "description": "通过传感器检测物料方向，控制转向机构完成物料方向转换"
+  },
+  {
+    "device": "elevator",
+    "input_signal": "高度位置传感器（编码器/限位开关）",
+    "output_signal": "升降电机控制信号",
+    "description": "通过位置传感器检测高度，控制升降电机完成垂直运输"
+  }
+]
