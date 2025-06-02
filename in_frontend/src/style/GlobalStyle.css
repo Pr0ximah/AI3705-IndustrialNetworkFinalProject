@@ -17,6 +17,7 @@ html {
   --signal-connector-color: #00d427;
   --signal-connector-color-dark: #00a600;
   --connector-extend: 8px;
+  --header-height: 55px;
 }
 
 :root {
@@ -43,7 +44,10 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 0px;
+  /* padding: 10px 0px; */
+  padding: 0;
+  padding-right: 10px;
+  height: var(--header-height);
   border-bottom: 3px solid var(--color-dark-0);
 }
 
@@ -166,7 +170,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-left: 20px;
+  margin-left: 10px;
   margin-right: 10px;
   gap: 5px;
 }

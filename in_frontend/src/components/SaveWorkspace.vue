@@ -1,26 +1,19 @@
 <template>
   <div class="main">
     <div class="wrapper">
-      <div class="title">加载组态</div>
-      <div style="flex: 1; width: 100%">
-        <ElSelect
+      <div class="title">保存组态</div>
+      <div class="input">
+        <ElInput
           size="large"
-          v-model="selectedWorkspace"
-          no-data-text="没有可用的组态"
-          placeholder="选择要加载的组态名"
-        >
-          <ElOption
-            v-for="workspace in workspaces"
-            :key="workspace"
-            :label="workspace"
-            :value="workspace"
-          />
-        </ElSelect>
+          v-model="workspaceName"
+          placeholder="输入组态名"
+          type="text"
+        />
       </div>
       <div class="buttons">
         <button @click="emit('close')">取消</button>
         <button @click="emit('select', selectedWorkspace)" class="fill">
-          加载
+          保存
         </button>
       </div>
     </div>
@@ -28,16 +21,10 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits } from "vue";
-import { ElOption, ElSelect } from "element-plus";
-const selectedWorkspace = ref(null);
+import { ref, defineEmits } from "vue";
+import { ElInput } from "element-plus";
+const workspaceName = ref("");
 const emit = defineEmits(["close", "select"]);
-defineProps({
-  workspaces: {
-    type: Array,
-    default: () => [],
-  },
-});
 </script>
 
 <style scoped>
@@ -59,7 +46,7 @@ defineProps({
   margin-bottom: 30px;
 }
 
-.el-select {
+.input {
   flex: 1;
   width: 90%;
   font-size: large;
@@ -76,6 +63,10 @@ defineProps({
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
+}
+
+.el-select {
+  width: 70%;
 }
 
 .buttons {

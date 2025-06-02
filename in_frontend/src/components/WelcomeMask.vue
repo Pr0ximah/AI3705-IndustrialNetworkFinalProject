@@ -1,7 +1,9 @@
 <template>
   <div class="welcome-page">
     <div class="welcome-content" v-if="!projectPath">
-      <div class="title">起个名字</div>
+      <div class="title">
+        <img src="/logo.png" class="title-icon" />
+      </div>
       <div class="buttons">
         <button @click="createProject">
           <ElIcon size="60">
@@ -125,8 +127,8 @@ function openProject() {
   justify-content: center;
   height: 100%;
   width: 100%;
-  background-color: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(5px);
+  background-color: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
   z-index: 500;
 }
 
@@ -134,12 +136,22 @@ function openProject() {
   text-align: center;
   color: #333;
   max-width: 80%;
+  justify-content: center;
+  align-items: center;
 }
 
 .title {
   font-size: 50px;
   font-weight: bold;
-  margin-bottom: 60px;
+  margin-bottom: 30px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.title-icon {
+  width: 70%;
 }
 
 .buttons {

@@ -1,8 +1,17 @@
 <template>
   <ElContainer class="home-container cannot-select">
     <ElHeader class="container-header drag">
-      <div style="display: flex; gap: 10px; margin-left: 20px">
-        <div>Home</div>
+      <div style="display: flex; gap: 10px; height: 100%">
+        <div
+          v-if="!showWelcome || workspaceInited"
+          class="home-icon-btn no-drag"
+        >
+          <img
+            src="/logo.png"
+            class="home-icon"
+            @click="showWelcome = !showWelcome"
+          />
+        </div>
       </div>
       <WorkspaceMenu
         @save="emitSaveWorkspace"
@@ -20,7 +29,7 @@
         "
       >
         <CanvasControl v-if="!showWelcome" />
-        <WindowControl />
+        <WindowControl style="height: var(--header-height)" />
       </div>
     </ElHeader>
     <ElMain class="container-main">
@@ -31,7 +40,15 @@
           @pass-create-project="projectCreated"
         />
       </Transition>
-      <BlockCanvas ref="blockCanvasRef" />
+      <Transition name="canvas-fade" mode="out-in">
+        <BlockCanvas
+          v-show="!showWelcome || workspaceInited"
+          :enable-key-down-event-in-block-canvas="
+            enableKeyDownEventInBlockCanvas
+          "
+          ref="blockCanvasRef"
+        />
+      </Transition>
       <Transition name="select-workspace-fade" mode="out-in">
         <SelectWorkspace
           style="position: absolute; top: 0; left: 0; z-index: 1000"
@@ -39,6 +56,14 @@
           :workspaces="workspacelist"
           @close="showSelectWorkspace = false"
           @select="loadWorkspaceSelected"
+        />
+      </Transition>
+      <Transition name="select-workspace-fade" mode="out-in">
+        <SaveWorkspace
+          style="position: absolute; top: 0; left: 0; z-index: 1000"
+          v-if="showSaveWorkspace"
+          @close="showSaveWorkspace = false"
+          @select="saveWorkspace"
         />
       </Transition>
     </ElMain>
@@ -52,15 +77,15 @@ import CanvasControl from "@/components/CanvasControl.vue";
 import WindowControl from "@/components/WindowControl.vue";
 import {
   ElContainer,
-  ElMessageBox,
   ElHeader,
   ElMain,
   ElLoading,
   ElNotification,
 } from "element-plus";
-import { computed, ref, provide, onMounted, onBeforeUnmount } from "vue";
+import { computed, ref, provide, onMounted } from "vue";
 import WelcomeMask from "@/components/WelcomeMask.vue";
 import WorkspaceMenu from "@/components/WorkspaceMenu.vue";
+import SaveWorkspace from "@/components/SaveWorkspace.vue";
 import SelectWorkspace from "@/components/SelectWorkspace.vue";
 import service from "@/util/ajax_inst";
 
@@ -74,73 +99,29 @@ const scale = computed(() => {
 const showMask = ref(false);
 const showWelcome = ref(true);
 const showSelectWorkspace = ref(false);
+const showSaveWorkspace = ref(false);
 const workspacelist = ref([]);
+const workspaceInited = ref(false);
+const enableKeyDownEventInBlockCanvas = computed(() => {
+  return (
+    !showMask.value &&
+    !showWelcome.value &&
+    !showSelectWorkspace.value &&
+    !showSaveWorkspace.value
+  );
+});
 
 provide("blockCanvasRef", blockCanvasRef);
 provide("clearWorkspaceValid", clearWorkspaceValid);
 provide("scale", scale);
 
-async function emitSaveWorkspace() {
-  let workspace_conf = JSON.stringify(blockCanvasRef.value.getWorkspace());
-  let loading = null;
-  try {
-    const { value: name } = await ElMessageBox.prompt(
-      "请输入组态名称",
-      "保存组态",
-      {
-        type: "info",
-        showClose: false,
-        confirmButtonText: "保存",
-        cancelButtonText: "取消",
-        cancelButtonClass: "cancel-btn",
-        confirmButtonClass: "confirm-btn",
-        customClass: "default-message-box",
-        inputValidator: (value) => {
-          if (!value || value.trim() === "") {
-            return "组态名称不能为空";
-          }
-          return true;
-        },
-        inputErrorMessage: "请输入有效的组态名称",
-      }
-    );
-    // 处理保存逻辑
-    loading = ElLoading.service({
-      lock: true,
-      customClass: "default-loading",
-      text: "正在保存组态...",
-      background: "rgba(255, 255, 255, 0.7)",
-    });
-    const res = await window.ipcApi.saveWorkspace(workspace_conf, name);
-    ElNotification({
-      title: "保存成功",
-      showClose: false,
-      message: `组态已成功保存到【${res.path}】`,
-      type: "success",
-      duration: 3000,
-      customClass: "default-notification",
-    });
-  } catch (error) {
-    let errorMessage = window.ipcApi.extractErrorMessage(error);
-    if (error === "cancel" || errorMessage === "CANCEL") {
-      // 用户取消保存
-    } else {
-      ElNotification({
-        title: "组态保存失败",
-        showClose: false,
-        message: `${error.message || error}`,
-        type: "error",
-        duration: 3000,
-        customClass: "default-notification",
-      });
-    }
-  }
-  loading?.close();
-}
-
 async function emitLoadWorkspace() {
   workspacelist.value = await window.ipcApi.getWorkspaceList();
   showSelectWorkspace.value = true;
+}
+
+async function emitSaveWorkspace() {
+  showSaveWorkspace.value = true;
 }
 
 async function loadWorkspaceSelected(name) {
@@ -174,6 +155,44 @@ async function loadWorkspaceSelected(name) {
       duration: 3000,
       customClass: "default-notification",
     });
+  }
+  loading?.close();
+}
+
+async function saveWorkspace(name) {
+  let workspace_conf = JSON.stringify(blockCanvasRef.value.getWorkspace());
+  let loading = null;
+  try {
+    // 处理保存逻辑
+    loading = ElLoading.service({
+      lock: true,
+      customClass: "default-loading",
+      text: "正在保存组态...",
+      background: "rgba(255, 255, 255, 0.7)",
+    });
+    const res = await window.ipcApi.saveWorkspace(workspace_conf, name);
+    ElNotification({
+      title: "保存成功",
+      showClose: false,
+      message: `组态已成功保存到【${res.path}】`,
+      type: "success",
+      duration: 3000,
+      customClass: "default-notification",
+    });
+  } catch (error) {
+    let errorMessage = window.ipcApi.extractErrorMessage(error);
+    if (error === "cancel" || errorMessage === "CANCEL") {
+      // 用户取消保存
+    } else {
+      ElNotification({
+        title: "组态保存失败",
+        showClose: false,
+        message: `${error.message || error}`,
+        type: "error",
+        duration: 3000,
+        customClass: "default-notification",
+      });
+    }
   }
   loading?.close();
 }
@@ -233,6 +252,7 @@ async function emitConvertWorkspace() {
 function projectCreated() {
   showWelcome.value = false;
   blockCanvasRef.value.initWorkspace();
+  workspaceInited.value = true;
   ElNotification({
     title: "欢迎使用",
     showClose: false,
@@ -326,9 +346,25 @@ onMounted(() => {
   transform: translateY(0);
 }
 
+/* 添加画布的过渡效果 */
+.canvas-fade-enter-active,
+.canvas-fade-leave-active {
+  transition: opacity 0.5s ease-in-out;
+}
+
+.canvas-fade-enter-from,
+.canvas-fade-leave-to {
+  opacity: 0;
+}
+
+.canvas-fade-enter-to,
+.canvas-fade-leave-from {
+  opacity: 1;
+}
+
 .select-workspace-fade-enter-active,
 .select-workspace-fade-leave-active {
-  transition: opacity 0.15s ease-in-out;
+  transition: opacity 0.1s ease-in-out;
 }
 
 .select-workspace-fade-enter-from,
@@ -344,5 +380,23 @@ onMounted(() => {
 .el-messagebox.default-message-box {
   border-radius: 12px;
   padding: 20px 25px;
+}
+
+.home-icon {
+  height: 100%;
+}
+
+.home-icon-btn {
+  height: calc(100% - 20px);
+  width: fit-content;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 20px;
+}
+
+.home-icon-btn:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+  cursor: pointer;
 }
 </style>

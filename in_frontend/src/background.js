@@ -107,7 +107,7 @@ async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    minWidth: 800,
+    minWidth: 1065,
     minHeight: 600,
     frame: false,
     show: false, // 初始不显示窗口
