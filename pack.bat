@@ -195,5 +195,26 @@ echo.
 echo 输出目录: %PROJECT_ROOT%\dist
 echo.
 
+REM 压缩dist目录为zip文件
+echo ====================================
+echo 压缩dist目录为zip文件...
+echo ====================================
+
+if exist "dist.zip" (
+    echo 删除现有的 dist.zip 文件
+    del "dist.zip"
+)
+
+powershell -command "Compress-Archive -Path 'dist\*' -DestinationPath 'dist.zip' -Force"
+
+if !errorlevel! neq 0 (
+    echo 错误: 压缩失败
+    exit /b 1
+) else (
+    echo 压缩完成: dist.zip
+)
+
+echo.
+
 :end
 endlocal

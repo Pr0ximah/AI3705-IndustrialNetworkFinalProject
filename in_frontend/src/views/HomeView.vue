@@ -396,13 +396,13 @@ provide("autoSaveWorkspace", autoSaveWorkspace);
 /* 添加欢迎页面的过渡效果 */
 .welcome-fade-enter-active,
 .welcome-fade-leave-active {
-  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+  transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
 }
 
 .welcome-fade-enter-from,
 .welcome-fade-leave-to {
   opacity: 0;
-  transform: translateY(-100px);
+  transform: translateY(-100px) scale(1.5);
 }
 
 .welcome-fade-enter-to,

@@ -3,278 +3,296 @@
     <div class="mask" :class="{ show: showMask }" />
     <div class="title">组件编辑器</div>
     <div class="edit custom-scrollbar">
-      <ElCollapse v-model="activeValues" class="block-collapse">
-        <ElCollapseItem title="信号输入" name="sig-in" class="sig">
-          <ElCollapse v-model="sigInActiveValues" class="inside-collapse">
-            <ElCollapseItem
-              v-for="(item, index) in categoryConf?.signal_input"
-              :title="item.name"
-              :key="index"
-              :name="`sig-in-${index}`"
-            >
-              <template #title>
-                <div class="collapse-title-wrapper">
-                  <button
-                    @click.stop="deleteItem('signal_input', index)"
-                    class="delete-btn"
-                    :class="{ clicked: sigInDeleteButtonClicked[index] }"
-                  >
-                    <div
-                      v-if="sigInDeleteButtonClicked[index]"
-                      class="delete-btn-text"
+      <div class="type-label" style="margin-top: 5px">
+        <div>
+          <span>名称</span>
+        </div>
+        <ElInput
+          v-model="categoryConf.name"
+          placeholder="请输入组件名称"
+          v-if="categoryConf"
+        />
+      </div>
+      <div class="type-label">
+        <div>
+          <span>输入输出</span>
+        </div>
+        <ElCollapse v-model="activeValues" class="block-collapse">
+          <ElCollapseItem title="信号输入" name="sig-in" class="sig">
+            <ElCollapse v-model="sigInActiveValues" class="inside-collapse">
+              <ElCollapseItem
+                v-for="(item, index) in categoryConf?.signal_input"
+                :title="item.name"
+                :key="index"
+                :name="`sig-in-${index}`"
+              >
+                <template #title>
+                  <div class="collapse-title-wrapper">
+                    <button
+                      @click.stop="deleteItem('signal_input', index)"
+                      class="delete-btn"
+                      :class="{ clicked: sigInDeleteButtonClicked[index] }"
                     >
-                      删除
-                    </div>
-                    <ElIcon v-else size="15"><Close /></ElIcon>
-                  </button>
-                  <span
-                    @click="unsetDeleteButtonClicked('signal_input', index)"
-                    class="collapse-title"
-                    >{{ item.name }}</span
-                  >
-                </div>
-              </template>
-
-              <div class="feature-item">
-                <span>名称</span>
-                <ElInput
-                  v-model="item.name"
-                  placeholder="请输入信号名称"
-                ></ElInput>
-              </div>
-              <div class="feature-item">
-                <span>描述</span>
-                <ElInput
-                  v-model="item.description"
-                  placeholder="请输入信号描述"
-                ></ElInput>
-              </div>
-            </ElCollapseItem>
-            <button
-              class="add-btn"
-              @click="
-                categoryConf.signal_input.push({ name: '', description: '' });
-                sigInActiveValues.push(
-                  `sig-in-${categoryConf.signal_input.length - 1}`
-                );
-                sigInDeleteButtonClicked.push(false);
-              "
-            >
-              添加
-            </button>
-          </ElCollapse>
-        </ElCollapseItem>
-        <ElCollapseItem title="信号输出" name="sig-out" class="sig">
-          <ElCollapse v-model="sigOutActiveValues" class="inside-collapse">
-            <ElCollapseItem
-              v-for="(item, index) in categoryConf?.signal_output"
-              :title="item.name"
-              :key="index"
-              :name="`sig-out-${index}`"
-            >
-              <template #title>
-                <div class="collapse-title-wrapper">
-                  <button
-                    @click.stop="deleteItem('signal_output', index)"
-                    class="delete-btn"
-                    :class="{ clicked: sigOutDeleteButtonClicked[index] }"
-                  >
-                    <div
-                      v-if="sigOutDeleteButtonClicked[index]"
-                      class="delete-btn-text"
+                      <div
+                        v-if="sigInDeleteButtonClicked[index]"
+                        class="delete-btn-text"
+                      >
+                        删除
+                      </div>
+                      <ElIcon v-else size="15"><Close /></ElIcon>
+                    </button>
+                    <span
+                      @click="unsetDeleteButtonClicked('signal_input', index)"
+                      class="collapse-title"
+                      >{{ item.name }}</span
                     >
-                      删除
-                    </div>
-                    <ElIcon v-else size="15"><Close /></ElIcon>
-                  </button>
-                  <span
-                    @click="unsetDeleteButtonClicked('signal_output', index)"
-                    class="collapse-title"
-                    >{{ item.name }}</span
-                  >
-                </div>
-              </template>
+                  </div>
+                </template>
 
-              <div class="feature-item">
-                <span>名称</span>
-                <ElInput
-                  v-model="item.name"
-                  placeholder="请输入信号名称"
-                ></ElInput>
-              </div>
-              <div class="feature-item">
-                <span>描述</span>
-                <ElInput
-                  v-model="item.description"
-                  placeholder="请输入信号描述"
-                ></ElInput>
-              </div>
-            </ElCollapseItem>
-            <button
-              class="add-btn"
-              @click="
-                categoryConf.signal_output.push({ name: '', description: '' });
-                sigOutActiveValues.push(
-                  `sig-out-${categoryConf.signal_output.length - 1}`
-                );
-                sigOutDeleteButtonClicked.push(false);
-              "
-            >
-              添加
-            </button>
-          </ElCollapse>
-        </ElCollapseItem>
-        <ElCollapseItem title="变量输入" name="var-in" class="var">
-          <ElCollapse v-model="varInActiveValues" class="inside-collapse">
-            <ElCollapseItem
-              v-for="(item, index) in categoryConf?.var_input"
-              :title="item.name"
-              :key="index"
-              :name="`var-in-${index}`"
-            >
-              <template #title>
-                <div class="collapse-title-wrapper">
-                  <button
-                    @click.stop="deleteItem('var_input', index)"
-                    class="delete-btn"
-                    :class="{ clicked: varInDeleteButtonClicked[index] }"
-                  >
-                    <div
-                      v-if="varInDeleteButtonClicked[index]"
-                      class="delete-btn-text"
+                <div class="feature-item">
+                  <span>名称</span>
+                  <ElInput
+                    v-model="item.name"
+                    placeholder="请输入信号名称"
+                  ></ElInput>
+                </div>
+                <div class="feature-item">
+                  <span>描述</span>
+                  <ElInput
+                    v-model="item.description"
+                    placeholder="请输入信号描述"
+                  ></ElInput>
+                </div>
+              </ElCollapseItem>
+              <button
+                class="add-btn"
+                @click="
+                  categoryConf.signal_input.push({ name: '', description: '' });
+                  sigInActiveValues.push(
+                    `sig-in-${categoryConf.signal_input.length - 1}`
+                  );
+                  sigInDeleteButtonClicked.push(false);
+                "
+              >
+                添加
+              </button>
+            </ElCollapse>
+          </ElCollapseItem>
+          <ElCollapseItem title="信号输出" name="sig-out" class="sig">
+            <ElCollapse v-model="sigOutActiveValues" class="inside-collapse">
+              <ElCollapseItem
+                v-for="(item, index) in categoryConf?.signal_output"
+                :title="item.name"
+                :key="index"
+                :name="`sig-out-${index}`"
+              >
+                <template #title>
+                  <div class="collapse-title-wrapper">
+                    <button
+                      @click.stop="deleteItem('signal_output', index)"
+                      class="delete-btn"
+                      :class="{ clicked: sigOutDeleteButtonClicked[index] }"
                     >
-                      删除
-                    </div>
-                    <ElIcon v-else size="15"><Close /></ElIcon>
-                  </button>
-                  <span
-                    @click="unsetDeleteButtonClicked('var_input', index)"
-                    class="collapse-title"
-                    >{{ item.name }}</span
-                  >
-                </div>
-              </template>
-
-              <div class="feature-item">
-                <span>名称</span>
-                <ElInput
-                  v-model="item.name"
-                  placeholder="请输入变量名称"
-                ></ElInput>
-              </div>
-              <div class="feature-item">
-                <span>类型</span>
-                <ElSelect v-model="item.type" placeholder="选择变量类型">
-                  <ElOption
-                    v-for="type in validVarTypes"
-                    :key="type"
-                    :label="type"
-                    :value="type"
-                  />
-                </ElSelect>
-              </div>
-              <div class="feature-item">
-                <span>描述</span>
-                <ElInput
-                  v-model="item.description"
-                  placeholder="请输入变量描述"
-                ></ElInput>
-              </div>
-            </ElCollapseItem>
-            <button
-              class="add-btn"
-              @click="
-                categoryConf.var_input.push({
-                  name: '',
-                  type: '',
-                  description: '',
-                });
-                varInActiveValues.push(
-                  `var-in-${categoryConf.var_input.length - 1}`
-                );
-                varInDeleteButtonClicked.push(false);
-              "
-            >
-              添加
-            </button>
-          </ElCollapse>
-        </ElCollapseItem>
-        <ElCollapseItem title="变量输出" name="var-out" class="var">
-          <ElCollapse v-model="varOutActiveValues" class="inside-collapse">
-            <ElCollapseItem
-              v-for="(item, index) in categoryConf?.var_output"
-              :title="item.name"
-              :key="index"
-              :name="`var-out-${index}`"
-            >
-              <template #title>
-                <div class="collapse-title-wrapper">
-                  <button
-                    @click.stop="deleteItem('var_output', index)"
-                    class="delete-btn"
-                    :class="{ clicked: varOutDeleteButtonClicked[index] }"
-                  >
-                    <div
-                      v-if="varOutDeleteButtonClicked[index]"
-                      class="delete-btn-text"
+                      <div
+                        v-if="sigOutDeleteButtonClicked[index]"
+                        class="delete-btn-text"
+                      >
+                        删除
+                      </div>
+                      <ElIcon v-else size="15"><Close /></ElIcon>
+                    </button>
+                    <span
+                      @click="unsetDeleteButtonClicked('signal_output', index)"
+                      class="collapse-title"
+                      >{{ item.name }}</span
                     >
-                      删除
-                    </div>
-                    <ElIcon v-else size="15"><Close /></ElIcon>
-                  </button>
-                  <span
-                    @click="unsetDeleteButtonClicked('var_output', index)"
-                    class="collapse-title"
-                    >{{ item.name }}</span
-                  >
-                </div>
-              </template>
+                  </div>
+                </template>
 
-              <div class="feature-item">
-                <span>名称</span>
-                <ElInput
-                  v-model="item.name"
-                  placeholder="请输入变量名称"
-                ></ElInput>
-              </div>
-              <div class="feature-item">
-                <span>类型</span>
-                <ElSelect v-model="item.type" placeholder="选择变量类型">
-                  <ElOption
-                    v-for="type in validVarTypes"
-                    :key="type"
-                    :label="type"
-                    :value="type"
-                  />
-                </ElSelect>
-              </div>
-              <div class="feature-item">
-                <span>描述</span>
-                <ElInput
-                  v-model="item.description"
-                  placeholder="请输入变量描述"
-                ></ElInput>
-              </div>
-            </ElCollapseItem>
-            <button
-              class="add-btn"
-              @click="
-                categoryConf.var_output.push({
-                  name: '',
-                  type: '',
-                  description: '',
-                });
-                varOutActiveValues.push(
-                  `var-out-${categoryConf.var_output.length - 1}`
-                );
-                varOutDeleteButtonClicked.push(false);
-              "
-            >
-              添加
-            </button>
-          </ElCollapse>
-        </ElCollapseItem>
-      </ElCollapse>
+                <div class="feature-item">
+                  <span>名称</span>
+                  <ElInput
+                    v-model="item.name"
+                    placeholder="请输入信号名称"
+                  ></ElInput>
+                </div>
+                <div class="feature-item">
+                  <span>描述</span>
+                  <ElInput
+                    v-model="item.description"
+                    placeholder="请输入信号描述"
+                  ></ElInput>
+                </div>
+              </ElCollapseItem>
+              <button
+                class="add-btn"
+                @click="
+                  categoryConf.signal_output.push({
+                    name: '',
+                    description: '',
+                  });
+                  sigOutActiveValues.push(
+                    `sig-out-${categoryConf.signal_output.length - 1}`
+                  );
+                  sigOutDeleteButtonClicked.push(false);
+                "
+              >
+                添加
+              </button>
+            </ElCollapse>
+          </ElCollapseItem>
+          <ElCollapseItem title="变量输入" name="var-in" class="var">
+            <ElCollapse v-model="varInActiveValues" class="inside-collapse">
+              <ElCollapseItem
+                v-for="(item, index) in categoryConf?.var_input"
+                :title="item.name"
+                :key="index"
+                :name="`var-in-${index}`"
+              >
+                <template #title>
+                  <div class="collapse-title-wrapper">
+                    <button
+                      @click.stop="deleteItem('var_input', index)"
+                      class="delete-btn"
+                      :class="{ clicked: varInDeleteButtonClicked[index] }"
+                    >
+                      <div
+                        v-if="varInDeleteButtonClicked[index]"
+                        class="delete-btn-text"
+                      >
+                        删除
+                      </div>
+                      <ElIcon v-else size="15"><Close /></ElIcon>
+                    </button>
+                    <span
+                      @click="unsetDeleteButtonClicked('var_input', index)"
+                      class="collapse-title"
+                      >{{ item.name }}</span
+                    >
+                  </div>
+                </template>
+
+                <div class="feature-item">
+                  <span>名称</span>
+                  <ElInput
+                    v-model="item.name"
+                    placeholder="请输入变量名称"
+                  ></ElInput>
+                </div>
+                <div class="feature-item">
+                  <span>类型</span>
+                  <ElSelect v-model="item.type" placeholder="选择变量类型">
+                    <ElOption
+                      v-for="type in validVarTypes"
+                      :key="type"
+                      :label="type"
+                      :value="type"
+                    />
+                  </ElSelect>
+                </div>
+                <div class="feature-item">
+                  <span>描述</span>
+                  <ElInput
+                    v-model="item.description"
+                    placeholder="请输入变量描述"
+                  ></ElInput>
+                </div>
+              </ElCollapseItem>
+              <button
+                class="add-btn"
+                @click="
+                  categoryConf.var_input.push({
+                    name: '',
+                    type: '',
+                    description: '',
+                  });
+                  varInActiveValues.push(
+                    `var-in-${categoryConf.var_input.length - 1}`
+                  );
+                  varInDeleteButtonClicked.push(false);
+                "
+              >
+                添加
+              </button>
+            </ElCollapse>
+          </ElCollapseItem>
+          <ElCollapseItem title="变量输出" name="var-out" class="var">
+            <ElCollapse v-model="varOutActiveValues" class="inside-collapse">
+              <ElCollapseItem
+                v-for="(item, index) in categoryConf?.var_output"
+                :title="item.name"
+                :key="index"
+                :name="`var-out-${index}`"
+              >
+                <template #title>
+                  <div class="collapse-title-wrapper">
+                    <button
+                      @click.stop="deleteItem('var_output', index)"
+                      class="delete-btn"
+                      :class="{ clicked: varOutDeleteButtonClicked[index] }"
+                    >
+                      <div
+                        v-if="varOutDeleteButtonClicked[index]"
+                        class="delete-btn-text"
+                      >
+                        删除
+                      </div>
+                      <ElIcon v-else size="15"><Close /></ElIcon>
+                    </button>
+                    <span
+                      @click="unsetDeleteButtonClicked('var_output', index)"
+                      class="collapse-title"
+                      >{{ item.name }}</span
+                    >
+                  </div>
+                </template>
+
+                <div class="feature-item">
+                  <span>名称</span>
+                  <ElInput
+                    v-model="item.name"
+                    placeholder="请输入变量名称"
+                  ></ElInput>
+                </div>
+                <div class="feature-item">
+                  <span>类型</span>
+                  <ElSelect v-model="item.type" placeholder="选择变量类型">
+                    <ElOption
+                      v-for="type in validVarTypes"
+                      :key="type"
+                      :label="type"
+                      :value="type"
+                    />
+                  </ElSelect>
+                </div>
+                <div class="feature-item">
+                  <span>描述</span>
+                  <ElInput
+                    v-model="item.description"
+                    placeholder="请输入变量描述"
+                  ></ElInput>
+                </div>
+              </ElCollapseItem>
+              <button
+                class="add-btn"
+                @click="
+                  categoryConf.var_output.push({
+                    name: '',
+                    type: '',
+                    description: '',
+                  });
+                  varOutActiveValues.push(
+                    `var-out-${categoryConf.var_output.length - 1}`
+                  );
+                  varOutDeleteButtonClicked.push(false);
+                "
+              >
+                添加
+              </button>
+            </ElCollapse>
+          </ElCollapseItem>
+        </ElCollapse>
+      </div>
     </div>
     <div class="buttons">
       <button @click="closeWindow(false)">取消</button>
@@ -525,12 +543,12 @@ function validateData() {
 
 function closeWindow(saveChanges) {
   if (saveChanges) {
-    showMask.value = true;
-
     // 验证数据
     if (!validateData()) {
       return;
     }
+
+    showMask.value = true;
 
     const categoryConfJSON = JSON.stringify(categoryConf.value, null, 2);
 
@@ -848,11 +866,42 @@ span .collapse-title:hover {
 
 .mask.show {
   opacity: 1;
+  z-index: 500;
   pointer-events: auto;
 }
 
 .mask:not(.show) {
   opacity: 0;
   pointer-events: none;
+}
+
+.type-label {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 10px;
+  margin-bottom: 15px;
+}
+
+.type-label > div {
+  width: 100%;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.type-label > div > span {
+  font-weight: 600;
+  font-size: 16px;
+  width: 35%;
+  border-radius: 50px;
+  padding: 10px 20px;
+  color: white;
+  background-color: var(--color-dark-0);
+  display: inline-block;
+}
+
+.type-label > .el-input {
+  width: 95%;
 }
 </style>

@@ -22,7 +22,7 @@
 </template>
 
 <script setup>
-import WindowControl from "@/components/WindowControl.vue";
+// import WindowControl from "@/components/WindowControl.vue";
 import BlockEditor from "@/components/BlockEditor.vue";
 import BlockPreview from "@/components/BlockPreview.vue";
 import { ElNotification } from "element-plus";

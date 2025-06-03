@@ -65,7 +65,7 @@
           ></path>
         </svg>
       </ElIcon>
-      转换代码
+      生成代码
     </div>
   </div>
 </template>
