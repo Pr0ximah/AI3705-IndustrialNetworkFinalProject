@@ -1857,11 +1857,12 @@ function getConnectingPath() {
   }).value;
 }
 
-function initWorkspace() {
+async function initWorkspace() {
   // 初始化画布（只在启动时执行一次）
   initializeCanvas();
   // 获取所有类别定义
-  getBlockCategories(true);
+  let res = await getBlockCategories();
+  return res;
 }
 
 onMounted(() => {
@@ -1914,62 +1915,32 @@ function loadCategoriesConfigFromJSON(jsonString) {
   }
 }
 
-function getBlockCategories(fromFiles = false) {
+async function getBlockCategories() {
   const loading = ElLoading.service({
     lock: true,
     customClass: "default-loading",
     text: "正在读取模型定义...",
     background: "rgba(255, 255, 255, 0.7)",
   });
-  if (fromFiles) {
-    // 从已有文件加载类别定义
-    return window.ipcApi
-      .loadBlockCategories()
-      .then((categoriesJSON) => {
-        loadCategoriesConfigFromJSON(categoriesJSON);
-        console.log("类别定义加载成功", blockCategories.value);
-      })
-      .catch((error) => {
-        let errorMessage = window.ipcApi.extractErrorMessage(error);
-        ElNotification({
-          title: "加载失败",
-          message: errorMessage,
-          showClose: false,
-          type: "error",
-          duration: 2500,
-          customClass: "default-notification",
-        });
-      })
-      .finally(() => {
-        loading.close();
-      });
-  } else {
-    // 从服务端获取类别定义
-    service
-      .get("/inputs/categories")
-      .then((response) => {
-        if (response.data.categories && response.data.categories.length > 0) {
-          // 清空现有类别
-          blockCategories.value = [];
-          // 添加新类别
-          response.data.categories.forEach((categoryJSON) => {
-            const blockCategory =
-              convertJSON_TO_BlockCategoryObject(categoryJSON);
-            blockCategory.id = blockCategories.value.length;
-            blockCategories.value.push(blockCategory);
-          });
-        } else {
-          console.warn("没有获取到任何类别定义");
-        }
-      })
-      .catch((error) => {
-        console.error("获取类别定义失败", error);
-      })
-      .finally(() => {
-        setTimeout(() => {
-          loading.close();
-        }, 400);
-      });
+  // 从已有文件加载类别定义
+  try {
+    const categoriesJSON = await window.ipcApi.loadBlockCategories();
+    loadCategoriesConfigFromJSON(categoriesJSON);
+    console.log("类别定义加载成功", blockCategories.value);
+    return true; // 加载成功返回 true
+  } catch (error) {
+    let errorMessage = window.ipcApi.extractErrorMessage(error);
+    ElNotification({
+      title: "加载失败",
+      message: errorMessage,
+      showClose: false,
+      type: "error",
+      duration: 2500,
+      customClass: "default-notification",
+    });
+    return false; // 加载失败返回 false
+  } finally {
+    loading.close();
   }
 }
 
@@ -2548,7 +2519,7 @@ async function loadWorkspace(workspace) {
     console.error("加载工作区失败:", error);
     // 发生错误时清空工作区并恢复默认类别
     clearWorkspace(false);
-    getBlockCategories(true);
+    await getBlockCategories();
     return false;
   }
 }

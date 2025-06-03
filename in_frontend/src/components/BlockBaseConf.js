@@ -1,11 +1,12 @@
 import assert from "assert";
 
-const VAR_TYPE = ["int", "float", "bool", "time"];
+const VAR_TYPE = ["int", "float", "bool", "time", "string"];
 const VAR_TYPE_COLOR_MAP = {
   int: "#3B82F6",
   float: "#8B5CF6",
   bool: "#EF4444",
   time: "#6B7280",
+  string: "#10B981",
 };
 
 class VarConf {

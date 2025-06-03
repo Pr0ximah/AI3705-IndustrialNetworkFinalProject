@@ -450,7 +450,7 @@ def read_user_input(data) -> str:
 
 # 使用示例
 async def process_user_input(user_input, API_KEY):
-    prompt = read_user_input(user_input)
+    prompt = read_user_input(json.loads(user_input))
 
     # 你的提示词
     PROMPT_1 = """从自然语言中提取设备配置列表，我的需求如下：
@@ -616,7 +616,11 @@ async def process_user_input(user_input, API_KEY):
             yield {
                 "event": "status",
                 "data": json.dumps(
-                    {"message": "开始生成设备配置列表", "progress": 10, "next_progress": 30},
+                    {
+                        "message": "开始生成设备配置列表",
+                        "progress": 10,
+                        "next_progress": 30,
+                    },
                     ensure_ascii=False,
                 ),
             }
@@ -627,7 +631,12 @@ async def process_user_input(user_input, API_KEY):
             yield {
                 "event": "status",
                 "data": json.dumps(
-                    {"message": "设备列表生成完成", "progress": 30, "next_progress": 40}, ensure_ascii=False
+                    {
+                        "message": "设备列表生成完成",
+                        "progress": 30,
+                        "next_progress": 40,
+                    },
+                    ensure_ascii=False,
                 ),
             }
 
@@ -689,7 +698,12 @@ async def process_user_input(user_input, API_KEY):
                 yield {
                     "event": "device_config",
                     "data": json.dumps(
-                        {"device": device, "config": device_config, "next_progress": progress+20}, ensure_ascii=False
+                        {
+                            "device": device,
+                            "config": device_config,
+                            "next_progress": progress + 20,
+                        },
+                        ensure_ascii=False,
                     ),
                 }
 
@@ -724,21 +738,31 @@ async def sse_generator(user_input, api_key):
     """
     将process_user_input的结果转换为SSE格式的生成器
     """
-    try:
-        async for event in process_user_input(user_input, api_key):
-            if isinstance(event, dict):
-                event_name = event.get("event", "message")
-                event_data = event.get("data", "")
-                yield f"event: {event_name}\ndata: {event_data}\n\n"
-            else:
-                # 如果event是字符串，将其作为message事件发送
-                yield f"event: message\ndata: {json.dumps({'message': event}, ensure_ascii=False)}\n\n"
+    async for event in process_user_input(user_input, api_key):
+        if isinstance(event, dict):
+            event_name = event.get("event", "message")
+            event_data = event.get("data", "")
+            yield f"event: {event_name}\ndata: {event_data}\n\n"
+        else:
+            # 如果event是字符串，将其作为message事件发送
+            yield f"event: message\ndata: {json.dumps({'message': event}, ensure_ascii=False)}\n\n"
 
-    except Exception as e:
-        # 发送错误事件
-        error_message = {"error": str(e)}
-        yield f"event: error\ndata: {json.dumps(error_message, ensure_ascii=False)}\n\n"
 
-    finally:
-        # 确保最后发送一个结束事件，通知前端关闭连接
-        yield f"event: close\ndata: {json.dumps({'completed': True}, ensure_ascii=False)}\n\n"
+    # try:
+    #     async for event in process_user_input(user_input, api_key):
+    #         if isinstance(event, dict):
+    #             event_name = event.get("event", "message")
+    #             event_data = event.get("data", "")
+    #             yield f"event: {event_name}\ndata: {event_data}\n\n"
+    #         else:
+    #             # 如果event是字符串，将其作为message事件发送
+    #             yield f"event: message\ndata: {json.dumps({'message': event}, ensure_ascii=False)}\n\n"
+
+    # except Exception as e:
+    #     # 发送错误事件
+    #     error_message = {"error": str(e)}
+    #     yield f"event: error\ndata: {json.dumps(error_message, ensure_ascii=False)}\n\n"
+
+    # finally:
+    #     # 确保最后发送一个结束事件，通知前端关闭连接
+    #     yield f"event: close\ndata: {json.dumps({'completed': True}, ensure_ascii=False)}\n\n"

@@ -249,18 +249,30 @@ async function emitConvertWorkspace() {
   loading?.close();
 }
 
-function projectCreated() {
-  showWelcome.value = false;
-  blockCanvasRef.value.initWorkspace();
-  workspaceInited.value = true;
-  ElNotification({
-    title: "欢迎使用",
-    showClose: false,
-    message: "欢迎使用本系统，祝您工作愉快！",
-    type: "success",
-    duration: 3000,
-    customClass: "default-notification",
-  });
+async function projectCreated() {
+  let loadRes = await blockCanvasRef.value.initWorkspace();
+  if (!loadRes) {
+    ElNotification({
+      title: "初始化工作区失败",
+      showClose: false,
+      message: "请检查配置文件是否正确",
+      type: "error",
+      duration: 3000,
+      customClass: "default-notification",
+    });
+    return;
+  } else {
+    showWelcome.value = false;
+    workspaceInited.value = true;
+    ElNotification({
+      title: "欢迎使用",
+      showClose: false,
+      message: "欢迎使用本系统，祝您工作愉快！",
+      type: "success",
+      duration: 3000,
+      customClass: "default-notification",
+    });
+  }
 }
 
 onMounted(() => {

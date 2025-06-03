@@ -1,9 +1,8 @@
 "use strict";
 
-import { app, protocol, BrowserWindow, Menu, ipcMain } from "electron";
+import { app, protocol, BrowserWindow, ipcMain } from "electron";
 import { createProtocol } from "vue-cli-plugin-electron-builder/lib";
 import path from "path";
-import installExtension, { VUEJS3_DEVTOOLS } from "electron-devtools-installer";
 const fs = require("fs");
 const { dialog } = require("electron");
 const { spawn } = require("child_process");
@@ -14,8 +13,101 @@ let serviceProcess = null;
 
 // 持久化数据目录
 const userDataPath = app.getPath("userData");
+const logsPath = path.join(userDataPath, "logs");
 let projectPath = "";
 let blockCategoriesFilePath = "";
+
+// 日志文件路径
+const logFiles = {
+  mainStdout: path.join(logsPath, "main-stdout.log"),
+  mainStderr: path.join(logsPath, "main-stderr.log"),
+  serviceStdout: path.join(logsPath, "service-stdout.log"),
+  serviceStderr: path.join(logsPath, "service-stderr.log"),
+};
+
+// 初始化日志系统
+function initializeLogging() {
+  // 开发环境下不启用日志
+  if (isDevelopment) {
+    console.log("开发环境：跳过日志系统初始化");
+    return;
+  }
+
+  try {
+    // 创建日志目录
+    if (!fs.existsSync(logsPath)) {
+      fs.mkdirSync(logsPath, { recursive: true });
+    }
+
+    // 清理旧日志或创建新日志文件
+    Object.values(logFiles).forEach((logFile) => {
+      if (fs.existsSync(logFile)) {
+        // 保留最近的日志，可以选择截断或重命名
+        const stats = fs.statSync(logFile);
+        const fileSize = stats.size;
+
+        // 如果文件大于10MB，创建备份并清空
+        if (fileSize > 10 * 1024 * 1024) {
+          const backupFile = logFile.replace(".log", `-${Date.now()}.log`);
+          fs.renameSync(logFile, backupFile);
+        }
+      }
+    });
+
+    console.log(`日志系统初始化完成，日志目录: ${logsPath}`);
+  } catch (error) {
+    console.error(`初始化日志系统失败: ${error.message}`);
+  }
+}
+
+// 写入日志函数
+function writeLog(logFile, data, isError = false) {
+  // 开发环境下不写入日志
+  if (isDevelopment) {
+    return;
+  }
+
+  try {
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] ${data.toString().trim()}\n`;
+    // 指定编码为 utf8 以支持中文
+    fs.appendFileSync(logFile, logEntry, { encoding: "utf8" });
+  } catch (error) {
+    // 避免日志写入错误导致程序崩溃
+    console.error(`写入日志失败 ${logFile}: ${error.message}`);
+  }
+}
+
+// 重定向主进程的console输出
+function setupMainProcessLogging() {
+  // 开发环境下不重定向console输出
+  if (isDevelopment) {
+    console.log("开发环境：跳过主进程日志重定向");
+    return;
+  }
+
+  const originalConsoleLog = console.log;
+  const originalConsoleError = console.error;
+  const originalConsoleWarn = console.warn;
+
+  console.log = (...args) => {
+    const message = args.join(" ");
+    writeLog(logFiles.mainStdout, message);
+    originalConsoleLog(...args);
+  };
+
+  console.error = (...args) => {
+    const message = args.join(" ");
+    writeLog(logFiles.mainStderr, message, true);
+    originalConsoleError(...args);
+  };
+
+  console.warn = (...args) => {
+    const message = args.join(" ");
+    writeLog(logFiles.mainStderr, `[WARN] ${message}`, true);
+    originalConsoleWarn(...args);
+  };
+}
 
 // 启动服务进程
 function startServiceProcess() {
@@ -46,7 +138,8 @@ function startServiceProcess() {
     // 启动子进程，关键是设置正确的选项来绑定进程
     const spawnOptions = {
       detached: false, // 不分离进程，与父进程绑定
-      stdio: ["pipe", "pipe", "pipe"], // 继承标准输入输出
+      stdio: ["pipe", "pipe", "pipe"], // 使用管道捕获输出
+      encoding: "utf8", // 指定编码支持中文
     };
 
     // Windows下添加额外的选项确保进程绑定
@@ -56,34 +149,44 @@ function startServiceProcess() {
 
     serviceProcess = spawn(executablePath, [], spawnOptions);
 
-    // 监听子进程的输出（可选，用于调试）
+    // 监听子进程的stdout输出并保存到日志
+    serviceProcess.stdout.setEncoding("utf8"); // 设置编码为utf8
     serviceProcess.stdout.on("data", (data) => {
-      console.log(`服务进程输出: ${data.toString().trim()}`);
+      const output = data.toString().trim();
+      writeLog(logFiles.serviceStdout, output);
     });
 
+    // 监听子进程的stderr输出并保存到日志
+    serviceProcess.stderr.setEncoding("utf8"); // 设置编码为utf8
     serviceProcess.stderr.on("data", (data) => {
-      console.error(`服务进程错误: ${data.toString().trim()}`);
+      const error = data.toString().trim();
+      writeLog(logFiles.serviceStderr, error, true);
     });
 
     // 处理子进程退出
     serviceProcess.on("close", (code, signal) => {
-      console.log(`服务进程退出，退出码: ${code}, 信号: ${signal}`);
+      const message = `服务进程退出，退出码: ${code}, 信号: ${signal}`;
+      writeLog(logFiles.serviceStdout, message);
       serviceProcess = null;
     });
 
     serviceProcess.on("error", (error) => {
-      console.error(`服务进程启动失败: ${error.message}`);
+      const message = `服务进程启动失败: ${error.message}`;
+      writeLog(logFiles.serviceStderr, message, true);
       serviceProcess = null;
     });
 
     // 确保子进程在父进程退出时也退出
     serviceProcess.on("disconnect", () => {
-      console.log("服务进程已断开连接");
+      const message = "服务进程已断开连接";
+      writeLog(logFiles.serviceStdout, message);
     });
 
-    console.log(`服务进程已启动，PID: ${serviceProcess.pid}`);
+    const message = `服务进程已启动，PID: ${serviceProcess.pid}`;
+    writeLog(logFiles.serviceStdout, message);
   } catch (error) {
-    console.error(`启动服务进程时发生错误: ${error.message}`);
+    const message = `启动服务进程时发生错误: ${error.message}`;
+    writeLog(logFiles.serviceStderr, message, true);
   }
 }
 
@@ -285,14 +388,16 @@ app.on("activate", () => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on("ready", async () => {
-  if (isDevelopment && !process.env.IS_TEST) {
-    // Install Vue Devtools
-    try {
-      await installExtension(VUEJS3_DEVTOOLS);
-    } catch (e) {
-      console.error("Vue Devtools failed to install:", e.toString());
-    }
+  // 初始化日志系统
+  initializeLogging();
+  setupMainProcessLogging();
+
+  console.log("应用程序启动");
+  if (!isDevelopment) {
+    console.log(`用户数据路径: ${userDataPath}`);
+    console.log(`日志路径: ${logsPath}`);
   }
+
   createWindow();
   startServiceProcess(); // 启动服务进程
 });
@@ -332,6 +437,7 @@ process.on("SIGINT", () => {
       console.error(`清理子进程失败: ${error.message}`);
     }
   }
+  console.log("主进程退出");
   process.exit(0);
 });
 
@@ -349,6 +455,7 @@ process.on("SIGTERM", () => {
       console.error(`清理子进程失败: ${error.message}`);
     }
   }
+  console.log("主进程退出");
   process.exit(0);
 });
 

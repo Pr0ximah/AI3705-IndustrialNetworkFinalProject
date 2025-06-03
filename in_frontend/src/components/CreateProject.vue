@@ -227,6 +227,16 @@ async function createProject() {
         `${process.env.VUE_APP_API_BASE_URL}/inputs/sse/${id}`
       );
 
+      let isCompleted = false;
+      let isResolved = false;
+
+      const cleanup = () => {
+        if (!isResolved) {
+          isResolved = true;
+          eventSource.close();
+        }
+      };
+
       eventSource.onopen = () => {
         LLMLoadingRef.value.resetMsg();
         LLMLoadingRef.value.addMsg("正在连接到服务器，准备创建项目...");
@@ -247,16 +257,36 @@ async function createProject() {
         result = JSON.parse(event.data);
         LLMLoadingRef.value.addMsg("项目创建完成！正在处理...");
         console.log("项目创建完成:", result);
+        isCompleted = true;
       });
 
       eventSource.addEventListener("close", (event) => {
-        eventSource.close();
-        resolve();
+        cleanup();
+        if (isCompleted) {
+          resolve();
+        } else {
+          reject(new Error("连接在项目完成前被关闭"));
+        }
       });
 
       eventSource.onerror = (error) => {
-        eventSource.close();
-        reject(new Error("创建项目过程中连接中断"));
+        console.log("SSE错误 - readyState:", eventSource.readyState);
+
+        // 如果项目已完成，忽略后续错误
+        if (isCompleted) {
+          cleanup();
+          resolve();
+          return;
+        }
+
+        // 如果是连接状态，不要立即失败
+        if (eventSource.readyState === EventSource.CONNECTING) {
+          console.log("正在重新连接，继续等待...");
+          return;
+        }
+
+        cleanup();
+        reject(new Error("SSE连接发生错误"));
       };
     });
 
