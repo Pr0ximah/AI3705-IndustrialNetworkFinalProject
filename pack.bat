@@ -54,15 +54,14 @@ if not exist "in_backend" (
 )
 
 REM 创建dist目录
-if not exist "dist" (
-    echo 创建 dist 目录
-    mkdir dist
+if exist "dist" (
+    echo 删除现有的 dist 目录
+    rmdir /s /q "dist"
 )
 
-if not exist "dist\resources" (
-    echo 创建 dist\resources 目录
-    mkdir dist\resources
-)
+echo 创建 dist 目录
+mkdir dist
+mkdir dist\resources
 
 REM 打包前端
 if %PACK_FRONTEND%==1 (
