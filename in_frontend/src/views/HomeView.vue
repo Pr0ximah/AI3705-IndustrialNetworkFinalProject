@@ -13,12 +13,14 @@
           />
         </div>
       </div>
-      <WorkspaceMenu
-        @save="emitSaveWorkspace"
-        @load="emitLoadWorkspace"
-        @convert="emitConvertWorkspace"
-        v-if="!showWelcome"
-      />
+      <Transition name="opacity-fade" mode="out-in">
+        <WorkspaceMenu
+          @save="emitSaveWorkspace"
+          @load="emitLoadWorkspace"
+          @convert="emitConvertWorkspace"
+          v-if="!showWelcome"
+        />
+      </Transition>
       <div
         style="
           display: flex;
@@ -28,7 +30,9 @@
           gap: 10px;
         "
       >
-        <CanvasControl v-if="!showWelcome" />
+        <Transition name="opacity-fade" mode="out-in">
+          <CanvasControl v-if="!showWelcome" />
+        </Transition>
         <WindowControl style="height: var(--header-height)" />
       </div>
     </ElHeader>
@@ -40,7 +44,7 @@
           @pass-create-project="projectCreated"
         />
       </Transition>
-      <Transition name="canvas-fade" mode="out-in">
+      <Transition name="opacity-fade" mode="out-in">
         <BlockCanvas
           v-show="!showWelcome || workspaceInited"
           :enable-key-down-event-in-block-canvas="
@@ -249,18 +253,33 @@ async function emitConvertWorkspace() {
   loading?.close();
 }
 
-function projectCreated() {
+async function projectCreated() {
   showWelcome.value = false;
-  blockCanvasRef.value.initWorkspace();
-  workspaceInited.value = true;
-  ElNotification({
-    title: "欢迎使用",
-    showClose: false,
-    message: "欢迎使用本系统，祝您工作愉快！",
-    type: "success",
-    duration: 3000,
-    customClass: "default-notification",
-  });
+  showMask.value = true;
+  let loadRes = await blockCanvasRef.value.initWorkspace();
+  showMask.value = false;
+  if (!loadRes) {
+    ElNotification({
+      title: "初始化工作区失败",
+      showClose: false,
+      message: "请检查配置文件是否正确",
+      type: "error",
+      duration: 3000,
+      customClass: "default-notification",
+    });
+    showWelcome.value = true;
+    return;
+  } else {
+    workspaceInited.value = true;
+    ElNotification({
+      title: "欢迎使用",
+      showClose: false,
+      message: "欢迎使用本系统，祝您工作愉快！",
+      type: "success",
+      duration: 3000,
+      customClass: "default-notification",
+    });
+  }
 }
 
 onMounted(() => {
@@ -331,7 +350,7 @@ onMounted(() => {
 /* 添加欢迎页面的过渡效果 */
 .welcome-fade-enter-active,
 .welcome-fade-leave-active {
-  transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
 }
 
 .welcome-fade-enter-from,
@@ -344,22 +363,6 @@ onMounted(() => {
 .welcome-fade-leave-from {
   opacity: 1;
   transform: translateY(0);
-}
-
-/* 添加画布的过渡效果 */
-.canvas-fade-enter-active,
-.canvas-fade-leave-active {
-  transition: opacity 0.5s ease-in-out;
-}
-
-.canvas-fade-enter-from,
-.canvas-fade-leave-to {
-  opacity: 0;
-}
-
-.canvas-fade-enter-to,
-.canvas-fade-leave-from {
-  opacity: 1;
 }
 
 .select-workspace-fade-enter-active,

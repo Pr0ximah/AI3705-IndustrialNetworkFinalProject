@@ -338,14 +338,14 @@ const handleConnectorMouseUp = (type, index, event) => {
   min-width: 60px;
   max-width: 60px;
   justify-content: center;
-  cursor: help;
+  cursor: auto;
   transition: all 0.2s ease;
   position: relative;
 }
 
 .connector-label:hover {
   background-color: rgba(255, 255, 255, 1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 3px 3px var(--color-important-light);
   z-index: 1000;
   min-width: 60px;
   max-width: none;
@@ -361,8 +361,8 @@ const handleConnectorMouseUp = (type, index, event) => {
 }
 
 .right-label {
-  text-align: right;
-  justify-content: flex-end;
+  text-align: left;
+  justify-content: flex-start;
 }
 
 .signal-label {

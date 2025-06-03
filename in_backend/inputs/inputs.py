@@ -73,7 +73,7 @@ async def create_project(
 
     # 将项目配置和创建时间存储在active_connections字典中
     active_connections[connection_id] = {
-        "project_conf": project_conf.conf,  # 使用实际提交的配置
+        "project_conf": project_conf["conf"],  # 使用实际提交的配置
         # "project_conf": test_input,  # 使用测试数据
         "created_at": datetime.now(),
     }

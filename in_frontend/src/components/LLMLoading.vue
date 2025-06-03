@@ -12,7 +12,7 @@
         type="circle"
         class="loading-progress"
         :color="progressColor"
-        :percentage="pregress"
+        :percentage="progress"
         :width="200"
         :stroke-width="20"
       />
@@ -31,9 +31,9 @@
 import { ref, defineExpose, computed } from "vue";
 import { ElProgress } from "element-plus";
 
-const pregress = ref(0);
+const progress = ref(0);
 const progressColor = "#3e4491";
-const maxVisibleMessages = 10;
+const maxVisibleMessages = 1;
 let messageIdCounter = 0;
 const messages = ref([]); // 改为响应式
 
@@ -47,11 +47,11 @@ const visibleMessages = computed(() => {
 
 defineExpose({
   updateProgress(percentage) {
-    pregress.value = percentage;
+    progress.value = percentage;
   },
   resetMsg() {
     messages.value = []; // 清空消息列表
-    pregress.value = 0; // 重置进度
+    progress.value = 0; // 重置进度
     messageIdCounter = 0; // 重置消息ID计数器
   },
   addMsg(message, replace = false) {
