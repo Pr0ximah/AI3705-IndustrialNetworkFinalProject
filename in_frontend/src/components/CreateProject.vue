@@ -241,6 +241,7 @@ async function createProject() {
         const replace = data.replace || false;
         LLMLoadingRef.value.updateProgress(progress);
         LLMLoadingRef.value.addMsg(msg, replace);
+        // TODO: 处理进度更新
         console.log(`进度: ${progress}, 消息: ${msg}`);
       });
 
