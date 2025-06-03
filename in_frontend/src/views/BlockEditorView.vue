@@ -1,10 +1,10 @@
 <template>
-  <WindowControl
+  <!-- <WindowControl
     :showMinimize="false"
     :showMaximize="false"
     windowName="block-editor"
     class="block-editor-window-control"
-  />
+  /> -->
   <div class="block-editor-view">
     <BlockPreview
       ref="blockPreviewRef"
@@ -22,11 +22,11 @@
 </template>
 
 <script setup>
-import WindowControl from "@/components/WindowControl.vue";
+// import WindowControl from "@/components/WindowControl.vue";
 import BlockEditor from "@/components/BlockEditor.vue";
 import BlockPreview from "@/components/BlockPreview.vue";
 import { ElNotification } from "element-plus";
-import { provide, ref, onMounted, onBeforeUnmount } from "vue";
+import { provide, ref, onMounted } from "vue";
 
 const currentCategoryId = window.ipcApi.getProcessArgv("category-id");
 const categoryConf = ref(null);
@@ -80,6 +80,8 @@ onMounted(() => {
       }, 1500);
     });
 });
+
+async function infoSave() {}
 </script>
 
 <style scoped>

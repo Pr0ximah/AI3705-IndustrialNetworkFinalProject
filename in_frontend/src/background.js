@@ -301,23 +301,64 @@ function windowFadeIn(window) {
 }
 
 function windowFadeOut(window, event) {
-  // 阻止默认关闭行为
-  event.preventDefault();
-
-  // 定义淡出效果
-  const fadeOut = () => {
-    const currentOpacity = window.getOpacity();
-    if (currentOpacity > 0) {
-      window.setOpacity(Math.max(currentOpacity - 0.1, 0));
-      setTimeout(fadeOut, 16); // 每16毫秒减少透明度，约60fps
-    } else {
-      window.hide(); // 完全透明后隐藏窗口
+  try {
+    // 检查窗口是否存在且未被销毁
+    if (!window || window.isDestroyed()) {
+      console.warn("窗口已被销毁，跳过淡出效果");
+      return;
     }
-  };
-  fadeOut();
-  setTimeout(() => {
-    window.destroy(); // 销毁窗口
-  }, 500);
+
+    // 阻止默认关闭行为
+    if (event && typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+
+    // 定义淡出效果
+    const fadeOut = () => {
+      try {
+        // 再次检查窗口状态
+        if (!window || window.isDestroyed()) {
+          return;
+        }
+
+        const currentOpacity = window.getOpacity();
+        if (currentOpacity > 0) {
+          window.setOpacity(Math.max(currentOpacity - 0.1, 0));
+          setTimeout(fadeOut, 16); // 每16毫秒减少透明度，约60fps
+        } else {
+          window.hide(); // 完全透明后隐藏窗口
+        }
+      } catch (error) {
+        console.error("淡出效果执行出错:", error);
+        // 如果出错，直接销毁窗口
+        if (window && !window.isDestroyed()) {
+          window.destroy();
+        }
+      }
+    };
+
+    fadeOut();
+
+    setTimeout(() => {
+      try {
+        if (window && !window.isDestroyed()) {
+          window.destroy(); // 销毁窗口
+        }
+      } catch (error) {
+        console.error("销毁窗口时出错:", error);
+      }
+    }, 500);
+  } catch (error) {
+    console.error("windowFadeOut函数执行出错:", error);
+    // 出错时直接销毁窗口
+    try {
+      if (window && !window.isDestroyed()) {
+        window.destroy();
+      }
+    } catch (destroyError) {
+      console.error("强制销毁窗口时出错:", destroyError);
+    }
+  }
 }
 
 async function createWindow() {
@@ -508,8 +549,14 @@ ipcMain.on("canvas:double-click-block", (event, categoryId) => {
     const mainBounds = mainWindow.getBounds();
     const blockEditorWidth = 800;
     const blockEditorHeight = 500;
-    const centerX = mainBounds.x + (mainBounds.width - blockEditorWidth) / 2;
-    const centerY = mainBounds.y + (mainBounds.height - blockEditorHeight) / 2;
+    let centerX = mainBounds.x + (mainBounds.width - blockEditorWidth) / 2;
+    let centerY = mainBounds.y + (mainBounds.height - blockEditorHeight) / 2;
+
+    centerX = Math.round(centerX);
+    centerY = Math.round(centerY);
+
+    if (isNaN(centerX) || centerX < 0) centerX = 200;
+    if (isNaN(centerY) || centerY < 0) centerY = 100;
 
     // Create block editor window
     blockEditorWindow = new BrowserWindow({
@@ -542,7 +589,20 @@ ipcMain.on("canvas:double-click-block", (event, categoryId) => {
     });
 
     blockEditorWindow.on("close", (event) => {
-      windowFadeOut(blockEditorWindow, event);
+      // 确保窗口和事件对象都存在
+      if (blockEditorWindow && event) {
+        windowFadeOut(blockEditorWindow, event);
+      } else {
+        // 如果出现异常情况，直接销毁窗口
+        if (blockEditorWindow) {
+          try {
+            blockEditorWindow.destroy();
+          } catch (error) {
+            console.error("销毁窗口时出错:", error);
+          }
+          blockEditorWindow = null;
+        }
+      }
     });
   }
 
@@ -723,6 +783,7 @@ ipcMain.handle("open-project-dir", async (event) => {
 
 ipcMain.handle("save-workspace", async (event, workspace, name) => {
   try {
+    console.log("保存工作区数据", name);
     const basedir = path.join(projectPath, "sys", name);
     const filePath = path.join(basedir, "workspace.sys");
     if (!fs.existsSync(basedir)) {
@@ -796,37 +857,26 @@ ipcMain.handle("select-code-output-path", async (event) => {
 
     const selectedDir = result.filePaths[0];
 
-    // 检查目录是否为空
-    const files = fs.readdirSync(selectedDir);
-    if (files.length > 0) {
-      // 目录非空，询问用户是否清空
-      const confirmResult = await dialog.showMessageBox(mainWindow, {
-        type: "warning",
-        title: "文件夹非空",
-        message: "所选文件夹不为空，是否要清空该文件夹？",
-        detail: "清空操作将永久删除文件夹中的所有内容，无法恢复。",
-        buttons: ["取消", "清空并继续"],
-        defaultId: 0,
-        cancelId: 0,
-      });
-
-      if (confirmResult.response === 0) {
-        throw new Error("CANCEL");
-      }
-
-      // 用户确认清空文件夹
-      for (const file of files) {
-        const filePath = path.join(selectedDir, file);
-        if (fs.lstatSync(filePath).isDirectory()) {
-          fs.rmSync(filePath, { recursive: true, force: true });
-        } else {
-          fs.unlinkSync(filePath);
-        }
-      }
+    const targetDir = path.join(selectedDir, "code-output");
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    return selectedDir;
+    return targetDir;
   } catch (error) {
     throw error;
+  }
+});
+
+ipcMain.handle("open-directory", async (event, dirPath) => {
+  try {
+    if (!fs.existsSync(dirPath)) {
+      throw new Error(`目录不存在: ${dirPath}`);
+    }
+
+    const { shell } = require("electron");
+    await shell.openPath(dirPath);
+  } catch (error) {
+    throw new Error(`打开目录失败: ${error.message}`);
   }
 });

@@ -100,4 +100,9 @@ contextBridge.exposeInMainWorld("ipcApi", {
   selectCodeOutputPath: () => {
     return ipcRenderer.invoke("select-code-output-path");
   },
+
+  // 打开文件夹
+  openDirectory: (path) => {
+    return ipcRenderer.invoke("open-directory", path);
+  }
 });

@@ -139,7 +139,6 @@ import {
 import Block from "./Block";
 import { ElMessageBox, ElLoading, ElNotification } from "element-plus";
 import { Delete, DArrowLeft, DArrowRight } from "@element-plus/icons-vue";
-import service from "@/util/ajax_inst.js";
 
 const DRAG_THRESHOLD = 3; // 拖拽阈值：鼠标移动超过5像素才触发拖拽
 const blockCategories = ref([]);
@@ -1860,6 +1859,7 @@ function getConnectingPath() {
 async function initWorkspace() {
   // 初始化画布（只在启动时执行一次）
   initializeCanvas();
+  clearWorkspace(false);
   // 获取所有类别定义
   let res = await getBlockCategories();
   return res;
@@ -2524,6 +2524,11 @@ async function loadWorkspace(workspace) {
   }
 }
 
+function hasPlacedBlocks() {
+  // 检查工作区中是否有有效的块
+  return placedBlocks.value.length > 0;
+}
+
 // 提供连接器状态检查函数给子组件
 provide("isConnectorActive", isConnectorActive);
 provide("isConnectorConnected", isConnectorConnected);
@@ -2541,6 +2546,7 @@ defineExpose({
   getBlockCategories,
   loadCategoriesConfigFromJSON,
   initWorkspace,
+  hasPlacedBlocks,
   clearWorkspaceValid,
   scale,
 });

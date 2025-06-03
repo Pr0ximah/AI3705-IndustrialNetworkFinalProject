@@ -80,46 +80,56 @@
 </template>
 
 <script setup>
-import { ref, defineEmits } from "vue";
+import { ref, defineEmits, inject, defineExpose, computed } from "vue";
 import { ElIcon, ElNotification } from "element-plus";
 import CreateProject from "./CreateProject.vue";
 const createProjCompRef = ref(null);
 const projectPath = ref("");
 const emit = defineEmits(["passCreateProject"]);
+const autoSaveWorkspace = inject("autoSaveWorkspace");
+const showLoading = computed(() => {
+  if (createProjCompRef.value) {
+    return createProjCompRef.value.showLoading;
+  } else {
+    return false;
+  }
+});
 
-function createProject() {
-  window.ipcApi
-    .createProject()
-    .then((result) => {
-      if (result) {
-        projectPath.value = result;
-      }
-    })
-    .catch((error) => {
-      console.error("Error creating project:", error);
-    });
+defineExpose({
+  showLoading,
+});
+
+async function createProject() {
+  try {
+    await autoSaveWorkspace();
+    const result = await window.ipcApi.createProject();
+    if (result) {
+      projectPath.value = result;
+    }
+  } catch (error) {
+    console.error("Error creating project:", error);
+  }
 }
 
-function openProject() {
-  window.ipcApi
-    .openProjectDir()
-    .then(() => {
-      emit("passCreateProject");
-    })
-    .catch((error) => {
-      let errorMessage = window.ipcApi.extractErrorMessage(error);
-      if (errorMessage === "CANCEL") {
-        return;
-      }
-      ElNotification({
-        title: "打开项目失败",
-        message: errorMessage,
-        showClose: false,
-        type: "error",
-        duration: 2500,
-        customClass: "default-notification",
-      });
+async function openProject() {
+  try {
+    await autoSaveWorkspace();
+    await window.ipcApi.openProjectDir();
+    emit("passCreateProject");
+  } catch (error) {
+    let errorMessage = window.ipcApi.extractErrorMessage(error);
+    if (errorMessage === "CANCEL") {
+      return;
+    }
+    ElNotification({
+      title: "打开项目失败",
+      message: errorMessage,
+      showClose: false,
+      type: "error",
+      duration: 2500,
+      customClass: "default-notification",
     });
+  }
 }
 </script>
 

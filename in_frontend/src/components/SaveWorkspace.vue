@@ -7,14 +7,19 @@
           size="large"
           v-model="workspaceName"
           placeholder="输入组态名"
+          @keydown="
+            (event) => {
+              if (event.key === 'Enter') {
+                emitSave();
+              }
+            }
+          "
           type="text"
         />
       </div>
       <div class="buttons">
         <button @click="emit('close')">取消</button>
-        <button @click="emit('select', selectedWorkspace)" class="fill">
-          保存
-        </button>
+        <button @click="emitSave" class="fill">保存</button>
       </div>
     </div>
   </div>
@@ -22,9 +27,24 @@
 
 <script setup>
 import { ref, defineEmits } from "vue";
-import { ElInput } from "element-plus";
+import { ElInput, ElNotification } from "element-plus";
 const workspaceName = ref("");
 const emit = defineEmits(["close", "select"]);
+
+function emitSave() {
+  if (workspaceName.value.trim() === "") {
+    ElNotification({
+      title: "提示",
+      showClose: false,
+      message: "组态名不能为空",
+      type: "warning",
+      duration: 3000,
+      customClass: "default-notification",
+    });
+    return;
+  }
+  emit("select", workspaceName.value);
+}
 </script>
 
 <style scoped>

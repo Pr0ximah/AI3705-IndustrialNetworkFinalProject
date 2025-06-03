@@ -80,6 +80,13 @@ const props = defineProps({
     type: String,
     default: "main",
   },
+  beforeClose: {
+    type: Function,
+    default: async () => {
+      // 默认的关闭前处理函数
+      return true;
+    },
+  },
 });
 
 function minimizeWindow() {
@@ -90,7 +97,8 @@ function toggleMaximizeWindow() {
   window.ipcApi.send("toggle-maximize-window", props.windowName);
 }
 
-function closeWindow() {
-  window.ipcApi.send("close-window", props.windowName);
+async function closeWindow() {
+  await props.beforeClose();
+  await window.ipcApi.send("close-window", props.windowName);
 }
 </script>
