@@ -33,7 +33,7 @@ import { ElProgress } from "element-plus";
 
 const progress = ref(0);
 const progressColor = "#3e4491";
-const maxVisibleMessages = 1;
+const maxVisibleMessages = 10;
 let messageIdCounter = 0;
 const messages = ref([]); // 改为响应式
 

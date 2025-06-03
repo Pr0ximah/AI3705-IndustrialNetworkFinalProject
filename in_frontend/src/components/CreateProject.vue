@@ -1,10 +1,6 @@
 <template>
   <div class="main" v-if="!showLoading">
-    <button
-      v-if="!showLoading"
-      class="back-btn custom-button"
-      @click="emit('back')"
-    >
+    <button class="back-btn custom-button" @click="emit('back')">
       <ElIcon><Back /></ElIcon>
     </button>
     <div class="title">创建新项目</div>
@@ -288,9 +284,11 @@ async function createProject() {
     // 触发创建项目成功事件
     setTimeout(() => {
       emit("createProject");
+      showLoading.value = false;
     }, 2000);
   } catch (error) {
     let errorMessage = window.ipcApi.extractErrorMessage(error);
+    showLoading.value = false;
     ElNotification({
       title: "创建项目失败",
       message: errorMessage,
@@ -299,9 +297,6 @@ async function createProject() {
       duration: 2500,
       customClass: "default-notification",
     });
-  } finally {
-    // 无论成功还是失败，都关闭加载界面
-    showLoading.value = false;
   }
 }
 </script>
