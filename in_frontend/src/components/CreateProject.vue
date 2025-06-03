@@ -174,6 +174,9 @@ function unsetDeleteButtonClicked(index) {
 }
 
 async function createProject() {
+  let simulateTimer = null;
+  let simulatedProgress = 0;
+
   if (!projectName.value.trim()) {
     ElNotification({
       title: "错误",
@@ -226,7 +229,7 @@ async function createProject() {
 
       eventSource.onopen = () => {
         LLMLoadingRef.value.resetMsg();
-        LLMLoadingRef.value.addMsg("正在连接到服务器，准备创建项目...");
+        LLMLoadingRef.value.addMsg("服务器连接成功 ✅");
         console.log("SSE连接已打开");
       };
 
@@ -234,11 +237,61 @@ async function createProject() {
         const data = JSON.parse(event.data);
         const msg = data.message;
         const progress = data.progress;
+        const next_progress = data.next_progress || 0;
         const replace = data.replace || false;
+        const estimateTime = data.estimate_time || null; // 检测是否需要模拟加载动画，1点1点加载
         LLMLoadingRef.value.updateProgress(progress);
         LLMLoadingRef.value.addMsg(msg, replace);
         // TODO: 处理进度更新
-        console.log(`进度: ${progress}, 消息: ${msg}`);
+        if (estimateTime) {
+          // 如果已存在模拟定时器，先清除
+          if (simulateTimer) {
+            clearInterval(simulateTimer);
+            simulateTimer = null;
+          }
+
+          simulatedProgress = progress;
+          const totalSteps = next_progress - simulatedProgress;
+          console.log("totalSteps:", totalSteps);
+          // 防止除零错误
+          if (totalSteps <= 0) {
+            LLMLoadingRef.value.updateProgress(progress);
+            return;
+          }
+          const intervalTime = (estimateTime * 1000) / totalSteps;
+          console.log("intervalTime:", intervalTime);
+          simulateTimer = setInterval(() => {
+            console.log(
+              `模拟进度: ${simulatedProgress}, 目标进度: ${next_progress}`
+            );
+            if (simulatedProgress < next_progress) {
+              simulatedProgress += 1;
+              LLMLoadingRef.value.updateProgress(simulatedProgress);
+            } else {
+              // 到达目标进度，清理定时器
+              clearInterval(simulateTimer);
+              simulateTimer = null;
+            }
+          }, intervalTime);
+        } else {
+          // 如果没有预估时间，说明后端事件已结束
+          // 立即清除模拟定时器并直接更新到真实进度
+          if (simulateTimer) {
+            clearInterval(simulateTimer);
+            simulateTimer = null;
+          }
+
+          // 重置模拟进度变量，为下一个事件做准备
+          simulatedProgress = 0;
+
+          // 直接更新到真实进度
+          LLMLoadingRef.value.updateProgress(progress);
+        }
+
+        console.log(simulateTimer);
+        console.log(
+          `进度: ${progress}, 消息: ${msg}, 下一步时间：${next_progress}, 预估时间: ${estimateTime}`
+        );
       });
 
       eventSource.addEventListener("complete", (event) => {
