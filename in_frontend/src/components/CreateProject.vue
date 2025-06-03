@@ -111,7 +111,7 @@ import {
   ElNotification,
 } from "element-plus";
 import { Files, Close, Back, Right } from "@element-plus/icons-vue";
-import { defineProps, ref, defineEmits } from "vue";
+import { defineProps, ref, defineEmits, defineExpose } from "vue";
 import service from "@/util/ajax_inst";
 import LLMLoading from "./LLMLoading.vue";
 const props = defineProps({
@@ -299,6 +299,10 @@ async function createProject() {
     });
   }
 }
+
+defineExpose({
+  showLoading,
+});
 </script>
 
 <style scoped>

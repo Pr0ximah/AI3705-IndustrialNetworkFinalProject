@@ -3,7 +3,7 @@
     <ElHeader class="container-header drag">
       <div style="display: flex; gap: 10px; height: 100%">
         <div
-          v-if="!showWelcome || workspaceInited"
+          v-if="(!showWelcome || workspaceInited) && !showWelcomeLoadingPage"
           class="home-icon-btn no-drag"
         >
           <img
@@ -33,12 +33,16 @@
         <Transition name="opacity-fade" mode="out-in">
           <CanvasControl v-if="!showWelcome" />
         </Transition>
-        <WindowControl style="height: var(--header-height)" />
+        <WindowControl
+          :before-close="autoSaveWorkspace"
+          style="height: var(--header-height)"
+        />
       </div>
     </ElHeader>
     <ElMain class="container-main">
       <Transition name="welcome-fade" mode="out-in">
         <WelcomeMask
+          ref="welcomeMaskRef"
           v-if="showWelcome"
           style="z-index: 500"
           @pass-create-project="projectCreated"
@@ -94,6 +98,7 @@ import SelectWorkspace from "@/components/SelectWorkspace.vue";
 import service from "@/util/ajax_inst";
 
 const blockCanvasRef = ref(null);
+const welcomeMaskRef = ref(null);
 const clearWorkspaceValid = computed(() => {
   return blockCanvasRef.value?.clearWorkspaceValid;
 });
@@ -104,6 +109,7 @@ const showMask = ref(false);
 const showWelcome = ref(true);
 const showSelectWorkspace = ref(false);
 const showSaveWorkspace = ref(false);
+const workspaceName = ref("");
 const workspacelist = ref([]);
 const workspaceInited = ref(false);
 const enableKeyDownEventInBlockCanvas = computed(() => {
@@ -113,6 +119,13 @@ const enableKeyDownEventInBlockCanvas = computed(() => {
     !showSelectWorkspace.value &&
     !showSaveWorkspace.value
   );
+});
+const showWelcomeLoadingPage = computed(() => {
+  if (welcomeMaskRef.value) {
+    return welcomeMaskRef.value.showLoading;
+  } else {
+    return false;
+  }
 });
 
 provide("blockCanvasRef", blockCanvasRef);
@@ -175,14 +188,16 @@ async function saveWorkspace(name) {
       background: "rgba(255, 255, 255, 0.7)",
     });
     const res = await window.ipcApi.saveWorkspace(workspace_conf, name);
+    workspaceName.value = name;
     ElNotification({
       title: "保存成功",
       showClose: false,
-      message: `组态已成功保存到【${res.path}】`,
+      message: `组态【${name}】已成功保存`,
       type: "success",
       duration: 3000,
       customClass: "default-notification",
     });
+    showSaveWorkspace.value = false;
   } catch (error) {
     let errorMessage = window.ipcApi.extractErrorMessage(error);
     if (error === "cancel" || errorMessage === "CANCEL") {
@@ -202,6 +217,7 @@ async function saveWorkspace(name) {
 }
 
 async function emitConvertWorkspace() {
+  autoSaveWorkspace();
   let workspace_conf = blockCanvasRef.value.getWorkspace();
   let loading = null;
   try {
@@ -216,6 +232,7 @@ async function emitConvertWorkspace() {
       conf: JSON.stringify(workspace_conf),
       output_path: save_dir,
     });
+    await window.ipcApi.openDirectory(save_dir);
     if (data.data.success) {
       ElNotification({
         title: "代码已生成！",
@@ -271,6 +288,7 @@ async function projectCreated() {
     return;
   } else {
     workspaceInited.value = true;
+    await autoLoadWorkspace();
     ElNotification({
       title: "欢迎使用",
       showClose: false,
@@ -310,6 +328,34 @@ onMounted(() => {
     showMask.value = false;
   });
 });
+
+async function autoSaveWorkspace() {
+  if (blockCanvasRef.value?.hasPlacedBlocks()) {
+    // const now = new Date();
+    // const timestamp = `_${now.getFullYear().toString().slice(-2)}${(
+    //   now.getMonth() + 1
+    // )
+    //   .toString()
+    //   .padStart(2, "0")}${now.getDate().toString().padStart(2, "0")}_${now
+    //   .getHours()
+    //   .toString()
+    //   .padStart(2, "0")}${now.getMinutes().toString().padStart(2, "0")}${now
+    //   .getSeconds()
+    //   .toString()
+    //   .padStart(2, "0")}`;
+    saveWorkspace("[自动保存]");
+  }
+}
+
+async function autoLoadWorkspace() {
+  workspacelist.value = await window.ipcApi.getWorkspaceList();
+  if (workspacelist.value.includes("[自动保存]")) {
+    // 如果存在自动保存的工作区，则加载它
+    await loadWorkspaceSelected("[自动保存]");
+  }
+}
+
+provide("autoSaveWorkspace", autoSaveWorkspace);
 </script>
 
 <style scoped>

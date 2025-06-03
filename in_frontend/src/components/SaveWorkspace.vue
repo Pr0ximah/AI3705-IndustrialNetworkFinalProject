@@ -12,7 +12,7 @@
       </div>
       <div class="buttons">
         <button @click="emit('close')">取消</button>
-        <button @click="emit('select', selectedWorkspace)" class="fill">
+        <button @click="emit('select', workspaceName)" class="fill">
           保存
         </button>
       </div>
