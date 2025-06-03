@@ -14,7 +14,6 @@
         v-model="projectName"
         placeholder="请输入项目名称"
         class="input"
-        @keydown="handleKeyDown"
       />
     </div>
     <div class="tips">
@@ -32,7 +31,6 @@
         class="input textarea"
         style="height: auto"
         :rows="4"
-        @keydown="handleKeyDown"
       />
     </div>
     <div class="input-item">
@@ -73,7 +71,6 @@
               v-model="item.name"
               class="collapse-input"
               placeholder="请输入功能块名称"
-              @keydown="handleKeyDown"
             ></ElInput>
           </div>
           <div class="feature-item">
@@ -84,7 +81,6 @@
               class="collapse-input textarea"
               :rows="3"
               placeholder="请输入功能块的详细描述"
-              @keydown="handleKeyDown"
             ></ElInput>
           </div>
         </ElCollapseItem>
@@ -140,15 +136,6 @@ const blockConfOrigin = {
   name: "",
   description: "",
 };
-
-// 处理键盘事件，确保删除键正常工作
-function handleKeyDown(event) {
-  // 如果是删除键或退格键
-  if (event.key === "Delete" || event.key === "Backspace") {
-    // 确保事件不被阻止
-    event.stopPropagation();
-  }
-}
 
 function deleteItem(index) {
   if (deleteButtonClickedMap.value[index]) {

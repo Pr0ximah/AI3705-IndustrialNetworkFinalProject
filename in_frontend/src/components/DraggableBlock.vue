@@ -74,6 +74,7 @@
           v-for="signal in block.categoryConf.signal_input"
           :key="signal.name"
           class="connector-label left-label signal-label"
+          :title="signal.name"
         >
           {{ signal.name }}
         </span>
@@ -84,6 +85,7 @@
           :key="variable.name"
           class="connector-label left-label var-label"
           :style="getVarTypeStyle(variable.type)"
+          :title="variable.name"
         >
           {{ variable.name }}
         </span>
@@ -97,6 +99,7 @@
           v-for="signal in block.categoryConf.signal_output"
           :key="signal.name"
           class="connector-label right-label signal-label"
+          :title="signal.name"
         >
           {{ signal.name }}
         </span>
@@ -107,6 +110,7 @@
           :key="variable.name"
           class="connector-label right-label var-label"
           :style="getVarTypeStyle(variable.type)"
+          :title="variable.name"
         >
           {{ variable.name }}
         </span>
@@ -320,7 +324,9 @@ const handleConnectorMouseUp = (type, index, event) => {
   font-size: 9px;
   color: #666;
   white-space: nowrap;
-  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: auto;
   user-select: none;
   background-color: rgba(255, 255, 255, 0.9);
   padding: 1px 4px;
@@ -329,16 +335,34 @@ const handleConnectorMouseUp = (type, index, event) => {
   height: 10px;
   display: flex;
   align-items: center;
-  min-width: 20px;
+  min-width: 60px;
+  max-width: 60px;
   justify-content: center;
+  cursor: help;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.connector-label:hover {
+  background-color: rgba(255, 255, 255, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  min-width: 60px;
+  max-width: none;
+  width: max-content;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: unset;
 }
 
 .left-label {
   text-align: left;
+  justify-content: flex-start;
 }
 
 .right-label {
   text-align: right;
+  justify-content: flex-end;
 }
 
 .signal-label {

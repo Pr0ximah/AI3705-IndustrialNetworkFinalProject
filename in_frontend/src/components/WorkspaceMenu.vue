@@ -46,7 +46,7 @@
       </ElIcon>
       加载组态
     </div>
-    <div class="control-button no-drag" @click="emit('convert')">
+    <div class="control-button no-drag convert" @click="emit('convert')">
       <ElIcon style="margin-right: 5px">
         <svg
           t="1748700117988"
@@ -60,8 +60,8 @@
         >
           <path
             d="M140.8 517.2l169.4-164.1 0.1-15.5v-70.4l-258.1 250 258.1 249.9v-70.4l-0.1-15.5zM865.1 512.4l-169.4-164-0.1-15.5v-70.4l258.1 249.9-258.1 250v-70.5l0.1-15.5zM462.2 855h-77.6l159.1-695.4h77.6z"
-            fill="#282A2B"
             p-id="2326"
+            fill="#008556"
           ></path>
         </svg>
       </ElIcon>
@@ -82,5 +82,17 @@ const emit = defineEmits(["save", "load", "convert"]);
   justify-content: center;
   width: fit-content;
   padding: 5px 10px;
+}
+
+.convert {
+  border: 2px solid #008556;
+  color: #008556;
+  font-weight: bold;
+  padding: 5px 20px;
+  margin-left: 20px;
+}
+
+.convert:hover {
+  background-color: rgba(0, 133, 86, 0.1);
 }
 </style>

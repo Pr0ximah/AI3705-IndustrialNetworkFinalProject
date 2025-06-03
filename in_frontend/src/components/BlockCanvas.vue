@@ -122,6 +122,7 @@ import {
   onUnmounted,
   markRaw,
   defineExpose,
+  defineProps,
   nextTick,
   provide,
 } from "vue";
@@ -169,6 +170,13 @@ const CONNECTOR_SNAP_THRESHOLD = 25; // 连接器吸附阈值
 // 连线自动避让参数
 const LINE_SPACING = 10; // 连接线间距
 const MIN_SEGMENT_LENGTH = 20; // 最小线段长度
+
+const props = defineProps({
+  enableKeyDownEventInBlockCanvas: {
+    type: Boolean,
+    default: true,
+  },
+});
 
 // 连接器类型中文名映射
 const connectorTypeNames = {
@@ -1151,9 +1159,9 @@ function createConnection(start, end) {
     ElNotification({
       title: "连接失败",
       showClose: false,
-      message: `${end.block.categoryConf.name} 的 ${
-        connectorTypeNames[end.type]
-      } 连接器已被占用`,
+      message: `【${end.block.categoryConf.name}】 的 【${
+        end.block.categoryConf[end.type][end.index].name
+      }】 连接器已被占用`,
       type: "warning",
       duration: 3000,
       customClass: "default-notification",
@@ -1496,6 +1504,10 @@ function clearSelection() {
 
 // 键盘事件处理函数
 function handleKeyDown(event) {
+  if (!props.enableKeyDownEventInBlockCanvas) {
+    // 如果允许在画布上使用键盘事件，直接返回
+    return;
+  }
   // Delete键删除选中的块或连接
   if (event.key === "Delete" || event.key === "Backspace") {
     if (selectedBlocks.value.size > 0) {
@@ -1915,6 +1927,7 @@ function getBlockCategories(fromFiles = false) {
       .loadBlockCategories()
       .then((categoriesJSON) => {
         loadCategoriesConfigFromJSON(categoriesJSON);
+        console.log("类别定义加载成功", blockCategories.value);
       })
       .catch((error) => {
         let errorMessage = window.ipcApi.extractErrorMessage(error);
