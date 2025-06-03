@@ -57,11 +57,24 @@ REM 创建dist目录
 if exist "dist" (
     echo 删除现有的 dist 目录
     rmdir /s /q "dist"
+    if !errorlevel! neq 0 (
+        echo 错误: 删除 dist 目录失败
+        exit /b 1
+    )
 )
 
 echo 创建 dist 目录
 mkdir dist
+if !errorlevel! neq 0 (
+    echo 错误: 创建 dist 目录失败
+    exit /b 1
+)
+
 mkdir dist\resources
+if !errorlevel! neq 0 (
+    echo 错误: 创建 dist\resources 目录失败
+    exit /b 1
+)
 
 REM 打包前端
 if %PACK_FRONTEND%==1 (
@@ -181,18 +194,6 @@ echo ====================================
 echo.
 echo 输出目录: %PROJECT_ROOT%\dist
 echo.
-
-REM 显示最终文件结构
-if exist "dist" (
-    echo 最终文件结构:
-    dir "dist" /B
-    
-    if exist "dist\resources" (
-        echo.
-        echo resources 目录内容:
-        dir "dist\resources" /B
-    )
-)
 
 :end
 endlocal

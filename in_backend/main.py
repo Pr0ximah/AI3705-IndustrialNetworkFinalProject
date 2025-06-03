@@ -8,6 +8,13 @@ import sys
 import os
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
+import io
+
+
+def set_UTF8():
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", line_buffering=True)
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", line_buffering=True)
+    sys.stdin  = io.TextIOWrapper(sys.stdin.buffer,  encoding="utf-8")
 
 
 def resource_path(relative_path):
@@ -56,4 +63,5 @@ def main():
 
 
 if __name__ == "__main__":
+    set_UTF8()
     main()

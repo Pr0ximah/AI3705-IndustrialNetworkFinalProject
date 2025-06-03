@@ -62,18 +62,14 @@ function initializeLogging() {
 
 // 写入日志函数
 function writeLog(logFile, data, isError = false) {
-  // 开发环境下不写入日志
-  if (isDevelopment) {
-    return;
-  }
+  if (isDevelopment) return;
 
   try {
     const timestamp = new Date().toISOString();
+    // 所有日志都用 UTF-8 文本格式
     const logEntry = `[${timestamp}] ${data.toString().trim()}\n`;
-    // 指定编码为 utf8 以支持中文
     fs.appendFileSync(logFile, logEntry, { encoding: "utf8" });
   } catch (error) {
-    // 避免日志写入错误导致程序崩溃
     console.error(`写入日志失败 ${logFile}: ${error.message}`);
   }
 }
@@ -111,6 +107,12 @@ function setupMainProcessLogging() {
 
 // 启动服务进程
 function startServiceProcess() {
+  // 开发环境下不启动服务进程
+  if (isDevelopment) {
+    console.log("开发环境：跳过服务进程启动");
+    return;
+  }
+
   const isWindows = process.platform === "win32";
   const executableName = isWindows ? "service.exe" : "service";
 
@@ -135,32 +137,29 @@ function startServiceProcess() {
       return;
     }
 
-    // 启动子进程，关键是设置正确的选项来绑定进程
-    const spawnOptions = {
-      detached: false, // 不分离进程，与父进程绑定
-      stdio: ["pipe", "pipe", "pipe"], // 使用管道捕获输出
-      encoding: "utf8", // 指定编码支持中文
+    // 确保 Python 子进程使用 UTF-8 输出
+    const env = {
+      ...process.env,
+      PYTHONIOENCODING: "utf-8",
+      PYTHONUTF8: "1",
     };
 
-    // Windows下添加额外的选项确保进程绑定
-    if (isWindows) {
-      spawnOptions.windowsHide = true; // 隐藏子进程窗口
-    }
-
+    const spawnOptions = {
+      detached: false,
+      stdio: ["pipe", "pipe", "pipe"],
+      env,
+      windowsHide: isWindows,
+    };
     serviceProcess = spawn(executablePath, [], spawnOptions);
 
-    // 监听子进程的stdout输出并保存到日志
-    serviceProcess.stdout.setEncoding("utf8"); // 设置编码为utf8
+    // 使用 UTF-8 解码 stdout/stderr
+    serviceProcess.stdout.setEncoding("utf8");
     serviceProcess.stdout.on("data", (data) => {
-      const output = data.toString().trim();
-      writeLog(logFiles.serviceStdout, output);
+      writeLog(logFiles.serviceStdout, data);
     });
-
-    // 监听子进程的stderr输出并保存到日志
-    serviceProcess.stderr.setEncoding("utf8"); // 设置编码为utf8
+    serviceProcess.stderr.setEncoding("utf8");
     serviceProcess.stderr.on("data", (data) => {
-      const error = data.toString().trim();
-      writeLog(logFiles.serviceStderr, error, true);
+      writeLog(logFiles.serviceStderr, data, true);
     });
 
     // 处理子进程退出
@@ -337,7 +336,8 @@ async function createWindow() {
       nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
       contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
       preload: path.join(__static, "preload.js"),
-      devTools: isDevelopment, // 生产环境禁用开发者工具
+      devTools: true, // 生产环境禁用开发者工具
+      // devTools: isDevelopment, // 生产环境禁用开发者工具
     },
   });
 

@@ -499,3 +499,19 @@ body {
   top: unset;
   margin-top: unset;
 }
+
+/* 动画相关样式 */
+.opacity-fade-enter-active,
+.opacity-fade-leave-active {
+  transition: opacity 0.3s ease-in-out;
+}
+
+.opacity-fade-enter-from,
+.opacity-fade-leave-to {
+  opacity: 0;
+}
+
+.opacity-fade-enter-to,
+.opacity-fade-leave-from {
+  opacity: 1;
+}

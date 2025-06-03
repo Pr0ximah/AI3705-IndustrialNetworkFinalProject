@@ -1,5 +1,5 @@
 <template>
-  <div class="main custom-scrollbar" v-if="!showLoading">
+  <div class="main">
     <button
       v-if="!showLoading"
       class="back-btn custom-button"
@@ -8,88 +8,91 @@
       <ElIcon><Back /></ElIcon>
     </button>
     <div class="title">创建新项目</div>
-    <div class="input-item">
-      <div class="label">项目名称</div>
-      <ElInput
-        v-model="projectName"
-        placeholder="请输入项目名称"
-        class="input"
-      />
-    </div>
-    <div class="tips">
-      <ElIcon size="14" style="margin-right: 8px"><Files /></ElIcon>
-      <div>
-        你的项目将会储存在 {{ projectPath }} 内的 {{ projectName }} 文件夹下
+    <div class="inner custom-scrollbar" v-if="!showLoading">
+      <div class="input-item">
+        <div class="label">项目名称</div>
+        <ElInput
+          v-model="projectName"
+          placeholder="请输入项目名称"
+          class="input"
+        />
       </div>
-    </div>
-    <div class="input-item">
-      <div class="label">项目功能简述</div>
-      <ElInput
-        v-model="projectDescription"
-        type="textarea"
-        placeholder="请简要描述项目功能和目标"
-        class="input textarea"
-        style="height: auto"
-        :rows="4"
-      />
-    </div>
-    <div class="input-item">
-      <div class="label">所需功能块</div>
-      <ElCollapse v-model="activeBlocks" class="collapse">
-        <ElCollapseItem
-          v-for="(item, index) in blocks"
-          :title="item.name"
-          :key="index"
-          :name="`block-${index}`"
-        >
-          <template #title>
-            <div class="collapse-title-wrapper">
-              <button
-                @click.stop="deleteItem(index)"
-                class="delete-btn custom-button"
-                :class="{ clicked: deleteButtonClickedMap[index] }"
-              >
-                <div
-                  v-if="deleteButtonClickedMap[index]"
-                  class="delete-btn-text"
+      <div class="tips">
+        <ElIcon size="14" style="margin-right: 8px"><Files /></ElIcon>
+        <div>
+          你的项目将会储存在 {{ projectPath }} 内的 {{ projectName }} 文件夹下
+        </div>
+      </div>
+      <div class="input-item">
+        <div class="label">项目功能简述</div>
+        <ElInput
+          v-model="projectDescription"
+          type="textarea"
+          placeholder="请简要描述项目功能和目标"
+          class="input textarea"
+          style="height: auto"
+          :rows="4"
+        />
+      </div>
+      <div class="input-item">
+        <div class="label">所需功能块</div>
+        <ElCollapse v-model="activeBlocks" class="collapse">
+          <ElCollapseItem
+            v-for="(item, index) in blocks"
+            :title="item.name"
+            :key="index"
+            :name="`block-${index}`"
+          >
+            <template #title>
+              <div class="collapse-title-wrapper">
+                <button
+                  @click.stop="deleteItem(index)"
+                  class="delete-btn custom-button"
+                  :class="{ clicked: deleteButtonClickedMap[index] }"
                 >
-                  删除
-                </div>
-                <ElIcon v-else size="15"><Close /></ElIcon>
-              </button>
-              <span
-                @click="unsetDeleteButtonClicked('signal_input', index)"
-                class="collapse-title"
-                >{{ item.name }}</span
-              >
-            </div>
-          </template>
+                  <div
+                    v-if="deleteButtonClickedMap[index]"
+                    class="delete-btn-text"
+                  >
+                    删除
+                  </div>
+                  <ElIcon v-else size="15"><Close /></ElIcon>
+                </button>
+                <span
+                  @click="unsetDeleteButtonClicked('signal_input', index)"
+                  class="collapse-title"
+                  >{{ item.name }}</span
+                >
+              </div>
+            </template>
 
-          <div class="feature-item">
-            <span>名称</span>
-            <ElInput
-              v-model="item.name"
-              class="collapse-input"
-              placeholder="请输入功能块名称"
-            ></ElInput>
-          </div>
-          <div class="feature-item">
-            <span>描述</span>
-            <ElInput
-              v-model="item.description"
-              type="textarea"
-              class="collapse-input textarea"
-              :rows="3"
-              placeholder="请输入功能块的详细描述"
-            ></ElInput>
-          </div>
-        </ElCollapseItem>
-        <button class="add-btn custom-button" @click="addItem">添加</button>
-      </ElCollapse>
+            <div class="feature-item">
+              <span>名称</span>
+              <ElInput
+                v-model="item.name"
+                class="collapse-input"
+                placeholder="请输入功能块名称"
+              ></ElInput>
+            </div>
+            <div class="feature-item">
+              <span>描述</span>
+              <ElInput
+                v-model="item.description"
+                type="textarea"
+                class="collapse-input textarea"
+                :rows="3"
+                placeholder="请输入功能块的详细描述"
+              ></ElInput>
+            </div>
+          </ElCollapseItem>
+          <button class="add-btn custom-button" @click="addItem">添加</button>
+        </ElCollapse>
+      </div>
     </div>
     <div class="create-btn-wrapper">
       <button class="custom-button create-btn" @click="createProject">
-        创建项目
+        <span class="create-text">创建项目</span>
+        <ElIcon size="35"><Right /></ElIcon>
       </button>
     </div>
   </div>
@@ -111,7 +114,7 @@ import {
   ElCollapseItem,
   ElNotification,
 } from "element-plus";
-import { Files, Close, Back } from "@element-plus/icons-vue";
+import { Files, Close, Back, Right } from "@element-plus/icons-vue";
 import { defineProps, ref, defineEmits } from "vue";
 import service from "@/util/ajax_inst";
 import LLMLoading from "./LLMLoading.vue";
@@ -186,18 +189,6 @@ async function createProject() {
     });
     return;
   }
-  if (blocks.value.length === 0) {
-    ElNotification({
-      title: "错误",
-      showClose: false,
-      message: "请至少添加一个功能块",
-      type: "warning",
-      duration: 3000,
-      customClass: "default-notification",
-    });
-    return;
-  }
-
   const projectData = {
     name: projectName.value,
     description: projectDescription.value,
@@ -317,7 +308,7 @@ async function createProject() {
 <style scoped>
 .main {
   width: 50%;
-  height: 75%;
+  height: 80%;
   background-color: white;
   border-radius: 10px;
   border: 1px solid var(--color-dark-1);
@@ -327,8 +318,16 @@ async function createProject() {
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-  overflow-y: auto;
   position: relative;
+}
+
+.inner {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+  max-height: calc(100% - 100px);
 }
 
 .title {
@@ -504,17 +503,27 @@ span .collapse-title:hover {
   flex: 1;
   display: flex;
   justify-content: center;
-  margin-top: 20px;
-  margin-bottom: 20px;
+  align-items: flex-end;
+  margin-top: 30px;
 }
 
 .create-btn {
   flex: unset;
-  align-self: flex-end;
-  width: 60%;
+  height: 60px;
+  width: 60px;
+  border-radius: 40px;
   background-color: var(--color-dark-2);
-  transition: box-shadow 0.15s ease, background-color 0.15s ease;
+  transition: box-shadow 0.15s ease, background-color 0.15s ease,
+    width 0.15s ease;
   color: white;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.create-btn:hover {
+  width: 200px;
 }
 
 .create-btn:hover {
@@ -554,5 +563,21 @@ span .collapse-title:hover {
 .loading-fade-leave-from {
   opacity: 1;
   transform: scale(1);
+}
+
+.create-text {
+  opacity: 0;
+  margin-right: 0;
+  font-size: 20px;
+  width: 0;
+  color: white;
+  white-space: nowrap;
+  transition: width 0.15s, opacity 0.15s, margin-right 0.15s;
+}
+
+.create-btn:hover .create-text {
+  width: 100px;
+  margin-right: 5px;
+  opacity: 1;
 }
 </style>
