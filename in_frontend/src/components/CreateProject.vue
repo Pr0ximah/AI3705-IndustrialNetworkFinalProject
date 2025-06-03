@@ -1,5 +1,5 @@
 <template>
-  <div class="main">
+  <div class="main" v-if="!showLoading">
     <button
       v-if="!showLoading"
       class="back-btn custom-button"
@@ -8,7 +8,7 @@
       <ElIcon><Back /></ElIcon>
     </button>
     <div class="title">创建新项目</div>
-    <div class="inner custom-scrollbar" v-if="!showLoading">
+    <div class="inner custom-scrollbar">
       <div class="input-item">
         <div class="label">项目名称</div>
         <ElInput

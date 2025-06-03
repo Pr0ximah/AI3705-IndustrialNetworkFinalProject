@@ -336,8 +336,7 @@ async function createWindow() {
       nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
       contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
       preload: path.join(__static, "preload.js"),
-      devTools: true, // 生产环境禁用开发者工具
-      // devTools: isDevelopment, // 生产环境禁用开发者工具
+      devTools: isDevelopment, // 生产环境禁用开发者工具
     },
   });
 
