@@ -53,7 +53,7 @@
         <path
           v-for="connection in connections"
           :key="connection.id"
-          :d="getConnectionPath(connection)"
+          :d="connection.line.getSVGPath()"
           class="connection-line"
           :class="{
             selected:
@@ -66,8 +66,8 @@
         />
         <!-- 正在绘制的连接线 -->
         <path
-          v-if="isConnecting && connectingStart"
-          :d="getConnectingPath()"
+          v-if="isConnecting && connectingStart && connectingLine"
+          :d="connectingLine.getSVGPath()"
           class="connecting-line"
         />
       </svg>
@@ -137,6 +137,7 @@ import {
   CategoryConf,
 } from "./BlockBaseConf";
 import Block from "./Block";
+import { Line } from "./Line"; // 导入Line类
 import { ElMessageBox, ElLoading, ElNotification } from "element-plus";
 import { Delete, DArrowLeft, DArrowRight } from "@element-plus/icons-vue";
 
@@ -156,6 +157,7 @@ let connections = ref([]); // 存储所有连接线
 const selectedConnection = ref(null); // 当前选中的连接线
 const isConnecting = ref(false); // 是否正在连接
 const connectingStart = ref(null); // 连接开始位置
+const connectingLine = ref(null); // 正在绘制的连接线
 let connectionIdCounter = 0;
 let potentialConnectTarget = ref(null); // 潜在连接目标（用于连接线吸附）
 let potentialSelectConnector = ref(null);
@@ -165,10 +167,6 @@ const currentMouseX = ref(0);
 const currentMouseY = ref(0);
 
 const CONNECTOR_SNAP_THRESHOLD = 25; // 连接器吸附阈值
-
-// 连线自动避让参数
-const LINE_SPACING = 10; // 连接线间距
-const MIN_SEGMENT_LENGTH = 20; // 最小线段长度
 
 const props = defineProps({
   enableKeyDownEventInBlockCanvas: {
@@ -453,6 +451,9 @@ function zoom(zoomFactor, centerX, centerY) {
     scale.value = newScale;
     offsetX.value = centerX - centerXInCanvas * newScale;
     offsetY.value = centerY - centerYInCanvas * newScale;
+
+    // 更新所有连接线
+    updateAllConnectionLines();
   }
 }
 
@@ -673,6 +674,7 @@ function onMouseLeave(event) {
   }
   if (isConnecting.value) {
     connectingStart.value = null;
+    connectingLine.value = null;
     isConnecting.value = false; // 结束连接状态
   }
   potentialSelectConnector.value = null; // 清除潜在连接器
@@ -933,6 +935,11 @@ function onMouseMove(event) {
   // 检测连线吸附
   checkLineSnap();
 
+  // 更新正在连接的线
+  if (isConnecting.value && connectingStart.value) {
+    updateConnectingLine();
+  }
+
   // 处理拖动选择
   if (isSelecting.value) {
     const rect = canvasContainerRef.value.getBoundingClientRect();
@@ -1028,6 +1035,8 @@ function onMouseMove(event) {
           block.y = mouseYInCanvas + offset.y;
         }
       });
+      // 实时更新连接线
+      updateAllConnectionLines();
     } else if (isOverDelete.value) {
       // 在删除区域时也要更新位置，但会在松开鼠标时删除
       blocksToMove.forEach((block) => {
@@ -1037,6 +1046,8 @@ function onMouseMove(event) {
           block.y = mouseYInCanvas + offset.y;
         }
       });
+      // 实时更新连接线
+      updateAllConnectionLines();
     }
   } else {
     // 单选拖拽：原有逻辑
@@ -1051,9 +1062,13 @@ function onMouseMove(event) {
       // 更新块的位置
       draggingBlock.value.x = finalX;
       draggingBlock.value.y = finalY;
+      // 实时更新连接线
+      updateAllConnectionLines();
     } else if (isOverDelete.value) {
       draggingBlock.value.x = newX;
       draggingBlock.value.y = newY;
+      // 实时更新连接线
+      updateAllConnectionLines();
     }
   }
 }
@@ -1108,6 +1123,7 @@ function onMouseUp() {
   }
   if (isConnecting.value) {
     connectingStart.value = null;
+    connectingLine.value = null;
     isConnecting.value = false; // 结束连接状态
   }
   potentialSelectConnector.value = null; // 清除潜在连接器
@@ -1151,6 +1167,93 @@ function onMouseUp() {
   draggingBlocks.value.clear(); // 清空拖动块集合
 }
 
+function updateConnectingLine() {
+  if (!connectingStart.value) {
+    connectingLine.value = null;
+    return;
+  }
+
+  try {
+    // 获取起始连接器的位置
+    const startPos = getConnectorPosition(
+      connectingStart.value.block,
+      connectingStart.value.type,
+      connectingStart.value.index
+    ).value;
+
+    // 检查起始位置是否有效
+    if (
+      !startPos ||
+      typeof startPos.x !== "number" ||
+      typeof startPos.y !== "number"
+    ) {
+      console.warn("起始连接器位置无效:", startPos);
+      connectingLine.value = null;
+      return;
+    }
+
+    // 检查鼠标位置是否有效
+    if (
+      typeof currentMouseX.value !== "number" ||
+      typeof currentMouseY.value !== "number"
+    ) {
+      console.warn("鼠标位置无效:", {
+        x: currentMouseX.value,
+        y: currentMouseY.value,
+      });
+      connectingLine.value = null;
+      return;
+    }
+
+    // 如果有潜在连接目标，使用目标连接器的位置作为终点
+    let endX = currentMouseX.value;
+    let endY = currentMouseY.value;
+
+    if (potentialConnectTarget.value) {
+      try {
+        const targetPos = getConnectorPosition(
+          potentialConnectTarget.value.block,
+          potentialConnectTarget.value.type,
+          potentialConnectTarget.value.index
+        ).value;
+
+        if (
+          targetPos &&
+          typeof targetPos.x === "number" &&
+          typeof targetPos.y === "number"
+        ) {
+          endX = targetPos.x;
+          endY = targetPos.y;
+        }
+      } catch (error) {
+        console.warn("获取目标连接器位置失败:", error);
+        // 继续使用鼠标位置
+      }
+    }
+
+    // 创建临时连接线
+    connectingLine.value = Line.createConnectingLine(
+      startPos.x,
+      startPos.y,
+      endX,
+      endY,
+      connectingStart.value.block,
+      scale.value,
+      offsetX.value,
+      offsetY.value
+    );
+
+    // 验证创建的连接线
+    if (!connectingLine.value) {
+      console.warn("创建连接线失败");
+      return;
+    }
+  } catch (error) {
+    console.error("更新连接线时发生错误:", error);
+    connectingLine.value = null;
+  }
+}
+
 // 创建连接
 function createConnection(start, end) {
   // 检查输入连接器是否已经被占用
@@ -1170,6 +1273,27 @@ function createConnection(start, end) {
 
   const connectionId = `connection_${++connectionIdCounter}`;
 
+  // 获取连接器位置
+  const startPos = getConnectorPosition(
+    start.block,
+    start.type,
+    start.index
+  ).value;
+  const endPos = getConnectorPosition(end.block, end.type, end.index).value;
+
+  // 创建Line实例
+  const line = new Line(
+    startPos.x,
+    startPos.y,
+    endPos.x,
+    endPos.y,
+    start.block,
+    end.block,
+    scale.value,
+    offsetX.value,
+    offsetY.value
+  );
+
   const connection = {
     id: connectionId,
     type: start.type.includes("signal") ? "signal" : "var",
@@ -1183,14 +1307,41 @@ function createConnection(start, end) {
       type: end.type,
       index: end.index,
     },
-    // 使用响应式计算属性实现实时位置追踪
+    line: line, // 使用Line实例
+    // 保留响应式位置用于Line更新
     startPosition: computed(() => {
       const pos = getConnectorPosition(start.block, start.type, start.index);
-      return pos.value;
+      const result = pos.value;
+      // 更新Line位置
+      if (connection.line) {
+        connection.line.updatePosition(
+          result.x,
+          result.y,
+          connection.endPosition.x,
+          connection.endPosition.y,
+          scale.value,
+          offsetX.value,
+          offsetY.value
+        );
+      }
+      return result;
     }),
     endPosition: computed(() => {
       const pos = getConnectorPosition(end.block, end.type, end.index);
-      return pos.value;
+      const result = pos.value;
+      // 更新Line位置
+      if (connection.line) {
+        connection.line.updatePosition(
+          connection.startPosition.x,
+          connection.startPosition.y,
+          result.x,
+          result.y,
+          scale.value,
+          offsetX.value,
+          offsetY.value
+        );
+      }
+      return result;
     }),
   };
 
@@ -1206,7 +1357,7 @@ function createConnection(start, end) {
 
   // 强制重新计算所有连接路径以应用避让
   nextTick(() => {
-    connections.value = [...connections.value];
+    updateAllConnectionLines();
   });
 
   return true;
@@ -1255,7 +1406,7 @@ function deleteConnection(connection) {
 
   // 强制重新计算剩余连接路径以重新应用避让
   nextTick(() => {
-    connections.value = [...connections.value];
+    updateAllConnectionLines();
   });
 }
 
@@ -1402,72 +1553,6 @@ function isBlockInSelectionBox(block) {
   );
 }
 
-// 检查连接线是否与选择框相交
-function isConnectionInSelectionBox(connection) {
-  if (!selectionBox.value) return false;
-
-  const box = selectionBox.value;
-  const startCoords = connection.startPosition;
-  const endCoords = connection.endPosition;
-
-  // 获取连接线的路径点（简化为三段直线）
-  const midX = startCoords.x + (endCoords.x - startCoords.x) * 0.5;
-
-  const lineSegments = [
-    { x1: startCoords.x, y1: startCoords.y, x2: midX, y2: startCoords.y },
-    { x1: midX, y1: startCoords.y, x2: midX, y2: endCoords.y },
-    { x1: midX, y1: endCoords.y, x2: endCoords.x, y2: endCoords.y },
-  ];
-
-  // 检查任何一段是否与选择框相交
-  return lineSegments.some((segment) => isLineIntersectBox(segment, box));
-}
-
-// 检查线段是否与矩形相交
-function isLineIntersectBox(line, box) {
-  const { x1, y1, x2, y2 } = line;
-  const { x: boxX, y: boxY, width: boxW, height: boxH } = box;
-
-  // 检查线段端点是否在矩形内
-  if (isPointInBox(x1, y1, box) || isPointInBox(x2, y2, box)) {
-    return true;
-  }
-
-  // 检查线段是否与矩形的四条边相交
-  const boxEdges = [
-    { x1: boxX, y1: boxY, x2: boxX + boxW, y2: boxY }, // 上边
-    { x1: boxX, y1: boxY + boxH, x2: boxX + boxW, y2: boxY + boxH }, // 下边
-    { x1: boxX, y1: boxY, x2: boxX, y2: boxY + boxH }, // 左边
-    { x1: boxX + boxW, y1: boxY, x2: boxX + boxW, y2: boxY + boxH }, // 右边
-  ];
-
-  return boxEdges.some((edge) => doLinesIntersect(line, edge));
-}
-
-// 检查点是否在矩形内
-function isPointInBox(x, y, box) {
-  return (
-    x >= box.x &&
-    x <= box.x + box.width &&
-    y >= box.y &&
-    y <= box.y + box.height
-  );
-}
-
-// 检查两条线段是否相交
-function doLinesIntersect(line1, line2) {
-  const { x1: x1, y1: y1, x2: x2, y2: y2 } = line1;
-  const { x1: x3, y1: y3, x2: x4, y2: y4 } = line2;
-
-  const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-  if (Math.abs(denom) < 1e-10) return false; // 平行线
-
-  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
-  const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
-
-  return t >= 0 && t <= 1 && u >= 0 && u <= 1;
-}
-
 // 更新选择框内的块和连接线
 function updateSelectionBoxBlocks() {
   if (!isSelecting.value) return;
@@ -1484,7 +1569,7 @@ function updateSelectionBoxBlocks() {
 
   // 选择连接线
   for (const connection of connections.value) {
-    if (isConnectionInSelectionBox(connection)) {
+    if (connection.line.isLineInSelectionBox(selectionBox.value)) {
       newSelectedConnections.add(connection);
     }
   }
@@ -1545,6 +1630,29 @@ function handleKeyDown(event) {
   }
 }
 
+// 更新所有连接线
+function updateAllConnectionLines() {
+  connections.value.forEach((connection) => {
+    if (connection.startPosition && connection.endPosition) {
+      // 访问计算属性的值
+      const startPos = connection.startPosition;
+      const endPos = connection.endPosition;
+
+      if (connection.line && startPos && endPos) {
+        connection.line.updatePosition(
+          startPos.x,
+          startPos.y,
+          endPos.x,
+          endPos.y,
+          scale.value,
+          offsetX.value,
+          offsetY.value
+        );
+      }
+    }
+  });
+}
+
 // 简化开始连接的逻辑
 function startConnection(block, type, index, event) {
   event.stopPropagation();
@@ -1568,6 +1676,7 @@ function startConnection(block, type, index, event) {
   };
 
   updateMousePosition(event);
+  updateConnectingLine(); // 初始化连接线
 }
 
 // 结束连接
@@ -1577,9 +1686,6 @@ function endConnection(block, type, index, event) {
   if (!isConnecting.value || !connectingStart.value) {
     return;
   }
-
-  console.log(block);
-  console.log(connectingStart.value.block);
 
   // 检查是否是有效的连接目标
   if (type.includes("input")) {
@@ -1642,222 +1748,12 @@ function endConnection(block, type, index, event) {
   // 重置连接状态
   isConnecting.value = false;
   connectingStart.value = null;
+  connectingLine.value = null;
   potentialConnectTarget.value = null; // 清除潜在连接目标
 }
 
-// 生成连接线的 SVG 路径（横平竖直，带避让）
-function getConnectionPath(connection) {
-  return computed(() => {
-    // 获取实时的连接器位置
-    const startCoords = connection.startPosition;
-    const endCoords = connection.endPosition;
-
-    // 转换为屏幕坐标
-    const x1 = startCoords.x * scale.value + offsetX.value;
-    const y1 = startCoords.y * scale.value + offsetY.value;
-    const x2 = endCoords.x * scale.value + offsetX.value;
-    const y2 = endCoords.y * scale.value + offsetY.value;
-
-    // 计算避让路径
-    const path = calculateAvoidancePath(connection, x1, y1, x2, y2);
-
-    return path;
-  }).value;
-}
-
-// 计算避让路径
-function calculateAvoidancePath(currentConnection, x1, y1, x2, y2) {
-  // 获取所有其他连接线的路径信息
-  const otherConnections = connections.value.filter(
-    (conn) => conn.id !== currentConnection.id
-  );
-
-  // 计算基础路径的中间点
-  const direction = x2 > x1 ? 1 : -1; // 连线方向
-  let midX = x1 + (x2 - x1) * 0.5;
-
-  // 检查是否需要避让
-  const conflictingConnections = findConflictingConnections(
-    currentConnection,
-    otherConnections,
-    x1,
-    y1,
-    x2,
-    y2,
-    midX
-  );
-
-  if (conflictingConnections.length === 0) {
-    // 没有冲突，使用基础路径
-    return `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
-  }
-
-  // 有冲突，计算避让路径
-  const avoidanceOffset = calculateAvoidanceOffset(
-    currentConnection,
-    conflictingConnections
-  );
-
-  // 根据连线方向和避让偏移调整路径
-  const adjustedMidX = midX + avoidanceOffset * LINE_SPACING * direction;
-
-  // 确保调整后的中间点不会太靠近起点或终点
-  const minMidX = Math.min(x1, x2) + MIN_SEGMENT_LENGTH * direction;
-  const maxMidX = Math.max(x1, x2) - MIN_SEGMENT_LENGTH * direction;
-  const finalMidX = Math.max(minMidX, Math.min(maxMidX, adjustedMidX));
-
-  return `M ${x1} ${y1} L ${finalMidX} ${y1} L ${finalMidX} ${y2} L ${x2} ${y2}`;
-}
-
-// 查找冲突的连接线
-function findConflictingConnections(
-  currentConnection,
-  otherConnections,
-  x1,
-  y1,
-  x2,
-  y2,
-  midX
-) {
-  const conflicting = [];
-  const tolerance = LINE_SPACING; // 冲突检测容忍度
-
-  otherConnections.forEach((otherConn) => {
-    const otherStart = otherConn.startPosition;
-    const otherEnd = otherConn.endPosition;
-
-    const otherX1 = otherStart.x * scale.value + offsetX.value;
-    const otherY1 = otherStart.y * scale.value + offsetY.value;
-    const otherX2 = otherEnd.x * scale.value + offsetX.value;
-    const otherY2 = otherEnd.y * scale.value + offsetY.value;
-
-    const otherMidX = otherX1 + (otherX2 - otherX1) * 0.5;
-
-    // 检查水平线段是否冲突
-    if (
-      checkHorizontalSegmentConflict(
-        x1,
-        y1,
-        midX,
-        otherX1,
-        otherY1,
-        otherMidX,
-        tolerance
-      ) ||
-      checkHorizontalSegmentConflict(
-        midX,
-        y2,
-        x2,
-        otherMidX,
-        otherY2,
-        otherX2,
-        tolerance
-      ) ||
-      checkVerticalSegmentConflict(
-        midX,
-        y1,
-        y2,
-        otherMidX,
-        otherY1,
-        otherY2,
-        tolerance
-      )
-    ) {
-      conflicting.push(otherConn);
-    }
-  });
-
-  return conflicting;
-}
-
-// 检查水平线段冲突
-function checkHorizontalSegmentConflict(
-  x1,
-  y1,
-  x2,
-  otherX1,
-  otherY1,
-  otherX2,
-  tolerance
-) {
-  // 检查Y坐标是否接近
-  if (Math.abs(y1 - otherY1) < tolerance) {
-    // 检查X坐标是否有重叠
-    const minX = Math.min(x1, x2);
-    const maxX = Math.max(x1, x2);
-    const otherMinX = Math.min(otherX1, otherX2);
-    const otherMaxX = Math.max(otherX1, otherX2);
-
-    return !(maxX < otherMinX || minX > otherMaxX);
-  }
-  return false;
-}
-
-// 检查垂直线段冲突
-function checkVerticalSegmentConflict(
-  x1,
-  y1,
-  y2,
-  otherX1,
-  otherY1,
-  otherY2,
-  tolerance
-) {
-  // 检查X坐标是否接近
-  if (Math.abs(x1 - otherX1) < tolerance) {
-    // 检查Y坐标是否有重叠
-    const minY = Math.min(y1, y2);
-    const maxY = Math.max(y1, y2);
-    const otherMinY = Math.min(otherY1, otherY2);
-    const otherMaxY = Math.max(otherY1, otherY2);
-
-    return !(maxY < otherMinY || minY > otherMaxY);
-  }
-  return false;
-}
-
-// 计算避让偏移量
-function calculateAvoidanceOffset(currentConnection, conflictingConnections) {
-  // 根据连接线的ID确定一个稳定的避让偏移
-  const connectionIndex = connections.value.findIndex(
-    (conn) => conn.id === currentConnection.id
-  );
-  const conflictCount = conflictingConnections.length;
-
-  // 使用连接线索引和冲突数量计算偏移
-  // 这样可以确保相同的连接组合总是产生相同的避让模式
-  const baseOffset = Math.floor(connectionIndex / 2) + 1;
-  const direction = connectionIndex % 2 === 0 ? 1 : -1;
-
-  return baseOffset * direction;
-}
-
-// 优化正在连接时的临时连接线路径
-function getConnectingPath() {
-  return computed(() => {
-    if (!connectingStart.value) return "";
-
-    // 获取起始连接器的实时位置
-    const startPos = getConnectorPosition(
-      connectingStart.value.block,
-      connectingStart.value.type,
-      connectingStart.value.index
-    ).value;
-
-    const x1 = startPos.x * scale.value + offsetX.value;
-    const y1 = startPos.y * scale.value + offsetY.value;
-    const x2 = currentMouseX.value * scale.value + offsetX.value;
-    const y2 = currentMouseY.value * scale.value + offsetY.value;
-
-    // 对于正在连接的线，使用简单的中点路径，不做避让
-    const midX = x1 + (x2 - x1) * 0.5;
-
-    return `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
-  }).value;
-}
-
+// 初始化画布（只在启动时执行一次）
 async function initWorkspace() {
-  // 初始化画布（只在启动时执行一次）
   initializeCanvas();
   clearWorkspace(false);
   // 获取所有类别定义
@@ -2370,6 +2266,31 @@ async function loadWorkspace(workspace) {
           }
         }
 
+        // 获取连接器位置
+        const startPos = getConnectorPosition(
+          startBlock,
+          connInfo.start.type,
+          startConnectorIndex
+        ).value;
+        const endPos = getConnectorPosition(
+          endBlock,
+          connInfo.end.type,
+          endConnectorIndex
+        ).value;
+
+        // 创建Line实例
+        const line = new Line(
+          startPos.x,
+          startPos.y,
+          endPos.x,
+          endPos.y,
+          startBlock,
+          endBlock,
+          scale.value,
+          offsetX.value,
+          offsetY.value
+        );
+
         // 创建连接对象，使用正确的响应式计算属性
         const connection = {
           id: connInfo.id,
@@ -2382,6 +2303,7 @@ async function loadWorkspace(workspace) {
             ...connInfo.end,
             index: endConnectorIndex, // 使用查找到的正确索引
           },
+          line: line, // 使用Line实例
           // 重新创建响应式位置计算 - 确保引用正确的块实例
           startPosition: computed(() => {
             // 重新查找块以确保响应式更新
@@ -2394,7 +2316,20 @@ async function loadWorkspace(workspace) {
               connInfo.start.type,
               startConnectorIndex
             );
-            return pos.value;
+            const result = pos.value;
+            // 更新Line位置
+            if (connection.line && connection.endPosition) {
+              connection.line.updatePosition(
+                result.x,
+                result.y,
+                connection.endPosition.x,
+                connection.endPosition.y,
+                scale.value,
+                offsetX.value,
+                offsetY.value
+              );
+            }
+            return result;
           }),
           endPosition: computed(() => {
             // 重新查找块以确保响应式更新
@@ -2407,7 +2342,20 @@ async function loadWorkspace(workspace) {
               connInfo.end.type,
               endConnectorIndex
             );
-            return pos.value;
+            const result = pos.value;
+            // 更新Line位置
+            if (connection.line && connection.startPosition) {
+              connection.line.updatePosition(
+                connection.startPosition.x,
+                connection.startPosition.y,
+                result.x,
+                result.y,
+                scale.value,
+                offsetX.value,
+                offsetY.value
+              );
+            }
+            return result;
           }),
         };
 
