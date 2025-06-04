@@ -2,6 +2,35 @@ const LINE_SPACING = 10; // 连接线间距
 const MIN_SEGMENT_LENGTH = 20; // 最小线段长度
 const CONNECTOR_EXTENSION = 30; // 连接器延伸长度
 const BLOCK_AVOID_MARGIN = 15; // 块避让边距
+const LINE_AVOID_MARGIN = 8; // 连线避让边距
+
+// 全局线管理器
+class LineManager {
+  constructor() {
+    this.lines = new Set();
+  }
+
+  addLine(line) {
+    this.lines.add(line);
+  }
+
+  removeLine(line) {
+    if (this.lines.has(line)) {
+      this.lines.delete(line);
+    }
+  }
+
+  getExistingLines(excludeLine = null) {
+    return Array.from(this.lines).filter((line) => line !== excludeLine);
+  }
+
+  clear() {
+    this.lines.clear();
+  }
+}
+
+// 全局实例
+const lineManager = new LineManager();
 
 class Segment {
   constructor(x1, y1, x2, y2) {
@@ -26,7 +55,8 @@ class Line {
     endBlock = null,
     scale = 1,
     offsetX = 0,
-    offsetY = 0
+    offsetY = 0,
+    addToManager = true
   ) {
     this.startX = startX;
     this.startY = startY;
@@ -39,6 +69,16 @@ class Line {
     this.offsetY = offsetY;
     this.segments = [];
     this.calculatePath();
+
+    if (addToManager) {
+      // 将线添加到管理器
+      lineManager.addLine(this);
+    }
+  }
+
+  // 销毁线时从管理器中移除
+  destroy() {
+    lineManager.removeLine(this);
   }
 
   updatePosition(
@@ -79,11 +119,15 @@ class Line {
 
   createSimplePath(x1, y1, x2, y2) {
     const midX = x1 + (x2 - x1) * 0.5;
-    return [
+
+    const basePath = [
       new Segment(x1, y1, midX, y1),
       new Segment(midX, y1, midX, y2),
       new Segment(midX, y2, x2, y2),
     ];
+
+    // 简单路径只应用y方向的避让，不改变头尾点坐标
+    return this.applySimpleLineAvoidance(basePath, x1, y1, x2, y2);
   }
 
   calculateAvoidancePath(x1, y1, x2, y2) {
@@ -128,71 +172,73 @@ class Line {
       startX > Math.min(startBlockAvoidArea.left, endBlockAvoidArea.left) &&
       endX < Math.max(startBlockAvoidArea.right, endBlockAvoidArea.right);
 
+    let basePath;
     if (!needXBypass) {
       // X轴不需要绕行，直接连接
-      return [
+      basePath = [
         new Segment(x1, y1, startX, y1),
         new Segment(startX, y1, startX, y2),
         new Segment(startX, y2, endX, y2),
         new Segment(endX, y2, x2, y2),
       ];
-    }
-
-    // X轴需要绕行，检查是否可以从两个块之间穿过
-    const startY = y1;
-    const endY = y2;
-    const minPassageHeight = 40; // 最小通道高度
-
-    const canPassBetween = this.checkCanPassBetween(
-      startBlockAvoidArea,
-      endBlockAvoidArea,
-      startY,
-      endY,
-      minPassageHeight
-    );
-
-    if (canPassBetween.canPass) {
-      // 可以从中间穿过
-      const passageY = canPassBetween.passageY;
-      return [
-        new Segment(x1, y1, startX, y1),
-        new Segment(startX, y1, startX, passageY),
-        new Segment(startX, passageY, endX, passageY),
-        new Segment(endX, passageY, endX, y2),
-        new Segment(endX, y2, x2, y2),
-      ];
-    }
-
-    // 不能从中间穿过，需要上下绕行
-    const combinedAvoidArea = {
-      left: Math.min(startBlockAvoidArea.left, endBlockAvoidArea.left),
-      right: Math.max(startBlockAvoidArea.right, endBlockAvoidArea.right),
-      top: Math.min(startBlockAvoidArea.top, endBlockAvoidArea.top),
-      bottom: Math.max(startBlockAvoidArea.bottom, endBlockAvoidArea.bottom),
-    };
-
-    // 决定绕行方向：上方还是下方
-    const centerY = (startY + endY) / 2;
-    let bypassY;
-    const distanceToTop = Math.abs(centerY - combinedAvoidArea.top);
-    const distanceToBottom = Math.abs(centerY - combinedAvoidArea.bottom);
-
-    if (distanceToTop < distanceToBottom) {
-      // 从上方绕行
-      bypassY = combinedAvoidArea.top;
     } else {
-      // 从下方绕行
-      bypassY = combinedAvoidArea.bottom;
+      // X轴需要绕行，检查是否可以从两个块之间穿过
+      const canPassBetween = this.checkCanPassBetween(
+        startBlockAvoidArea,
+        endBlockAvoidArea,
+        y1,
+        y2,
+        40
+      );
+
+      if (canPassBetween.canPass) {
+        // 可以从中间穿过
+        const passageY = canPassBetween.passageY;
+        basePath = [
+          new Segment(x1, y1, startX, y1),
+          new Segment(startX, y1, startX, passageY),
+          new Segment(startX, passageY, endX, passageY),
+          new Segment(endX, passageY, endX, y2),
+          new Segment(endX, y2, x2, y2),
+        ];
+      } else {
+        // 不能从中间穿过，需要上下绕行
+        const combinedAvoidArea = {
+          left: Math.min(startBlockAvoidArea.left, endBlockAvoidArea.left),
+          right: Math.max(startBlockAvoidArea.right, endBlockAvoidArea.right),
+          top: Math.min(startBlockAvoidArea.top, endBlockAvoidArea.top),
+          bottom: Math.max(
+            startBlockAvoidArea.bottom,
+            endBlockAvoidArea.bottom
+          ),
+        };
+
+        // 决定绕行方向：上方还是下方
+        const centerY = (y1 + y2) / 2;
+        let bypassY;
+        const distanceToTop = Math.abs(centerY - combinedAvoidArea.top);
+        const distanceToBottom = Math.abs(centerY - combinedAvoidArea.bottom);
+
+        if (distanceToTop < distanceToBottom) {
+          // 从上方绕行
+          bypassY = combinedAvoidArea.top;
+        } else {
+          // 从下方绕行
+          bypassY = combinedAvoidArea.bottom;
+        }
+
+        basePath = [
+          new Segment(x1, y1, startX, y1),
+          new Segment(startX, y1, startX, bypassY),
+          new Segment(startX, bypassY, endX, bypassY),
+          new Segment(endX, bypassY, endX, y2),
+          new Segment(endX, y2, x2, y2),
+        ];
+      }
     }
 
-    // 构建绕行路径
-    return [
-      new Segment(x1, y1, startX, y1),
-      new Segment(startX, y1, startX, bypassY),
-      new Segment(startX, bypassY, endX, bypassY),
-      new Segment(endX, bypassY, endX, y2),
-      new Segment(endX, y2, x2, y2),
-    ];
+    // 应用连线避让
+    return this.applyLineAvoidance(basePath, x1, y1);
   }
 
   checkCanPassBetween(
@@ -247,6 +293,347 @@ class Line {
     return { canPass: false, passageY: null };
   }
 
+  // 应用连线避让算法
+  applyLineAvoidance(basePath, startX, startY) {
+    const existingLines = lineManager.getExistingLines(this);
+    if (existingLines.length === 0) {
+      return basePath;
+    }
+
+    let adjustedPath = [...basePath];
+
+    // 对每个线段进行避让检查，但保持头尾点不变
+    for (let i = 0; i < adjustedPath.length; i++) {
+      const segment = adjustedPath[i];
+
+      // 跳过第一段和最后一段的端点调整，只调整中间部分
+      const isFirstSegment = i === 0;
+      const isLastSegment = i === adjustedPath.length - 1;
+
+      // 检查与现有线的冲突
+      const conflicts = this.findSegmentConflicts(
+        segment,
+        existingLines,
+        startX,
+        startY
+      );
+
+      if (conflicts.length > 0) {
+        // 调整线段位置以避让冲突，但保持头尾点不变
+        const adjustedSegment = this.resolveSegmentConflicts(
+          segment,
+          conflicts,
+          i,
+          adjustedPath,
+          isFirstSegment,
+          isLastSegment
+        );
+        if (adjustedSegment) {
+          adjustedPath[i] = adjustedSegment;
+
+          // 更新相邻线段的连接点，但保持头尾点不变
+          this.updateAdjacentSegments(
+            adjustedPath,
+            i,
+            isFirstSegment,
+            isLastSegment
+          );
+        }
+      }
+    }
+
+    return adjustedPath;
+  }
+
+  // 简单路径的避让算法，只处理y方向避让
+  applySimpleLineAvoidance(
+    basePath,
+    originalStartX,
+    originalStartY,
+    originalEndX,
+    originalEndY
+  ) {
+    const existingLines = lineManager.getExistingLines(this);
+    if (existingLines.length === 0) {
+      return basePath;
+    }
+
+    let adjustedPath = [...basePath];
+
+    // 只对中间的垂直线段进行y方向避让
+    const middleSegmentIndex = 1; // 垂直线段在简单路径中总是第二个
+    if (adjustedPath.length > middleSegmentIndex) {
+      const middleSegment = adjustedPath[middleSegmentIndex];
+
+      if (middleSegment.isVertical) {
+        // 检查垂直线段与现有线的冲突
+        const conflicts = this.findVerticalSegmentConflicts(
+          middleSegment,
+          existingLines
+        );
+
+        if (conflicts.length > 0) {
+          // 计算需要的x偏移量
+          let maxOffset = 0;
+          for (const conflict of conflicts) {
+            const requiredOffset =
+              LINE_AVOID_MARGIN -
+              Math.abs(middleSegment.x1 - conflict.segment.x1) +
+              LINE_SPACING;
+            maxOffset = Math.max(maxOffset, requiredOffset);
+          }
+
+          // 确定偏移方向
+          const direction = middleSegment.x1 > conflicts[0].segment.x1 ? 1 : -1;
+          const offset = maxOffset * direction;
+
+          // 调整垂直线段的x坐标
+          middleSegment.x1 += offset;
+          middleSegment.x2 += offset;
+
+          // 更新第一段和第三段的连接点，但保持头尾点不变
+          adjustedPath[0].x2 = middleSegment.x1;
+          adjustedPath[2].x1 = middleSegment.x2;
+        }
+      }
+    }
+
+    // 确保头尾点坐标不变
+    if (adjustedPath.length > 0) {
+      adjustedPath[0].x1 = originalStartX;
+      adjustedPath[0].y1 = originalStartY;
+      adjustedPath[adjustedPath.length - 1].x2 = originalEndX;
+      adjustedPath[adjustedPath.length - 1].y2 = originalEndY;
+    }
+
+    return adjustedPath;
+  }
+
+  // 查找垂直线段的冲突
+  findVerticalSegmentConflicts(segment, existingLines) {
+    const conflicts = [];
+
+    for (const line of existingLines) {
+      for (const existingSegment of line.segments) {
+        if (existingSegment.isVertical) {
+          const xDiff = Math.abs(segment.x1 - existingSegment.x1);
+          if (xDiff < LINE_AVOID_MARGIN) {
+            // 检查y轴重叠
+            const y1Min = Math.min(segment.y1, segment.y2);
+            const y1Max = Math.max(segment.y1, segment.y2);
+            const y2Min = Math.min(existingSegment.y1, existingSegment.y2);
+            const y2Max = Math.max(existingSegment.y1, existingSegment.y2);
+
+            // 检查是否有重叠
+            if (!(y1Max < y2Min || y2Max < y1Min)) {
+              conflicts.push({
+                segment: existingSegment,
+                line: line,
+                distance: xDiff,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return conflicts;
+  }
+
+  // 查找线段与现有线的冲突
+  findSegmentConflicts(segment, existingLines, currentStartX, currentStartY) {
+    const conflicts = [];
+
+    for (const line of existingLines) {
+      // 检查是否起始位置相同（允许x轴重叠）
+      const sameStartPosition = this.hasSameStartPosition(
+        line,
+        currentStartX,
+        currentStartY
+      );
+
+      for (const existingSegment of line.segments) {
+        const conflict = this.checkSegmentConflict(
+          segment,
+          existingSegment,
+          sameStartPosition
+        );
+        if (conflict) {
+          conflicts.push({
+            segment: existingSegment,
+            line: line,
+            sameStart: sameStartPosition,
+            ...conflict,
+          });
+        }
+      }
+    }
+
+    return conflicts;
+  }
+
+  // 检查是否有相同起始位置
+  hasSameStartPosition(otherLine, currentStartX, currentStartY) {
+    const threshold = 5; // 允许的误差范围
+    const otherStartX = otherLine.startX * otherLine.scale + otherLine.offsetX;
+    const otherStartY = otherLine.startY * otherLine.scale + otherLine.offsetY;
+
+    return (
+      Math.abs(otherStartX - currentStartX) < threshold &&
+      Math.abs(otherStartY - currentStartY) < threshold
+    );
+  }
+
+  // 检查两个线段的冲突
+  checkSegmentConflict(segment1, segment2, allowYOverlap = false) {
+    const margin = LINE_AVOID_MARGIN;
+
+    // 垂直线段之间的冲突检查
+    if (segment1.isVertical && segment2.isVertical) {
+      const xDiff = Math.abs(segment1.x1 - segment2.x1);
+      if (xDiff < margin) {
+        // 检查y轴重叠
+        const y1Min = Math.min(segment1.y1, segment1.y2);
+        const y1Max = Math.max(segment1.y1, segment1.y2);
+        const y2Min = Math.min(segment2.y1, segment2.y2);
+        const y2Max = Math.max(segment2.y1, segment2.y2);
+
+        // 检查是否有重叠
+        if (!(y1Max < y2Min || y2Max < y1Min)) {
+          return { type: "vertical", distance: xDiff };
+        }
+      }
+    }
+
+    // 水平线段之间的冲突检查
+    if (segment1.isHorizontal && segment2.isHorizontal) {
+      const yDiff = Math.abs(segment1.y1 - segment2.y1);
+      if (yDiff < margin) {
+        // 检查x轴重叠
+        const x1Min = Math.min(segment1.x1, segment1.x2);
+        const x1Max = Math.max(segment1.x1, segment1.x2);
+        const x2Min = Math.min(segment2.x1, segment2.x2);
+        const x2Max = Math.max(segment2.x1, segment2.x2);
+
+        // 如果允许Y重叠且当前是水平线且Y值相等，则不视为冲突
+        if (allowYOverlap && segment1.y1 === segment2.y1) {
+          return null;
+        }
+
+        // 检查是否有重叠
+        if (!(x1Max < x2Min || x2Max < x1Min)) {
+          return { type: "horizontal", distance: yDiff };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // 解决线段冲突
+  resolveSegmentConflicts(
+    segment,
+    conflicts,
+    segmentIndex,
+    path,
+    isFirstSegment = false,
+    isLastSegment = false
+  ) {
+    console.log("解决线段冲突", segment, conflicts);
+    if (conflicts.length === 0) return null;
+
+    // 找到需要的最小偏移量
+    let maxOffset = 0;
+
+    for (const conflict of conflicts) {
+      const requiredOffset =
+        LINE_AVOID_MARGIN - conflict.distance + LINE_SPACING;
+      maxOffset = Math.max(maxOffset, requiredOffset);
+    }
+
+    // 根据冲突类型调整线段
+    const firstConflict = conflicts[0];
+    let adjustedSegment = new Segment(
+      segment.x1,
+      segment.y1,
+      segment.x2,
+      segment.y2
+    );
+
+    if (firstConflict.type === "horizontal") {
+      // 水平线冲突，调整y坐标，但保持头尾点不变
+      const direction = this.determineAvoidanceDirection(
+        segment,
+        conflicts,
+        "y"
+      );
+      const offset = maxOffset * direction;
+
+      // 如果是第一段，保持起始点不变
+      if (!isFirstSegment) {
+        adjustedSegment.y1 += offset;
+      }
+      // 如果是最后一段，保持结束点不变
+      if (!isLastSegment) {
+        adjustedSegment.y2 += offset;
+      }
+    } else if (firstConflict.type === "vertical") {
+      // 垂直线冲突，调整x坐标，但保持头尾点不变
+      const direction = this.determineAvoidanceDirection(
+        segment,
+        conflicts,
+        "x"
+      );
+      const offset = maxOffset * direction;
+
+      // 如果是第一段，保持起始点不变
+      if (!isFirstSegment) {
+        adjustedSegment.x1 += offset;
+      }
+      // 如果是最后一段，保持结束点不变
+      if (!isLastSegment) {
+        adjustedSegment.x2 += offset;
+      }
+    }
+
+    console.log("调整后的线段", adjustedSegment);
+    return adjustedSegment;
+  }
+
+  // 确定避让方向
+  determineAvoidanceDirection(segment, conflicts, axis) {
+    // 简单策略：向上或向右避让
+    if (axis === "y") {
+      return segment.y1 > conflicts[0].segment.y1 ? 1 : -1;
+    } else {
+      return segment.x1 > conflicts[0].segment.x1 ? 1 : -1;
+    }
+  }
+
+  // 更新相邻线段的连接点
+  updateAdjacentSegments(
+    path,
+    changedIndex,
+    isFirstSegment = false,
+    isLastSegment = false
+  ) {
+    const changedSegment = path[changedIndex];
+
+    // 更新前一个线段的终点，但不影响第一段的起始点
+    if (changedIndex > 0 && !isFirstSegment) {
+      const prevSegment = path[changedIndex - 1];
+      prevSegment.x2 = changedSegment.x1;
+      prevSegment.y2 = changedSegment.y1;
+    }
+
+    // 更新后一个线段的起点，但不影响最后一段的结束点
+    if (changedIndex < path.length - 1 && !isLastSegment) {
+      const nextSegment = path[changedIndex + 1];
+      nextSegment.x1 = changedSegment.x2;
+      nextSegment.y1 = changedSegment.y2;
+    }
+  }
+
   getSVGPath() {
     if (this.segments.length === 0) {
       return `M ${this.startX} ${this.startY} L ${this.endX} ${this.endY}`;
@@ -286,7 +673,8 @@ class Line {
       null,
       scale,
       offsetX,
-      offsetY
+      offsetY,
+      false
     );
 
     // 为正在连接的线计算特殊路径
@@ -471,4 +859,11 @@ function doLinesIntersect(line1, line2) {
   return t >= 0 && t <= 1 && u >= 0 && u <= 1;
 }
 
-export { Segment, Line, CONNECTOR_EXTENSION, BLOCK_AVOID_MARGIN };
+export {
+  Segment,
+  Line,
+  LineManager,
+  lineManager,
+  CONNECTOR_EXTENSION,
+  BLOCK_AVOID_MARGIN,
+};

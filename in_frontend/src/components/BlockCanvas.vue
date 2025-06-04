@@ -429,6 +429,7 @@ function adjustCanvas() {
     offsetX.value = containerWidth / 2;
     offsetY.value = containerHeight / 2;
   }
+  updateAllConnectionLines();
 }
 
 // 统一的缩放函数
@@ -967,6 +968,8 @@ function onMouseMove(event) {
 
     lastMouseX.value = event.clientX;
     lastMouseY.value = event.clientY;
+
+    updateAllConnectionLines();
     return;
   }
 
