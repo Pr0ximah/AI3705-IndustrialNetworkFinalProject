@@ -76,6 +76,12 @@ if !errorlevel! neq 0 (
     exit /b 1
 )
 
+mkdir dist\config
+if !errorlevel! neq 0 (
+    echo 错误: 创建 dist\config 目录失败
+    exit /b 1
+)
+
 REM 打包前端
 if %PACK_FRONTEND%==1 (
     echo.
@@ -161,7 +167,7 @@ if exist "in_backend\dist\main.exe" (
 REM 复制配置文件
 if exist "in_backend\config.yaml" (
     echo 复制配置文件...
-    copy "in_backend\config.yaml" "dist\resources\" /Y
+    copy "in_backend\config.yaml" "dist\config\" /Y
     
     if !errorlevel! neq 0 (
         echo 警告: 复制配置文件失败

@@ -5,28 +5,31 @@ from outputs import output_router
 from inputs.inputs import set_api_key, start_cleanup_task
 import yaml
 import sys
-import os
+from pathlib import Path
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 import io
 
 
 def set_UTF8():
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", line_buffering=True)
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", line_buffering=True)
-    sys.stdin  = io.TextIOWrapper(sys.stdin.buffer,  encoding="utf-8")
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", line_buffering=True
+    )
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", line_buffering=True
+    )
+    sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
 
 
-def resource_path(relative_path):
-    """获取资源的绝对路径，适用于开发环境和PyInstaller打包后的环境"""
+def config_filepath():
     if getattr(sys, "frozen", False):
         # 打包后的路径：使用可执行文件所在目录
-        base_path = os.path.dirname(sys.executable)
+        config_path = Path(sys.executable).parent.parent / "config" / "config.yaml"
     else:
         # 开发环境中的路径
-        base_path = os.path.abspath(".")
+        config_path = Path.cwd() / "config.yaml"
 
-    return os.path.join(base_path, relative_path)
+    return config_path
 
 
 @asynccontextmanager
@@ -39,8 +42,9 @@ async def lifespan(app: FastAPI):
 
 
 def main():
-    with open(resource_path("config.yaml"), "r", encoding="utf-8") as f:
-        api_key = yaml.safe_load(f).get("API_KEY")
+    with open(config_filepath(), "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+        api_key = config["API_KEY"]
         if not api_key:
             raise ValueError("API_KEY not found in API_KEY.conf")
         set_api_key(api_key)
