@@ -104,5 +104,10 @@ contextBridge.exposeInMainWorld("ipcApi", {
   // 打开文件夹
   openDirectory: (path) => {
     return ipcRenderer.invoke("open-directory", path);
-  }
+  },
+
+  // 上传保存的fbt到FBB
+  uploadToFBB: (folderPath) => {
+    return ipcRenderer.invoke("upload-to-fbb", folderPath);
+  },
 });

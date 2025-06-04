@@ -1,97 +1,116 @@
 <template>
-  <div class="main" v-if="!showLoading">
-    <button class="back-btn custom-button" @click="emit('back')">
-      <ElIcon><Back /></ElIcon>
-    </button>
-    <div class="title">创建新项目</div>
-    <div class="inner custom-scrollbar">
-      <div class="input-item">
-        <div class="label">项目名称</div>
-        <ElInput
-          v-model="projectName"
-          placeholder="请输入项目名称"
-          class="input"
-        />
+  <Transition name="main-fade" mode="out-in">
+    <div class="main" v-if="!showLoading">
+      <div class="llm-card">
+        <div class="title">
+          <img src="@/assets/AI.png" />
+        </div>
+        <div class="input-wrapper">
+          <textarea
+            v-model="llmUserInput"
+            placeholder="请详细描述你的需求，AI会帮你创建项目配置"
+          />
+        </div>
+        <button class="custom-button" @click="sendToLLM">发送</button>
       </div>
-      <div class="tips">
-        <ElIcon size="14" style="margin-right: 8px"><Files /></ElIcon>
-        <div>
-          你的项目将会储存在 {{ projectPath }} 内的 {{ projectName }} 文件夹下
+      <div class="user-card">
+        <button class="back-btn custom-button" @click="emit('back')">
+          <ElIcon size="20"><Back /></ElIcon>
+        </button>
+        <div class="title">创建新项目</div>
+        <div class="inner custom-scrollbar">
+          <div class="input-item">
+            <div class="label">项目名称</div>
+            <ElInput
+              v-model="projectName"
+              placeholder="请输入项目名称"
+              class="input"
+            />
+          </div>
+          <div class="tips">
+            <ElIcon size="14" style="margin-right: 8px"><Files /></ElIcon>
+            <div>
+              你的项目将会储存在 {{ projectPath }} 内的
+              {{ projectName }} 文件夹下
+            </div>
+          </div>
+          <div class="input-item">
+            <div class="label">项目功能简述</div>
+            <ElInput
+              v-model="projectDescription"
+              type="textarea"
+              placeholder="请简要描述项目功能和目标"
+              class="input textarea"
+              style="height: auto"
+              :rows="4"
+            />
+          </div>
+          <div class="input-item">
+            <div class="label">所需功能块</div>
+            <ElCollapse v-model="activeBlocks" class="collapse">
+              <ElCollapseItem
+                v-for="(item, index) in blocks"
+                :title="item.name"
+                :key="index"
+                :name="`block-${index}`"
+              >
+                <template #title>
+                  <div class="collapse-title-wrapper">
+                    <button
+                      @click.stop="deleteItem(index)"
+                      class="delete-btn custom-button"
+                      :class="{ clicked: deleteButtonClickedMap[index] }"
+                    >
+                      <div
+                        v-if="deleteButtonClickedMap[index]"
+                        class="delete-btn-text"
+                      >
+                        删除
+                      </div>
+                      <ElIcon v-else size="15"><Close /></ElIcon>
+                    </button>
+                    <span
+                      @click="unsetDeleteButtonClicked('signal_input', index)"
+                      class="collapse-title"
+                      >{{ item.name }}</span
+                    >
+                  </div>
+                </template>
+
+                <div class="feature-item">
+                  <span>名称</span>
+                  <ElInput
+                    v-model="item.name"
+                    class="collapse-input"
+                    placeholder="请输入功能块名称"
+                  ></ElInput>
+                </div>
+                <div class="feature-item">
+                  <span>描述</span>
+                  <ElInput
+                    v-model="item.description"
+                    type="textarea"
+                    class="collapse-input textarea"
+                    :rows="3"
+                    placeholder="请输入功能块的详细描述"
+                  ></ElInput>
+                </div>
+              </ElCollapseItem>
+              <button class="add-btn custom-button" @click="addItem">
+                添加
+              </button>
+            </ElCollapse>
+          </div>
+        </div>
+        <div class="create-btn-wrapper">
+          <button class="custom-button create-btn" @click="createProject">
+            <span class="create-text">创建项目</span>
+            <ElIcon size="35"><Right /></ElIcon>
+          </button>
         </div>
       </div>
-      <div class="input-item">
-        <div class="label">项目功能简述</div>
-        <ElInput
-          v-model="projectDescription"
-          type="textarea"
-          placeholder="请简要描述项目功能和目标"
-          class="input textarea"
-          style="height: auto"
-          :rows="4"
-        />
-      </div>
-      <div class="input-item">
-        <div class="label">所需功能块</div>
-        <ElCollapse v-model="activeBlocks" class="collapse">
-          <ElCollapseItem
-            v-for="(item, index) in blocks"
-            :title="item.name"
-            :key="index"
-            :name="`block-${index}`"
-          >
-            <template #title>
-              <div class="collapse-title-wrapper">
-                <button
-                  @click.stop="deleteItem(index)"
-                  class="delete-btn custom-button"
-                  :class="{ clicked: deleteButtonClickedMap[index] }"
-                >
-                  <div
-                    v-if="deleteButtonClickedMap[index]"
-                    class="delete-btn-text"
-                  >
-                    删除
-                  </div>
-                  <ElIcon v-else size="15"><Close /></ElIcon>
-                </button>
-                <span
-                  @click="unsetDeleteButtonClicked('signal_input', index)"
-                  class="collapse-title"
-                  >{{ item.name }}</span
-                >
-              </div>
-            </template>
-
-            <div class="feature-item">
-              <span>名称</span>
-              <ElInput
-                v-model="item.name"
-                class="collapse-input"
-                placeholder="请输入功能块名称"
-              ></ElInput>
-            </div>
-            <div class="feature-item">
-              <span>描述</span>
-              <ElInput
-                v-model="item.description"
-                type="textarea"
-                class="collapse-input textarea"
-                :rows="3"
-                placeholder="请输入功能块的详细描述"
-              ></ElInput>
-            </div>
-          </ElCollapseItem>
-          <button class="add-btn custom-button" @click="addItem">添加</button>
-        </ElCollapse>
-      </div>
     </div>
-    <div class="create-btn-wrapper">
-      <button class="custom-button create-btn" @click="createProject">
-        <span class="create-text">创建项目</span>
-        <ElIcon size="35"><Right /></ElIcon>
-      </button>
-    </div>
-  </div>
+  </Transition>
   <Transition name="loading-fade" mode="out-in">
     <LLMLoading
       ref="LLMLoadingRef"
@@ -124,6 +143,7 @@ const emit = defineEmits(["createProject", "back"]);
 
 const projectName = ref("");
 const projectDescription = ref("");
+const llmUserInput = ref("");
 const activeBlocks = ref([]);
 const deleteButtonClickedMap = ref([]);
 const blocks = ref([]);
@@ -327,7 +347,7 @@ async function createProject() {
         }
 
         cleanup();
-        reject(new Error("SSE连接发生错误"));
+        reject(new Error("连接发生错误！请再试一次吧"));
       };
     });
 
@@ -353,6 +373,28 @@ async function createProject() {
   }
 }
 
+async function sendToLLM() {
+  if (!llmUserInput.value.trim()) {
+    ElNotification({
+      title: "提示",
+      showClose: false,
+      message: "需求不能为空",
+      type: "warning",
+      duration: 3000,
+      customClass: "default-notification",
+    });
+    return;
+  }
+  const data = { userInput: llmUserInput.value.trim() };
+  console.log(data);
+
+  showLoading.value = true;
+  setTimeout(() => {
+    showLoading.value = false;
+  }, 2000);
+  return;
+}
+
 defineExpose({
   showLoading,
 });
@@ -360,18 +402,17 @@ defineExpose({
 
 <style scoped>
 .main {
-  width: 50%;
+  width: 80%;
   height: 80%;
   background-color: white;
   border-radius: 10px;
-  border: 1px solid var(--color-dark-1);
-  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 30px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   justify-content: flex-start;
   align-items: center;
   position: relative;
+  overflow: hidden;
 }
 
 .inner {
@@ -593,12 +634,13 @@ span .collapse-title:hover {
   left: 20px;
   z-index: 1000;
   background-color: transparent;
-  border: none;
+  border: 1px solid var(--color-dark-0);
   cursor: pointer;
+  transition: background-color 0.1s ease;
 }
 
 .back-btn:hover {
-  background-color: rgba(65, 112, 255, 0.2);
+  background-color: rgba(65, 112, 255, 0.1);
 }
 
 .loading-fade-enter-active,
@@ -609,13 +651,30 @@ span .collapse-title:hover {
 .loading-fade-enter-from,
 .loading-fade-leave-to {
   opacity: 0;
-  transform: scale(0.95);
+  transform: scale(1.5);
 }
 
 .loading-fade-enter-to,
 .loading-fade-leave-from {
   opacity: 1;
   transform: scale(1);
+}
+
+.main-fade-enter-active,
+.main-fade-leave-active {
+  transition: transform 0.5s ease, opacity 0.5s ease;
+}
+
+.main-fade-enter-from,
+.main-fade-leave-to {
+  transform: scale(0.5);
+  opacity: 0;
+}
+
+.main-fade-enter-to,
+.main-fade-leave-from {
+  transform: scale(1);
+  opacity: 1;
 }
 
 .create-text {
@@ -632,5 +691,97 @@ span .collapse-title:hover {
   width: 100px;
   margin-right: 5px;
   opacity: 1;
+}
+
+.llm-card {
+  width: 35%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-image: linear-gradient(
+    -225deg,
+    rgba(105, 234, 203, 0.3) 0%,
+    rgba(234, 204, 248, 0.3) 48%,
+    rgba(102, 84, 241, 0.3) 100%
+  );
+  background-size: 400% 400%;
+  animation: gradientShift 12s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.user-card {
+  width: 65%;
+  padding: 30px;
+  height: calc(100% - 60px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  justify-content: flex-start;
+}
+
+.llm-card .title {
+  height: 60px;
+  margin-top: 30px;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.llm-card img {
+  height: 100%;
+}
+
+.llm-card .input-wrapper {
+  margin: 20px 40px;
+  width: calc(100% - 80px);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.llm-card textarea {
+  width: calc(100% - 22px);
+  height: 100%;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 16px;
+  padding: 5px 11px;
+  resize: none;
+  border: 1px solid var(--color-dark-0);
+  box-shadow: inset 0 0 0 1 transparent;
+  transition: box-shadow 0.1s;
+}
+
+.llm-card textarea:active,
+.llm-card textarea:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-dark-0);
+}
+
+.llm-card button {
+  width: 60%;
+  height: 40px;
+  margin-top: 10px;
+  margin-bottom: 30px;
+  flex: unset;
+  transition: all 0.1s ease;
+}
+
+.llm-card button:hover {
+  background-color: rgba(255, 255, 255, 0.5);
 }
 </style>

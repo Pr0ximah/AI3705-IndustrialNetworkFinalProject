@@ -880,3 +880,42 @@ ipcMain.handle("open-directory", async (event, dirPath) => {
     throw new Error(`打开目录失败: ${error.message}`);
   }
 });
+
+ipcMain.handle("upload-to-fbb", async (event, folderPath) => {
+  try {
+    let fileDataArray = [];
+
+    // 使用 fs.promises.readdir 替代回调形式
+    const files = await fs.promises.readdir(folderPath);
+
+    const filesToRead = files.filter(
+      (filename) => filename.endsWith(".fbt") || filename.endsWith(".sys")
+    );
+
+    if (filesToRead.length === 0) {
+      return fileDataArray;
+    }
+
+    // 使用 Promise.all 并发读取文件
+    const readPromises = filesToRead.map(async (filename) => {
+      const fullPath = path.join(folderPath, filename);
+      try {
+        const dataBuffer = await fs.promises.readFile(fullPath);
+        return {
+          filename: filename,
+          contentBuffer: dataBuffer,
+          mimeType: "application/octet-stream",
+        };
+      } catch (err) {
+        console.error(`Error reading file ${filename}:`, err);
+        throw new Error(`读取文件失败: ${err}`);
+      }
+    });
+
+    const results = await Promise.all(readPromises);
+    return results;
+  } catch (error) {
+    console.error(`Error reading directory ${folderPath}:`, error);
+    throw new Error(`读取目录失败: ${error.message}`);
+  }
+});

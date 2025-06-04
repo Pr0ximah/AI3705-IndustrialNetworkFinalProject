@@ -43,6 +43,7 @@
       <Transition name="welcome-fade" mode="out-in">
         <WelcomeMask
           ref="welcomeMaskRef"
+          :workspace-inited="workspaceInited"
           v-if="showWelcome"
           style="z-index: 500"
           @pass-create-project="projectCreated"
@@ -76,6 +77,9 @@
       </Transition>
     </ElMain>
     <div :style="{ opacity: showMask ? 1 : 0 }" class="homeview-mask" />
+    <div v-if="!workspaceInited" class="background">
+      <img src="@/assets/background.png" />
+    </div>
   </ElContainer>
 </template>
 
@@ -89,13 +93,15 @@ import {
   ElMain,
   ElLoading,
   ElNotification,
+  ElMessageBox,
 } from "element-plus";
-import { computed, ref, provide, onMounted } from "vue";
+import { UploadFilled } from "@element-plus/icons-vue";
+import { computed, ref, provide, onMounted, markRaw } from "vue";
 import WelcomeMask from "@/components/WelcomeMask.vue";
 import WorkspaceMenu from "@/components/WorkspaceMenu.vue";
 import SaveWorkspace from "@/components/SaveWorkspace.vue";
 import SelectWorkspace from "@/components/SelectWorkspace.vue";
-import service from "@/util/ajax_inst";
+import { service, FBB_service } from "@/util/ajax_inst.js";
 
 const blockCanvasRef = ref(null);
 const welcomeMaskRef = ref(null);
@@ -234,6 +240,7 @@ async function emitConvertWorkspace() {
     });
     await window.ipcApi.openDirectory(save_dir);
     if (data.data.success) {
+      loading?.close();
       ElNotification({
         title: "代码已生成！",
         showClose: false,
@@ -242,6 +249,7 @@ async function emitConvertWorkspace() {
         duration: 3000,
         customClass: "default-notification",
       });
+      await uploadToFBB(save_dir);
     } else {
       ElNotification({
         title: "代码生成失败",
@@ -266,6 +274,84 @@ async function emitConvertWorkspace() {
         customClass: "default-notification",
       });
     }
+    loading?.close();
+  }
+}
+
+async function uploadToFBB(folderPath) {
+  let loading = null;
+  try {
+    await ElMessageBox.confirm(
+      "检测到FBB运行中！是否要将生成的组态上传到FBB IDE？",
+      "提示",
+      {
+        confirmButtonText: "上传",
+        cancelButtonText: "取消",
+        type: "info",
+        icon: markRaw(UploadFilled),
+        showClose: false,
+        closeOnClickModal: false,
+        closeOnPressEscape: false,
+        cancelButtonClass: "cancel-btn",
+        confirmButtonClass: "positive-confirm-btn",
+        customClass: "clear-workspace-dialog",
+      }
+    );
+    loading = ElLoading.service({
+      lock: true,
+      customClass: "default-loading",
+      text: "正在上传代码...",
+      background: "rgba(255, 255, 255, 0.7)",
+    });
+    const files_raw = await window.ipcApi.uploadToFBB(folderPath);
+    const file_list = files_raw.map((fileRaw) => {
+      return {
+        filename: fileRaw.filename,
+        file: new Blob([fileRaw.contentBuffer], {
+          type: fileRaw.mimeType,
+        }),
+      };
+    });
+    let state_code_list = [];
+    for (const file of file_list) {
+      const formData = new FormData();
+      formData.append(file.filename, file.file);
+      const response = await FBB_service.post("/import", formData);
+      state_code_list.push(response.data.code);
+    }
+    const success_cnt = state_code_list.filter((code) => code === 1).length;
+    if (success_cnt !== file_list.length) {
+      ElNotification({
+        title: "上传部分文件失败",
+        showClose: false,
+        message: `成功上传 ${success_cnt} / ${file_list.length} 个文件，请检查FBB IDE日志`,
+        type: "warning",
+        duration: 3000,
+        customClass: "default-notification",
+      });
+    } else {
+      ElNotification({
+        title: "上传成功",
+        showClose: false,
+        message: `已成功上传所有文件到FBB IDE`,
+        type: "success",
+        duration: 3000,
+        customClass: "default-notification",
+      });
+    }
+  } catch (error) {
+    if (error === "cancel") {
+      return;
+    }
+    let errorMessage = window.ipcApi.extractErrorMessage(error);
+    ElNotification({
+      title: "上传失败",
+      showClose: false,
+      message: `${errorMessage || error}`,
+      type: "error",
+      duration: 3000,
+      customClass: "default-notification",
+    });
   }
   loading?.close();
 }
@@ -370,6 +456,7 @@ provide("autoSaveWorkspace", autoSaveWorkspace);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  z-index: 200;
 }
 
 .container-main {
@@ -447,5 +534,25 @@ provide("autoSaveWorkspace", autoSaveWorkspace);
 .home-icon-btn:hover {
   background-color: rgba(0, 0, 0, 0.1);
   cursor: pointer;
+}
+
+.background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.background img {
+  height: 100%;
+  object-fit: cover;
+  filter: opacity(0.1) blur(4px);
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  pointer-events: none;
 }
 </style>

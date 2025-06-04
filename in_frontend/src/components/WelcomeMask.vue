@@ -1,5 +1,8 @@
 <template>
-  <div class="welcome-page">
+  <div
+    class="welcome-page"
+    :class="{ 'background-blur': !props.workspaceInited }"
+  >
     <Transition name="welcome-title" mode="out-in">
       <div class="wrapper" v-if="!projectPath">
         <div class="welcome-content">
@@ -80,7 +83,14 @@
 </template>
 
 <script setup>
-import { ref, defineEmits, inject, defineExpose, computed } from "vue";
+import {
+  ref,
+  defineEmits,
+  inject,
+  defineExpose,
+  computed,
+  defineProps,
+} from "vue";
 import { ElIcon, ElNotification } from "element-plus";
 import CreateProject from "./CreateProject.vue";
 const createProjCompRef = ref(null);
@@ -93,6 +103,12 @@ const showLoading = computed(() => {
   } else {
     return false;
   }
+});
+const props = defineProps({
+  workspaceInited: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 defineExpose({
@@ -146,6 +162,11 @@ async function openProject() {
   background-color: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(10px);
   z-index: 500;
+}
+
+.welcome-page.background-blur {
+  background-color: transparent;
+  backdrop-filter: none;
 }
 
 .wrapper {
@@ -218,7 +239,7 @@ button:hover {
 
 .welcome-title-enter-active,
 .welcome-title-leave-active {
-  transition: transform 0.3s, opacity 0.3s;
+  transition: transform 0.5s, opacity 0.5s;
 }
 
 .welcome-title-enter-from,
@@ -229,7 +250,7 @@ button:hover {
 
 .welcome-create-page-enter-active,
 .welcome-create-page-leave-active {
-  transition: transform 0.3s, opacity 0.3s;
+  transition: transform 0.5s, opacity 0.5s;
 }
 
 .welcome-create-page-enter-from,
