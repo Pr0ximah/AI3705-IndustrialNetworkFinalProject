@@ -68,6 +68,11 @@ class Line {
     this.offsetX = offsetX;
     this.offsetY = offsetY;
     this.segments = [];
+
+    // 添加唯一标识符和创建时间，用于避让优先级
+    this.id = Math.random().toString(36).substring(2, 11);
+    this.createdAt = Date.now();
+
     this.calculatePath();
 
     if (addToManager) {
@@ -293,6 +298,33 @@ class Line {
     return { canPass: false, passageY: null };
   }
 
+  // 计算层级偏移量，确保每条线都有不同的偏移
+  calculateLayeredOffset(currentLineIndex) {
+    // 如果是最早创建的线（索引为0），不需要偏移
+    if (currentLineIndex === 0) {
+      return 0;
+    }
+
+    // 基础偏移量
+    const baseOffset = LINE_SPACING;
+
+    // 根据层级计算偏移量，每一层都有不同的偏移
+    const layerOffset = baseOffset * currentLineIndex;
+
+    // 智能确定偏移方向
+    let direction = this.calculateAvoidanceDirection(currentLineIndex);
+
+    const finalOffset = layerOffset * direction;
+    return finalOffset;
+  }
+
+  // 新增：智能计算避让方向 (简化版)
+  calculateAvoidanceDirection(currentLineIndex) {
+    // 简单交替方向
+    const direction = currentLineIndex % 2 === 0 ? 1 : -1;
+    return direction;
+  }
+
   // 应用连线避让算法
   applyLineAvoidance(basePath, startX, startY) {
     const existingLines = lineManager.getExistingLines(this);
@@ -302,13 +334,16 @@ class Line {
 
     let adjustedPath = [...basePath];
 
-    // 对每个线段进行避让检查，但保持头尾点不变
+    // 对每个线段进行避让检查，但严格保持第一段和最后一段水平
     for (let i = 0; i < adjustedPath.length; i++) {
       const segment = adjustedPath[i];
-
-      // 跳过第一段和最后一段的端点调整，只调整中间部分
       const isFirstSegment = i === 0;
       const isLastSegment = i === adjustedPath.length - 1;
+
+      // 第一段和最后一段必须保持水平，跳过冲突检测
+      if (isFirstSegment || isLastSegment) {
+        continue;
+      }
 
       // 检查与现有线的冲突
       const conflicts = this.findSegmentConflicts(
@@ -319,14 +354,23 @@ class Line {
       );
 
       if (conflicts.length > 0) {
-        // 调整线段位置以避让冲突，但保持头尾点不变
+        // 获取所有相关的线（包括当前线和冲突线）
+        const allRelevantLines = [this, ...conflicts.map((c) => c.line)];
+        // 按创建时间排序，确定优先级
+        const sortedLines = allRelevantLines.sort(
+          (a, b) => a.createdAt - b.createdAt
+        );
+        // 找到当前线在排序后的位置
+        const currentLineIndex = sortedLines.findIndex(
+          (line) => line.id === this.id
+        );
+
         const adjustedSegment = this.resolveSegmentConflicts(
           segment,
           conflicts,
-          i,
-          adjustedPath,
           isFirstSegment,
-          isLastSegment
+          isLastSegment,
+          currentLineIndex
         );
         if (adjustedSegment) {
           adjustedPath[i] = adjustedSegment;
@@ -340,6 +384,17 @@ class Line {
           );
         }
       }
+    }
+
+    // 最终确保第一段和最后一段保持水平
+    if (adjustedPath.length > 0) {
+      // 确保第一段是水平的
+      const firstSegment = adjustedPath[0];
+      firstSegment.y2 = firstSegment.y1;
+
+      // 确保最后一段是水平的
+      const lastSegment = adjustedPath[adjustedPath.length - 1];
+      lastSegment.y1 = lastSegment.y2;
     }
 
     return adjustedPath;
@@ -360,7 +415,7 @@ class Line {
 
     let adjustedPath = [...basePath];
 
-    // 只对中间的垂直线段进行y方向避让
+    // 只对中间的垂直线段进行避让
     const middleSegmentIndex = 1; // 垂直线段在简单路径中总是第二个
     if (adjustedPath.length > middleSegmentIndex) {
       const middleSegment = adjustedPath[middleSegmentIndex];
@@ -373,27 +428,32 @@ class Line {
         );
 
         if (conflicts.length > 0) {
-          // 计算需要的x偏移量
-          let maxOffset = 0;
-          for (const conflict of conflicts) {
-            const requiredOffset =
-              LINE_AVOID_MARGIN -
-              Math.abs(middleSegment.x1 - conflict.segment.x1) +
-              LINE_SPACING;
-            maxOffset = Math.max(maxOffset, requiredOffset);
-          }
+          // 获取所有相关的线（包括当前线和冲突线）
+          const allRelevantLines = [this, ...conflicts.map((c) => c.line)];
+          // 按创建时间排序，确定优先级
+          const sortedLines = allRelevantLines.sort(
+            (a, b) => a.createdAt - b.createdAt
+          );
+          // 找到当前线在排序后的位置
+          const currentLineIndex = sortedLines.findIndex(
+            (line) => line.id === this.id
+          );
 
-          // 确定偏移方向
-          const direction = middleSegment.x1 > conflicts[0].segment.x1 ? 1 : -1;
-          const offset = maxOffset * direction;
+          // 计算层级偏移量，支持左右双向避让
+          const layeredOffset = this.calculateLayeredOffset(
+            currentLineIndex // Pass only currentLineIndex
+          );
 
           // 调整垂直线段的x坐标
-          middleSegment.x1 += offset;
-          middleSegment.x2 += offset;
+          const newX = middleSegment.x1 + layeredOffset;
+          middleSegment.x1 = newX;
+          middleSegment.x2 = newX;
 
           // 更新第一段和第三段的连接点，但保持头尾点不变
-          adjustedPath[0].x2 = middleSegment.x1;
-          adjustedPath[2].x1 = middleSegment.x2;
+          adjustedPath[0].x2 = newX;
+          if (adjustedPath.length > 2) {
+            adjustedPath[2].x1 = newX;
+          }
         }
       }
     }
@@ -412,20 +472,25 @@ class Line {
   // 查找垂直线段的冲突
   findVerticalSegmentConflicts(segment, existingLines) {
     const conflicts = [];
+    const margin = LINE_SPACING + 0.1; // 增加一个小的epsilon以包含精确间隔的线
 
     for (const line of existingLines) {
       for (const existingSegment of line.segments) {
         if (existingSegment.isVertical) {
           const xDiff = Math.abs(segment.x1 - existingSegment.x1);
-          if (xDiff < LINE_AVOID_MARGIN) {
-            // 检查y轴重叠
+
+          if (xDiff < margin) {
             const y1Min = Math.min(segment.y1, segment.y2);
             const y1Max = Math.max(segment.y1, segment.y2);
             const y2Min = Math.min(existingSegment.y1, existingSegment.y2);
             const y2Max = Math.max(existingSegment.y1, existingSegment.y2);
 
-            // 检查是否有重叠
-            if (!(y1Max < y2Min || y2Max < y1Min)) {
+            const overlapMargin = 5;
+            const hasOverlap = !(
+              y1Max < y2Min - overlapMargin || y2Max < y1Min - overlapMargin
+            );
+
+            if (hasOverlap) {
               conflicts.push({
                 segment: existingSegment,
                 line: line,
@@ -436,7 +501,6 @@ class Line {
         }
       }
     }
-
     return conflicts;
   }
 
@@ -486,20 +550,23 @@ class Line {
 
   // 检查两个线段的冲突
   checkSegmentConflict(segment1, segment2, allowYOverlap = false) {
-    const margin = LINE_AVOID_MARGIN;
+    // const margin = LINE_SPACING; // 使用更大的检测距离
+    const margin = LINE_SPACING + 0.1; // 增加一个小的epsilon
 
     // 垂直线段之间的冲突检查
     if (segment1.isVertical && segment2.isVertical) {
       const xDiff = Math.abs(segment1.x1 - segment2.x1);
       if (xDiff < margin) {
+        // 修改后，距离等于LINE_SPACING的情况也会被视为冲突
         // 检查y轴重叠
         const y1Min = Math.min(segment1.y1, segment1.y2);
         const y1Max = Math.max(segment1.y1, segment1.y2);
         const y2Min = Math.min(segment2.y1, segment2.y2);
         const y2Max = Math.max(segment2.y1, segment2.y2);
 
-        // 检查是否有重叠
-        if (!(y1Max < y2Min || y2Max < y1Min)) {
+        // 增加容错边距
+        const overlapMargin = 5;
+        if (!(y1Max < y2Min - overlapMargin || y2Max < y1Min - overlapMargin)) {
           return { type: "vertical", distance: xDiff };
         }
       }
@@ -509,6 +576,7 @@ class Line {
     if (segment1.isHorizontal && segment2.isHorizontal) {
       const yDiff = Math.abs(segment1.y1 - segment2.y1);
       if (yDiff < margin) {
+        // 修改后，距离等于LINE_SPACING的情况也会被视为冲突
         // 检查x轴重叠
         const x1Min = Math.min(segment1.x1, segment1.x2);
         const x1Max = Math.max(segment1.x1, segment1.x2);
@@ -516,12 +584,13 @@ class Line {
         const x2Max = Math.max(segment2.x1, segment2.x2);
 
         // 如果允许Y重叠且当前是水平线且Y值相等，则不视为冲突
-        if (allowYOverlap && segment1.y1 === segment2.y1) {
+        if (allowYOverlap && Math.abs(segment1.y1 - segment2.y1) < 1) {
           return null;
         }
 
-        // 检查是否有重叠
-        if (!(x1Max < x2Min || x2Max < x1Min)) {
+        // 增加容错边距
+        const overlapMargin = 5;
+        if (!(x1Max < x2Min - overlapMargin || x2Max < x1Min - overlapMargin)) {
           return { type: "horizontal", distance: yDiff };
         }
       }
@@ -534,21 +603,15 @@ class Line {
   resolveSegmentConflicts(
     segment,
     conflicts,
-    segmentIndex,
-    path,
     isFirstSegment = false,
-    isLastSegment = false
+    isLastSegment = false,
+    currentLineIndex
   ) {
-    console.log("解决线段冲突", segment, conflicts);
     if (conflicts.length === 0) return null;
 
-    // 找到需要的最小偏移量
-    let maxOffset = 0;
-
-    for (const conflict of conflicts) {
-      const requiredOffset =
-        LINE_AVOID_MARGIN - conflict.distance + LINE_SPACING;
-      maxOffset = Math.max(maxOffset, requiredOffset);
+    // 第一段和最后一段必须保持水平，不允许倾斜
+    if (isFirstSegment || isLastSegment) {
+      return null;
     }
 
     // 根据冲突类型调整线段
@@ -561,53 +624,26 @@ class Line {
     );
 
     if (firstConflict.type === "horizontal") {
-      // 水平线冲突，调整y坐标，但保持头尾点不变
-      const direction = this.determineAvoidanceDirection(
-        segment,
-        conflicts,
-        "y"
+      // 水平线冲突，调整y坐标
+      const layeredOffset = this.calculateLayeredOffset(
+        currentLineIndex // Pass only currentLineIndex
       );
-      const offset = maxOffset * direction;
 
-      // 如果是第一段，保持起始点不变
-      if (!isFirstSegment) {
-        adjustedSegment.y1 += offset;
-      }
-      // 如果是最后一段，保持结束点不变
-      if (!isLastSegment) {
-        adjustedSegment.y2 += offset;
-      }
+      // 对于中间的水平线段，整体移动
+      adjustedSegment.y1 += layeredOffset;
+      adjustedSegment.y2 += layeredOffset;
     } else if (firstConflict.type === "vertical") {
-      // 垂直线冲突，调整x坐标，但保持头尾点不变
-      const direction = this.determineAvoidanceDirection(
-        segment,
-        conflicts,
-        "x"
+      // 垂直线冲突，调整x坐标
+      const layeredOffset = this.calculateLayeredOffset(
+        currentLineIndex // Pass only currentLineIndex
       );
-      const offset = maxOffset * direction;
 
-      // 如果是第一段，保持起始点不变
-      if (!isFirstSegment) {
-        adjustedSegment.x1 += offset;
-      }
-      // 如果是最后一段，保持结束点不变
-      if (!isLastSegment) {
-        adjustedSegment.x2 += offset;
-      }
+      // 对于中间的垂直线段，整体移动
+      adjustedSegment.x1 += layeredOffset;
+      adjustedSegment.x2 += layeredOffset;
     }
 
-    console.log("调整后的线段", adjustedSegment);
     return adjustedSegment;
-  }
-
-  // 确定避让方向
-  determineAvoidanceDirection(segment, conflicts, axis) {
-    // 简单策略：向上或向右避让
-    if (axis === "y") {
-      return segment.y1 > conflicts[0].segment.y1 ? 1 : -1;
-    } else {
-      return segment.x1 > conflicts[0].segment.x1 ? 1 : -1;
-    }
   }
 
   // 更新相邻线段的连接点
@@ -619,18 +655,37 @@ class Line {
   ) {
     const changedSegment = path[changedIndex];
 
-    // 更新前一个线段的终点，但不影响第一段的起始点
-    if (changedIndex > 0 && !isFirstSegment) {
-      const prevSegment = path[changedIndex - 1];
-      prevSegment.x2 = changedSegment.x1;
-      prevSegment.y2 = changedSegment.y1;
+    // 第一段和最后一段不调整端点，保持连接器位置不变
+    if (isFirstSegment || isLastSegment) {
+      return;
     }
 
-    // 更新后一个线段的起点，但不影响最后一段的结束点
-    if (changedIndex < path.length - 1 && !isLastSegment) {
+    // 更新前一个线段的终点
+    if (changedIndex > 0) {
+      const prevSegment = path[changedIndex - 1];
+      // 如果前一个是第一段，只更新非连接器端
+      if (changedIndex === 1) {
+        // 第一段是水平线，只更新x2坐标
+        prevSegment.x2 = changedSegment.x1;
+        // y2保持不变，因为第一段必须是水平的
+      } else {
+        prevSegment.x2 = changedSegment.x1;
+        prevSegment.y2 = changedSegment.y1;
+      }
+    }
+
+    // 更新后一个线段的起点
+    if (changedIndex < path.length - 1) {
       const nextSegment = path[changedIndex + 1];
-      nextSegment.x1 = changedSegment.x2;
-      nextSegment.y1 = changedSegment.y2;
+      // 如果后一个是最后一段，只更新非连接器端
+      if (changedIndex === path.length - 2) {
+        // 最后一段是水平线，只更新x1坐标
+        nextSegment.x1 = changedSegment.x2;
+        // y1保持不变，因为最后一段必须是水平的
+      } else {
+        nextSegment.x1 = changedSegment.x2;
+        nextSegment.y1 = changedSegment.y2;
+      }
     }
   }
 
