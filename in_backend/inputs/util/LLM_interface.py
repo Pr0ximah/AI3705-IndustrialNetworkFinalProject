@@ -479,7 +479,7 @@ async def process_user_input(user_input, API_KEY):
         prompt=prompt
     )
 
-    PROMPT_2_TEMPLATE = """利用之前生成的设备配置列表，进一步得到该设备的详细配置
+    '''PROMPT_2_TEMPLATE = """利用之前生成的设备配置列表，进一步得到该设备的详细配置
 请根据设备列表生成该设备的详细配置，包括输入输出信号、状态机、算法等。请使用JSON格式，确保设备的配置都包含必要的字段。
 注意："type"只能是["int", "float", "bool", "string", "time"]中的一种，"description"字段应简洁明了。
 
@@ -607,7 +607,96 @@ async def process_user_input(user_input, API_KEY):
 }
 ```
 
-注意：除了设备名称外，其他的字段都需要根据实际情况进行补充。"""
+注意：除了设备名称外，其他的字段都需要根据实际情况进行补充。"""'''
+
+    PROMPT_2_TEMPLATE = """根据设备"{device}"生成详细的功能块配置。
+
+**重要约束条件：**
+1. 严格按照JSON格式输出，不允许添加任何格式化字符
+2. Code字段中的代码必须使用\\n表示换行，不允许使用实际换行符
+3. 所有字符串必须使用双引号，避免特殊字符
+4. type字段只能是: ["int", "float", "bool", "string", "time"]
+5. 除设备名称外，所有字段使用中文描述
+
+**输出格式要求：**
+- 直接输出JSON，不要包含```json```代码块标记
+- Code字段示例：\"IF condition THEN\\n    action := TRUE;\\nEND_IF;\"
+- 确保JSON语法完全正确，可直接被Python json.loads()解析
+
+请为设备"{device}"生成如下格式的配置：
+
+{{
+  "name": "{device}",
+  "var_input": [
+    {{
+      "name": "输入变量名",
+      "type": "bool|int|float|string|time",
+      "description": "变量描述"
+    }}
+  ],
+  "var_output": [
+    {{
+      "name": "输出变量名", 
+      "type": "bool|int|float|string|time",
+      "description": "变量描述"
+    }}
+  ],
+  "signal_input": [
+    {{
+      "name": "输入信号名",
+      "description": "信号描述"
+    }}
+  ],
+  "signal_output": [
+    {{
+      "name": "输出信号名",
+      "description": "信号描述" 
+    }}
+  ],
+  "InternalVars": [
+    {{
+      "name": "内部变量名",
+      "type": "bool|int|float|string|time",
+      "InitalVaule": "初始值",
+      "description": "变量描述"
+    }}
+  ],
+  "ECC": {{
+    "ECStates": [
+      {{
+        "name": "状态名",
+        "comment": "状态描述",
+        "x": 50,
+        "y": 50,
+        "ecAction": {{
+          "algorithm": "算法名",
+          "output": "输出信号名"
+        }}
+      }}
+    ],
+    "ECTransitions": [
+      {{
+        "source": "源状态",
+        "destination": "目标状态", 
+        "condition": "转换条件",
+        "comment": "转换描述",
+        "x": 100,
+        "y": 100
+      }}
+    ]
+  }},
+  "Algorithms": [
+    {{
+      "Name": "算法名",
+      "Comment": "算法描述",
+      "Input": "输入参数",
+      "Output": "输出参数",
+      "Code": "算法代码使用\\\\n表示换行"
+    }}
+  ]
+}}
+
+设备描述：{device}是一个工业设备，请根据其功能特点生成合理的配置。"""
 
     async with DeviceConfigurationAssistant(API_KEY) as assistant:
         final_result = []
@@ -617,14 +706,38 @@ async def process_user_input(user_input, API_KEY):
                 "event": "status",
                 "data": json.dumps(
                     {
-                        "message": "开始生成设备配置列表",
+                        "message": "开始生成设备配置列表...",
                         "progress": 10,
                         "next_progress": 30,
+                        "estimate_time": 30,
                     },
                     ensure_ascii=False,
                 ),
             }
             device_list_response = await assistant.generate_device_list(PROMPT_1)
+            '''device_list_response = """```json
+[
+    {
+        "device": "sorter",
+        "input_signal": "物料到位传感器, 物料类型传感器",        
+        "output_signal": "分拣臂动作信号, 分拣方向控制信号",     
+        "description": "用于识别和分拣不同类型物料，根据传感器反 馈控制分拣动作"
+    },
+    {
+        "device": "stacker",
+        "input_signal": "堆垛高度传感器, 物料到位传感器",        
+        "output_signal": "升降电机控制信号, 伸缩叉控制信号",     
+        "description": "用于物料的堆垛和取放，根据高度和位置反馈 控制升降和伸缩动作"
+    },
+    {
+        "device": "conveyor",
+        "input_signal": "物料检测传感器, 速度反馈传感器",        
+        "output_signal": "电机启停信号, 速度调节信号",
+        "description": "用于水平输送物料，根据物料检测和速度反馈 控制输送带运行"
+    }
+]
+```"""
+            await asyncio.sleep(5)  # 用异步sleep模拟处理时延'''
 
             # 将结果包装为JSON格式的事件
             print("send:设备列表响应内容:", device_list_response)
@@ -632,9 +745,9 @@ async def process_user_input(user_input, API_KEY):
                 "event": "status",
                 "data": json.dumps(
                     {
-                        "message": "设备列表生成完成",
+                        "message": "设备列表生成完成 ✅",
                         "progress": 30,
-                        "next_progress": 40,
+                        "replace": True,
                     },
                     ensure_ascii=False,
                 ),
@@ -656,7 +769,7 @@ async def process_user_input(user_input, API_KEY):
                     "event": "status",
                     "data": json.dumps(
                         {
-                            "message": f"解析到设备: {', '.join(devices)}",
+                            "message": f"解析到设备: {', '.join(devices)} ✅",
                             "progress": 40,
                         },
                         ensure_ascii=False,
@@ -679,9 +792,10 @@ async def process_user_input(user_input, API_KEY):
                     "event": "status",
                     "data": json.dumps(
                         {
-                            "message": f"正在生成 {device} 的配置 ({idx+1}/{total_devices})",
+                            "message": f"({idx+1}/{total_devices})  正在生成 {device} 的配置...",
                             "progress": progress,
-                            "next_progress": progress + 10,
+                            "next_progress": 40 + int(((idx+1) / total_devices) * 50),
+                            "estimate_time": 60,
                         },
                         ensure_ascii=False,
                     ),
@@ -690,18 +804,23 @@ async def process_user_input(user_input, API_KEY):
                 detail_response = await assistant.generate_device_detail(
                     device, PROMPT_2_TEMPLATE
                 )
+                # detail_response = r'''```json
+                # {"name": "Sorter Configuration", "var_input": [{"name": "MaterialPresent", "type": "bool", "description": "检测物料是否到位"}, {"name": "MaterialType", "type": "int", "description": "物料类型编码(1-5)"}], "var_output": [{"name": "ArmPosition", "type": "int", "description": "分拣臂当前位置(1-3)"}, {"name": "DirectionControl", "type": "int", "description": "分拣方向控制(0=左,1=右)"}], "signal_input": [{"name": "MaterialDetection", "description": "物料到位传感器信号"}, {"name": "TypeDetection", "description": "物料类型识别完成信号"}], "signal_output": [{"name": "ArmActuation", "description": "分拣臂动作信号"}, {"name": "SortComplete", "description": "分拣完成信号"}], "InternalVars": [{"name": "IsSorting", "type": "bool", "InitalVaule": "FALSE", "description": "记录分拣机当前工作状态"}, {"name": "CurrentType", "type": "int", "InitalVaule": "0", "description": "当前处理的物料类型"}], "ECC": {"ECStates": [{"name": "Idle", "comment": "等待物料状态", "x": 50, "y": 50}, {"name": "Detecting", "comment": "物料检测状态", "x": 200, "y": 50, "ecAction": {"algorithm": "DetectMaterial", "output": "MaterialDetection"}}, {"name": "Sorting", "comment": "分拣执行状态", "x": 350, "y": 50, "ecAction": {"algorithm": "ExecuteSort", "output": "ArmActuation"}}, {"name": "Completed", "comment": "分拣完成状态", "x": 350, "y": 150, "ecAction": {"algorithm": "FinishSort", "output": "SortComplete"}}], "ECTransitions": [{"source": "Idle", "destination": "Detecting", "condition": "MaterialPresent", "comment": "检测到物料", "x": 125, "y": 30}, {"source": "Detecting", "destination": "Sorting", "condition": "TypeDetection", "comment": "物料类型识别完成", "x": 275, "y": 30}, {"source": "Sorting", "destination": "Completed", "condition": "ArmPosition == TargetPosition", "comment": "分拣到位", "x": 350, "y": 100}, {"source": "Completed", "destination": "Idle", "condition": "TRUE", "comment": "返回初始状态", "x": 200, "y": 150}]}, "Algorithms": [{"Name": "DetectMaterial", "Comment": "物 料检测算法", "Input": "MaterialPresent, MaterialType", "Output": "MaterialDetection, CurrentType", "Code": "IF MaterialPresent THEN\n    MaterialDetection := TRUE;\n    CurrentType := MaterialType;\nELSE\n    MaterialDetection := FALSE;\n    CurrentType := 0;\nEND_IF;"}, {"Name": "ExecuteSort", "Comment": "分拣执行算法", "Input": "CurrentType", "Output": "ArmPosition, DirectionControl", "Code": "CASE CurrentType OF\n    1,2: DirectionControl := 0; ArmPosition := 1;\n    3,4: DirectionControl := 0; ArmPosition := 2;\n    5: DirectionControl := 1; ArmPosition := 3;\n    ELSE: DirectionControl := 0; ArmPosition := 0;\nEND_CASE;"}, {"Name": "FinishSort", "Comment": "分拣完成处理", "Input": "", "Output": "SortComplete", "Code": "SortComplete := TRUE;\nIsSorting := FALSE;"}], "id": 0}
+                # ```'''
+                await asyncio.sleep(5)  # 用异步sleep模拟处理时延
                 device_config = extract_and_parse_json(detail_response)
                 device_config["id"] = idx
 
                 final_result.append(device_config)
-                print(f"send:设备 {device} 的配置生成完成:", device_config)
+                print(f"send:设备 {device} 的配置生成完成✅:", device_config)
                 yield {
-                    "event": "device_config",
+                    "event": "status",
                     "data": json.dumps(
                         {
-                            "device": device,
-                            "config": device_config,
-                            "next_progress": progress + 20,
+                            "message": f"({idx+1}/{total_devices})  {device} 配置生成完成 ✅",
+                            # "progress": progress,
+                            "progress": 40 + int(((idx+1) / total_devices) * 50),
+                            "replace": True,
                         },
                         ensure_ascii=False,
                     ),
@@ -712,7 +831,7 @@ async def process_user_input(user_input, API_KEY):
             yield {
                 "event": "status",
                 "data": json.dumps(
-                    {"message": "所有设备配置生成完成", "progress": 100},
+                    {"message": "所有设备配置生成完成 ✅", "progress": 100},
                     ensure_ascii=False,
                 ),
             }
@@ -746,7 +865,6 @@ async def sse_generator(user_input, api_key):
         else:
             # 如果event是字符串，将其作为message事件发送
             yield f"event: message\ndata: {json.dumps({'message': event}, ensure_ascii=False)}\n\n"
-
 
     # try:
     #     async for event in process_user_input(user_input, api_key):
