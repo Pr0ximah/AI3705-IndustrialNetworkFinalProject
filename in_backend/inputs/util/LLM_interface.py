@@ -305,7 +305,7 @@ class LLMWithMemory:
 
 
 # 专门用于你的设备配置任务的类
-class DeviceConfigurationAssistant:
+class AI_Assistant:
     """设备配置生成助手"""
 
     def __init__(self, model: str = None):
@@ -465,7 +465,7 @@ async def LLM_generate_block_categories(config_manager, user_input, model):
     # 你的提示词
     PROMPT_1 = device_list_template.format(prompt=user_prompt)
 
-    async with DeviceConfigurationAssistant(model) as assistant:
+    async with AI_Assistant(model) as assistant:
         final_result = []
         try:
             # 第一步：生成设备列表
@@ -606,7 +606,7 @@ async def LLM_generate_block_categories(config_manager, user_input, model):
             raise Exception(error_msg)
 
 
-async def LLM_generate_AI_recommend(config_manager, user_input):
+async def LLM_generate_AI_recommend(config_manager, user_input, model):
     user_input = json.loads(user_input)
 
     # 构建AI推荐的提示词
@@ -634,7 +634,7 @@ async def LLM_generate_AI_recommend(config_manager, user_input):
     # 构建完整的提示词
     PROMPT_AI_RECOMMEND = ai_recommend_template.format(prompt=user_prompt)
 
-    async with DeviceConfigurationAssistant() as assistant:
+    async with AI_Assistant(model) as assistant:
         try:
             # 开始生成AI推荐
             progress_config = config_manager.get("progress.ai_recommend", {
