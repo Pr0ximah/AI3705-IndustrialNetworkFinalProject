@@ -170,6 +170,26 @@ const props = defineProps({
 });
 const emit = defineEmits(["createProject", "back"]);
 
+function importAll(r) {
+  // 动态导入所有图片
+  const images = {};
+  r.keys().forEach((key) => {
+    const name = key.replace("./", "").replace(/\.(png|svg)$/, "");
+    // 如果文件名包含连字符，也添加连字符分隔的各个部分作为key
+    if (name.includes("-")) {
+      const parts = name.split("-");
+      parts.forEach((part) => {
+        if (part && !images[part]) {
+          images[part] = r(key);
+        }
+      });
+    } else {
+      images[name] = r(key);
+    }
+  });
+  return images;
+}
+
 const projectName = ref("");
 const projectDescription = ref("");
 const llmUserInput = ref("");
@@ -182,26 +202,21 @@ const apiConfigStatus = ref(false);
 const availableModels = ref([]);
 const activeModel = ref("");
 const isRefreshing = ref(false);
-import deepseedIcon from "@/assets/deepseek.svg";
-import qwenIcon from "@/assets/qwen.png";
-import defaultLLMIcon from "@/assets/LLM.svg";
-const modelNameIconMap = ref({
-  deepseek: deepseedIcon,
-  qwen: qwenIcon,
-  default: defaultLLMIcon,
-});
+const modelNameIconMap = importAll(
+  require.context("@/assets/LLM_icons", false, /\.(png|svg)$/)
+);
 const blockConfOrigin = {
   name: "",
   description: "",
 };
 
 function getIconByLLMName(llmName) {
-  for (const modelName in modelNameIconMap.value) {
+  for (const modelName in modelNameIconMap) {
     if (llmName.toLowerCase().includes(modelName)) {
-      return modelNameIconMap.value[modelName];
+      return modelNameIconMap[modelName];
     }
   }
-  return modelNameIconMap.value.default;
+  return modelNameIconMap.default;
 }
 
 function deleteItem(index) {
@@ -1097,6 +1112,10 @@ span .collapse-title:hover {
 
 .model-option:last-child :deep(.el-radio-button__inner) {
   border-radius: 0 8px 8px 0;
+}
+
+.model-option:only-child :deep(.el-radio-button__inner) {
+  border-radius: 8px;
 }
 
 .model-option :deep(.el-radio-button__inner) {

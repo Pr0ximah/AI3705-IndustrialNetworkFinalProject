@@ -1,6 +1,17 @@
 import equipment from "@/assets/equipment.svg";
 
-const BLOCK_COLOR_MAP = ["#f9b4ab", "#fdebd3", "#ccd9ff", "#f0fff0", "#e4d6ff"]; // 块颜色映射
+// const BLOCK_COLOR_MAP = ["#f9b4ab", "#fdebd3", "#ccd9ff", "#f0fff0", "#e4d6ff"]; // 块颜色映射
+const BLOCK_COLOR_MAP = [
+  "#a3c4e8",
+  "#ffbf87",
+  "#95d095",
+  "#c2a3de",
+  "#c5a5a5",
+  "#f1bbe1",
+  "#bfbfbf",
+  "#dde091",
+  "#8bdde7",
+];
 
 function safeGet(list, index) {
   return index >= 0 && index < list.length ? list[index] : null;

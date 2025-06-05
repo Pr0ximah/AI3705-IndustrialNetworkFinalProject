@@ -175,14 +175,6 @@ const props = defineProps({
   },
 });
 
-// 连接器类型中文名映射
-const connectorTypeNames = {
-  signal_input: "信号输入",
-  signal_output: "信号输出",
-  var_input: "变量输入",
-  var_output: "变量输出",
-};
-
 // 画布样式计算属性
 const canvasStyle = computed(() => {
   return {

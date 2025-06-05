@@ -238,7 +238,7 @@ const handleConnectorMouseUp = (type, index, event) => {
   font-size: small;
   transition: box-shadow 0.2s;
   border: 1px solid var(--color-dark-0);
-  --label-width: 45px;
+  --label-width: 60px;
 }
 
 .drag-block:hover {
