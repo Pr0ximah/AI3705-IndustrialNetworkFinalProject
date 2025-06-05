@@ -238,6 +238,7 @@ const handleConnectorMouseUp = (type, index, event) => {
   font-size: small;
   transition: box-shadow 0.2s;
   border: 1px solid var(--color-dark-0);
+  --label-width: 45px;
 }
 
 .drag-block:hover {
@@ -305,7 +306,7 @@ const handleConnectorMouseUp = (type, index, event) => {
 .labels-region {
   position: absolute;
   display: flex;
-  width: 80px;
+  width: calc(var(--label-width) + 20px);
   flex-direction: column;
   justify-content: space-between;
   height: calc(100% - 10px);
@@ -335,8 +336,8 @@ const handleConnectorMouseUp = (type, index, event) => {
   height: 10px;
   display: flex;
   align-items: center;
-  min-width: 60px;
-  max-width: 60px;
+  min-width: var(--label-width);
+  max-width: var(--label-width);
   justify-content: center;
   cursor: auto;
   transition: all 0.2s ease;
@@ -347,7 +348,7 @@ const handleConnectorMouseUp = (type, index, event) => {
   background-color: rgba(255, 255, 255, 1);
   box-shadow: 0 0 3px 3px var(--color-important-light);
   z-index: 1000;
-  min-width: 60px;
+  min-width: var(--label-width);
   max-width: none;
   width: max-content;
   white-space: nowrap;

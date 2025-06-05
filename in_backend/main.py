@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from inputs import input_router
 from outputs import output_router
+from status import status_router
 from inputs.inputs import set_user_config, start_cleanup_task
 import yaml
 import sys
@@ -61,6 +62,7 @@ def main():
 
     app.include_router(input_router)
     app.include_router(output_router)
+    app.include_router(status_router)
 
     uvicorn.run(app, host="127.0.0.1", port=17991, log_level="info")
 

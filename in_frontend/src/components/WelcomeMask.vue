@@ -1,5 +1,8 @@
 <template>
-  <div class="welcome-page">
+  <div
+    class="welcome-page"
+    :class="{ 'background-blur': !props.workspaceInited }"
+  >
     <Transition name="welcome-title" mode="out-in">
       <div class="wrapper" v-if="!projectPath">
         <div class="welcome-content">
@@ -80,8 +83,16 @@
 </template>
 
 <script setup>
-import { ref, defineEmits, inject, defineExpose, computed } from "vue";
-import { ElIcon, ElNotification } from "element-plus";
+import {
+  ref,
+  defineEmits,
+  inject,
+  defineExpose,
+  computed,
+  defineProps,
+} from "vue";
+import { service } from "@/util/ajax_inst.js";
+import { ElIcon, ElNotification, ElLoading } from "element-plus";
 import CreateProject from "./CreateProject.vue";
 const createProjCompRef = ref(null);
 const projectPath = ref("");
@@ -94,31 +105,110 @@ const showLoading = computed(() => {
     return false;
   }
 });
+const props = defineProps({
+  workspaceInited: {
+    type: Boolean,
+    default: false,
+  },
+});
 
 defineExpose({
   showLoading,
 });
 
 async function createProject() {
+  const loading = ElLoading.service({
+    lock: true,
+    customClass: "default-loading",
+    text: "正在创建项目...",
+    background: "rgba(255, 255, 255, 0.7)",
+  });
   try {
+    const service_status = await service.get("/status", { timeout: 3000 });
+    if (service_status.data.status !== "ok") {
+      ElNotification({
+        title: "后台服务状态异常",
+        message: "请尝试重启应用",
+        showClose: false,
+        type: "error",
+        duration: 5000,
+        customClass: "default-notification",
+      });
+      loading.close();
+      return;
+    }
     await autoSaveWorkspace();
     const result = await window.ipcApi.createProject();
     if (result) {
       projectPath.value = result;
     }
   } catch (error) {
+    if (error.name === "AxiosError") {
+      ElNotification({
+        title: "后台服务状态异常",
+        message: "请尝试重启应用",
+        showClose: false,
+        type: "error",
+        duration: 5000,
+        customClass: "default-notification",
+      });
+      loading.close();
+      return;
+    }
+    let errorMessage = window.ipcApi.extractErrorMessage(error);
     console.error("Error creating project:", error);
+    ElNotification({
+      title: "创建项目失败",
+      message: errorMessage,
+      showClose: false,
+      type: "error",
+      duration: 3000,
+      customClass: "default-notification",
+    });
   }
+  loading.close();
 }
 
 async function openProject() {
+  const loading = ElLoading.service({
+    lock: true,
+    customClass: "default-loading",
+    text: "正在打开项目...",
+    background: "rgba(255, 255, 255, 0.7)",
+  });
   try {
+    const service_status = await service.get("/status");
+    if (service_status.data.status !== "ok") {
+      ElNotification({
+        title: "后台服务状态异常",
+        message: "请尝试重启应用",
+        showClose: false,
+        type: "error",
+        duration: 5000,
+        customClass: "default-notification",
+      });
+      loading.close();
+      return;
+    }
     await autoSaveWorkspace();
     await window.ipcApi.openProjectDir();
     emit("passCreateProject");
   } catch (error) {
+    if (error.name === "AxiosError") {
+      ElNotification({
+        title: "后台服务状态异常",
+        message: "请尝试重启应用",
+        showClose: false,
+        type: "error",
+        duration: 5000,
+        customClass: "default-notification",
+      });
+      loading.close();
+      return;
+    }
     let errorMessage = window.ipcApi.extractErrorMessage(error);
     if (errorMessage === "CANCEL") {
+      loading.close();
       return;
     }
     ElNotification({
@@ -126,10 +216,11 @@ async function openProject() {
       message: errorMessage,
       showClose: false,
       type: "error",
-      duration: 2500,
+      duration: 3000,
       customClass: "default-notification",
     });
   }
+  loading.close();
 }
 </script>
 
@@ -146,6 +237,11 @@ async function openProject() {
   background-color: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(10px);
   z-index: 500;
+}
+
+.welcome-page.background-blur {
+  background-color: transparent;
+  backdrop-filter: none;
 }
 
 .wrapper {
@@ -218,7 +314,7 @@ button:hover {
 
 .welcome-title-enter-active,
 .welcome-title-leave-active {
-  transition: transform 0.3s, opacity 0.3s;
+  transition: transform 0.5s, opacity 0.5s;
 }
 
 .welcome-title-enter-from,
@@ -229,7 +325,7 @@ button:hover {
 
 .welcome-create-page-enter-active,
 .welcome-create-page-leave-active {
-  transition: transform 0.3s, opacity 0.3s;
+  transition: transform 0.5s, opacity 0.5s;
 }
 
 .welcome-create-page-enter-from,

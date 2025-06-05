@@ -48,7 +48,6 @@ contextBridge.exposeInMainWorld("ipcApi", {
 
   // 提取错误消息
   extractErrorMessage: (error) => {
-    console.log(error);
     if (error instanceof Error) {
       const errorMessage = error.message.includes("Error:")
         ? error.message.split("Error:").pop().trim()
@@ -104,5 +103,10 @@ contextBridge.exposeInMainWorld("ipcApi", {
   // 打开文件夹
   openDirectory: (path) => {
     return ipcRenderer.invoke("open-directory", path);
-  }
+  },
+
+  // 上传保存的fbt到FBB
+  uploadToFBB: (folderPath) => {
+    return ipcRenderer.invoke("upload-to-fbb", folderPath);
+  },
 });

@@ -2465,6 +2465,8 @@ async function loadWorkspace(workspace) {
     placedBlocks.value = [...placedBlocks.value];
     connections.value = [...connections.value];
 
+    updateAllConnectionLines();
+
     return true;
   } catch (error) {
     console.error("加载工作区失败:", error);
