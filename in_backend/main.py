@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from inputs import input_router
 from outputs import output_router
-from inputs.inputs import set_api_key, start_cleanup_task
+from inputs.inputs import set_user_config, start_cleanup_task
 import yaml
 import sys
 from pathlib import Path
@@ -44,10 +44,9 @@ async def lifespan(app: FastAPI):
 def main():
     with open(config_filepath(), "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
-        api_key = config["API_KEY"]
-        if not api_key:
-            raise ValueError("API_KEY not found in API_KEY.conf")
-        set_api_key(api_key)
+        if not config:
+            raise ValueError("config not found in config.yaml")
+        set_user_config(config)
 
     origins = ["http://localhost:17990", "app://."]
 

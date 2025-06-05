@@ -1,4 +1,3 @@
-import aiohttp
 import asyncio
 import json
 import os
@@ -6,7 +5,17 @@ import re
 import time
 from typing import Optional, Dict, Any, List
 import logging
+import openai
+from openai import AsyncOpenAI
 from dataclasses import dataclass, asdict
+from .config_manager import ConfigManager
+
+config_manager = ConfigManager()
+
+
+def LLM_set_user_config(user_config):
+    global config_manager
+    config_manager.yaml_config = user_config
 
 
 @dataclass
@@ -22,41 +31,56 @@ class ConversationMessage:
             self.timestamp = time.time()
 
 
-class DeepSeekWithMemory:
+class LLMWithMemory:
     """
-    带记忆功能的DeepSeek客户端
+    带记忆功能的LLM客户端
     通过维护对话历史来实现上下文记忆
     """
 
-    def __init__(
-        self,
-        api_key: str,
-        base_url: str = "https://api.deepseek.com/v1",
-        default_model: str = "deepseek-chat",
-        max_history_length: int = 10,  # 最大保留的对话轮数
-        max_context_tokens: int = 6000,  # 估算的最大上下文token数
-    ):
-        self.api_key = api_key
-        self.base_url = base_url
-        self.default_model = default_model
-        self.max_history_length = max_history_length
-        self.max_context_tokens = max_context_tokens
+    def __init__(self):
+        global config_manager
+        self.config_manager = config_manager
+
+        self.api_key = config_manager.get("LLM_API.API_KEY")
+        self.base_url = self.config_manager.get("LLM_API.base_url")
+        self.default_model = self.config_manager.get("LLM_API.default_model")
+        self.max_history_length = self.config_manager.get(
+            "LLM_API.max_history_length", 15
+        )
+        self.max_context_tokens = self.config_manager.get(
+            "LLM_API.max_context_tokens", 6000
+        )
 
         # 对话历史
         self.conversation_history: List[ConversationMessage] = []
         self.session = None
 
+        # 设置OpenAI API密钥
+        self.client = AsyncOpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,
+        )
+
         # 设置日志
-        logging.basicConfig(level=logging.INFO)
+        log_config = self.config_manager.get("logging", {})
+        logging.basicConfig(
+            level=getattr(logging, log_config.get("level", "INFO")),
+            format=log_config.get(
+                "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            ),
+        )
         self.logger = logging.getLogger(__name__)
 
+        self.logger.info(
+            f"LLM客户端初始化完成 - 模型: {self.default_model}, 基础URL: {self.base_url}"
+        )
+
     async def __aenter__(self):
-        self.session = aiohttp.ClientSession()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session:
-            await self.session.close()
+        if hasattr(self.client, "close"):
+            await self.client.close()
 
     def add_system_message(self, content: str):
         """添加系统消息（用于设置角色和规则）"""
@@ -124,14 +148,22 @@ class DeepSeekWithMemory:
     async def chat_with_memory(
         self,
         user_message: str,
-        temperature: float = 0.7,
-        max_tokens: int = 2000,
+        temperature: float = None,
+        max_tokens: int = None,
         **kwargs,
     ) -> str:
         """
         带记忆的对话功能
         """
         try:
+            # 设置默认参数
+            temperature = temperature or self.config_manager.get(
+                "LLM_API.default_temperature", 0.7
+            )
+            max_tokens = max_tokens or self.config_manager.get(
+                "LLM_API.default_max_tokens", 2000
+            )
+
             # 构建包含历史的消息列表
             messages = self._build_messages_for_api(user_message)
 
@@ -160,11 +192,12 @@ class DeepSeekWithMemory:
         messages: List[Dict],
         temperature: float,
         max_tokens: int,
-        max_retries: int = 3,
+        max_retries: int = None,
         **kwargs,
     ) -> str:
-        """调用DeepSeek API"""
-        url = f"{self.base_url}/chat/completions"
+        """调用LLM API"""
+        max_retries = max_retries or self.config_manager.get("LLM_API.max_retries", 3)
+        """url = f"{self.base_url}/chat/completions"
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -180,44 +213,51 @@ class DeepSeekWithMemory:
         }
 
         if not self.session:
-            self.session = aiohttp.ClientSession()
+            self.session = aiohttp.ClientSession()"""
 
         for attempt in range(max_retries):
             try:
-                async with self.session.post(
-                    url, headers=headers, json=data
-                ) as response:
-                    if response.status == 200:
-                        result = await response.json()
-                        content = result["choices"][0]["message"]["content"].strip()
-                        self.logger.info(
-                            f"API调用成功 (尝试 {attempt + 1}/{max_retries})"
-                        )
-                        return content
+                response = await self.client.chat.completions.create(
+                    model=self.default_model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    **kwargs,
+                )
 
-                    elif response.status == 429:  # 频率限制
-                        error_text = await response.text()
-                        self.logger.warning(
-                            f"频率限制 (尝试 {attempt + 1}/{max_retries})"
-                        )
-                        if attempt < max_retries - 1:
-                            await asyncio.sleep(2**attempt)
-                            continue
-                        else:
-                            raise Exception(f"频率限制: {error_text}")
+                content = response.choices[0].message.content.strip()
+                self.logger.info(f"API调用成功，响应内容长度: {len(content)} 字符")
+                return content
 
-                    else:
-                        error_text = await response.text()
-                        raise Exception(
-                            f"API调用失败 (状态码: {response.status}): {error_text}"
-                        )
+            except openai.RateLimitError as e:
+                self.logger.warning(
+                    f"频率限制 (尝试 {attempt + 1}/{max_retries}): {str(e)}"
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2**attempt)
+                    continue
+                else:
+                    raise Exception(f"频率限制: {str(e)}")
 
-            except aiohttp.ClientError as e:
+            except openai.APIError as e:
+                self.logger.error(
+                    f"API错误 (尝试 {attempt + 1}/{max_retries}): {str(e)}"
+                )
                 if attempt < max_retries - 1:
                     await asyncio.sleep(1)
                     continue
                 else:
-                    raise Exception(f"网络请求失败: {str(e)}")
+                    raise Exception(f"API调用失败: {str(e)}")
+
+            except Exception as e:
+                self.logger.error(
+                    f"未知错误 (尝试 {attempt + 1}/{max_retries}): {str(e)}"
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(1)
+                    continue
+                else:
+                    raise Exception(f"API调用失败: {str(e)}")
 
     def save_conversation(self, filepath: str):
         """保存对话历史到文件"""
@@ -260,20 +300,14 @@ class DeepSeekWithMemory:
 class DeviceConfigurationAssistant:
     """设备配置生成助手"""
 
-    def __init__(self, api_key: str):
-        self.client = DeepSeekWithMemory(api_key, max_history_length=15)
+    def __init__(self):
+        global config_manager
+        self.config_manager = config_manager
+
+        self.client = LLMWithMemory()
 
         # 设置系统提示
-        system_prompt = """
-你是一个专业的工业自动化设备配置专家。你的任务是帮助用户设计和生成设备配置。
-
-工作流程：
-1. 首先从自然语言中提取设备配置列表
-2. 然后为每个设备生成详细的技术配置
-
-请始终保持专业性，输出格式化的JSON配置，并确保配置的技术准确性。
-在整个对话过程中，请记住之前讨论的所有设备信息。
-"""
+        system_prompt = self.config_manager.get("prompts.system_prompt")
         self.client.add_system_message(system_prompt)
 
     async def __aenter__(self):
@@ -285,8 +319,13 @@ class DeviceConfigurationAssistant:
 
     async def generate_device_list(self, prompt_1: str) -> str:
         """第一步：生成设备配置列表"""
+        temperature = self.config_manager.get(
+            "device_assistant.temperature.device_list"
+        )
+        max_tokens = self.config_manager.get("device_assistant.max_tokens.device_list")
+
         response = await self.client.chat_with_memory(
-            user_message=prompt_1, temperature=0.3, max_tokens=1500
+            user_message=prompt_1, temperature=temperature, max_tokens=max_tokens
         )
         return response
 
@@ -294,6 +333,13 @@ class DeviceConfigurationAssistant:
         self, device_name: str, prompt_2_template: str
     ) -> str:
         """第二步：为单个设备生成详细配置"""
+        temperature = self.config_manager.get(
+            "device_assistant.temperature.device_detail"
+        )
+        max_tokens = self.config_manager.get(
+            "device_assistant.max_tokens.device_detail"
+        )
+
         detail_prompt = f"""
 现在请为设备"{device_name}"生成详细配置。
 
@@ -309,7 +355,7 @@ class DeviceConfigurationAssistant:
 """
 
         response = await self.client.chat_with_memory(
-            user_message=detail_prompt, temperature=0.2, max_tokens=3000
+            user_message=detail_prompt, temperature=temperature, max_tokens=max_tokens
         )
         return response
 
@@ -388,55 +434,9 @@ def extract_and_parse_json(content: str) -> Dict | List:
     return data
 
 
-def save_response_as_json(response_content: str, json_file_path: str) -> bool:
-    """
-    直接将AI响应转换并保存为JSON文件
-    """
-    try:
-        print(f"开始处理响应内容，长度: {len(response_content)} 字符")
-
-        # 提取并解析JSON
-        data = extract_and_parse_json(response_content)
-
-        # 确保输出目录存在
-        os.makedirs(
-            os.path.dirname(json_file_path) if os.path.dirname(json_file_path) else ".",
-            exist_ok=True,
-        )
-
-        # 保存为JSON文件
-        with open(json_file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-
-        print(f"✅ 成功保存到: {json_file_path}")
-
-        # 显示转换结果统计
-        if isinstance(data, list):
-            print(f"📊 保存了 {len(data)} 个项目")
-        elif isinstance(data, dict):
-            print(f"📊 保存了包含 {len(data)} 个键的对象")
-
-        return True
-
-    except ValueError as e:
-        print(f"❌ 内容提取错误: {e}")
-        return False
-    except json.JSONDecodeError as e:
-        print(f"❌ JSON解析错误: {e}")
-        # 保存原始内容以便调试
-        debug_file = json_file_path.replace(".json", "_debug.txt")
-        with open(debug_file, "w", encoding="utf-8") as f:
-            f.write(response_content)
-        print(f"🔍 原始内容已保存到 {debug_file} 以便调试")
-        return False
-    except Exception as e:
-        print(f"❌ 保存过程中发生错误: {e}")
-        return False
-
-
 def read_user_input(data) -> str:
     """
-    从 input.json 中读取用户输入，格式化为 prompt 可读字符串。
+    从 data 中读取用户输入，格式化为 prompt 可读字符串。
     """
     prompt_parts = [f"系统名称：{data['name']}", f"系统描述：{data['description']}"]
 
@@ -448,275 +448,37 @@ def read_user_input(data) -> str:
     return "\n".join(prompt_parts)
 
 
-# 使用示例
-async def process_user_input(user_input, API_KEY):
+async def process_user_input(user_input):
+    global config_manager
     prompt = read_user_input(json.loads(user_input))
 
+    # 生成设备配置列表的提示词
+    device_list_template = config_manager.get("prompts.device_list_template")
+    device_detail_template = config_manager.get("prompts.device_detail_template")
+
     # 你的提示词
-    PROMPT_1 = """从自然语言中提取设备配置列表，我的需求如下：
-    {prompt}；请根据需求生成设备配置列表。请注意，设备配置列表应包含每个设备的输入信号和输出信号，并且每个设备的输入信号应与其功能相关联，输出信号应表示设备执行的动作。
-    
-    我将给你一个示例，你的输出在格式上应当如下：
-    #### 以下是示例 ####
-根据下表列出已知的三个设备（输送机、移栽机和提升机），设计并实现一个设备组态，以完成物料传递流程。其中，每个设备都有相应驱动器驱动设备执行（输出信号）及传感器反馈物料运输状态（输入信号）。
+    PROMPT_1 = device_list_template.format(prompt=prompt)
 
-设备               功能 
-输送机     用于水平运输物料，负责将物料从一个工作站传送到另一个工作站 
-移栽机     负责在生产线上转换物料方向，确保物料能够顺利进入下一道工序 
-提升机     用于垂直运输，将物料从低处提升到高处，适应不同工作站的高度要求
-
-请总结以上信息，为我生成一个如下的设备配置列表，包含每个设备的输入信号和输出信号。每个设备的输入信号应与其功能相关联，输出信号应表示设备执行的动作。
-
-[
-{{
-    "device": "xxx", ### 设备名称要用英文，其他的用中文 ###
-    "input_signal": "xxx",
-    "output_signal": "xxx",
-    "description": "xxx"
-}},
-...
-]""".format(
-        prompt=prompt
-    )
-
-    '''PROMPT_2_TEMPLATE = """利用之前生成的设备配置列表，进一步得到该设备的详细配置
-请根据设备列表生成该设备的详细配置，包括输入输出信号、状态机、算法等。请使用JSON格式，确保设备的配置都包含必要的字段。
-注意："type"只能是["int", "float", "bool", "string", "time"]中的一种，"description"字段应简洁明了。
-
-你的回答应该按照如下的配置格式示例：
-```json
-{
-"name": "Example Category",
-  "var_input": [
-    {
-      "name": "inputVar1",
-      "type": "int",
-      "description": "An integer input variable"
-    },
-    {
-      "name": "inputVar2",
-      "type": "float",
-      "description": "A float input variable"
-    }
-  ],
-  "var_output": [
-    {
-      "name": "outputVar1",
-      "type": "float",
-      "description": "A float output variable"
-    },
-    {
-      "name": "outputVar2",
-      "type": "bool",
-      "description": "A boolean output variable"
-    }
-  ],
-  "signal_input": [
-    {
-      "name": "inputSignal1",
-      "description": "An input signal"
-    },
-    {
-      "name": "inputSignal2",
-      "description": "Another input signal"
-    }
-  ],
-  "signal_output": [
-    {
-      "name": "outputSignal1",
-      "description": "An output signal"
-    },
-    {
-      "name": "outputSignal2",
-      "description": "Another output signal"
-    }
-  ],
-  "InternalVars": [
-    {
-      "name": "IsRunning",
-      "type": "bool",
-      "InitalVaule": "FALSE",
-      "description": "记录输送机当前运行状态"
-    }
-  ],
-  "ECC": {
-    "ECStates": [
-      {
-        "name": "Idle",
-        "comment": "初始等待状态",
-        "x": 50,
-        "y": 50
-      },
-      {
-        "name": "Running",
-        "comment": "系统正在运行",
-        "x": 200,
-        "y": 50,
-        "ecAction": {
-          "algorithm": "RunProcess",
-          "output": "outputSignal1"
-        }
-      },
-      {
-        "name": "Stopped",
-        "comment": "系统停止状态",
-        "x": 200,
-        "y": 150,
-        "ecAction": {
-          "algorithm": "StopProcess",
-          "output": "outputSignal2"
-        }
-      }
-    ],
-    "ECTransitions": [
-      {
-        "source": "Idle",
-        "destination": "Running",
-        "condition": "inputSignal1",
-        "comment": "收到启动信号",
-        "x": 125,
-        "y": 30
-      },
-      {
-        "source": "Running",
-        "destination": "Stopped",
-        "condition": "inputSignal2",
-        "comment": "收到停止信号",
-        "x": 225,
-        "y": 100
-      },
-      {
-        "source": "Stopped",
-        "destination": "Idle",
-        "condition": "TRUE",
-        "comment": "系统重置返回初始",
-        "x": 125,
-        "y": 200
-      }
-    ]
-  },
-  "Algorithms": [
-    {
-      "Name": "RunConveyor",
-      "Comment": "驱动电机使输送带运行",
-      "Input": "Start, Stop, MaterialDetected",
-      "Output": "MoveMaterial",
-      "Code": "IF Start AND NOT MaterialDetected THEN\n    MoveMaterial := TRUE;\nELSIF Stop OR MaterialDetected THEN\n    MoveMaterial := FALSE;\nEND_IF;"
-    }
-  ]
-}
-```
-
-注意：除了设备名称外，其他的字段都需要根据实际情况进行补充。"""'''
-
-    PROMPT_2_TEMPLATE = """根据设备"{device}"生成详细的功能块配置。
-
-**重要约束条件：**
-1. 严格按照JSON格式输出，不允许添加任何格式化字符
-2. Code字段中的代码必须使用\\n表示换行，不允许使用实际换行符
-3. 所有字符串必须使用双引号，避免特殊字符
-4. type字段只能是: ["int", "float", "bool", "string", "time"]
-5. 除设备名称外，所有字段使用中文描述
-
-**输出格式要求：**
-- 直接输出JSON，不要包含```json```代码块标记
-- Code字段示例：\"IF condition THEN\\n    action := TRUE;\\nEND_IF;\"
-- 确保JSON语法完全正确，可直接被Python json.loads()解析
-
-请为设备"{device}"生成如下格式的配置：
-
-{{
-  "name": "{device}",
-  "var_input": [
-    {{
-      "name": "输入变量名",
-      "type": "bool|int|float|string|time",
-      "description": "变量描述"
-    }}
-  ],
-  "var_output": [
-    {{
-      "name": "输出变量名", 
-      "type": "bool|int|float|string|time",
-      "description": "变量描述"
-    }}
-  ],
-  "signal_input": [
-    {{
-      "name": "输入信号名",
-      "description": "信号描述"
-    }}
-  ],
-  "signal_output": [
-    {{
-      "name": "输出信号名",
-      "description": "信号描述" 
-    }}
-  ],
-  "InternalVars": [
-    {{
-      "name": "内部变量名",
-      "type": "bool|int|float|string|time",
-      "InitalVaule": "初始值",
-      "description": "变量描述"
-    }}
-  ],
-  "ECC": {{
-    "ECStates": [
-      {{
-        "name": "状态名",
-        "comment": "状态描述",
-        "x": 50,
-        "y": 50,
-        "ecAction": {{
-          "algorithm": "算法名",
-          "output": "输出信号名"
-        }}
-      }}
-    ],
-    "ECTransitions": [
-      {{
-        "source": "源状态",
-        "destination": "目标状态", 
-        "condition": "转换条件",
-        "comment": "转换描述",
-        "x": 100,
-        "y": 100
-      }}
-    ]
-  }},
-  "Algorithms": [
-    {{
-      "Name": "算法名",
-      "Comment": "算法描述",
-      "Input": "输入参数",
-      "Output": "输出参数",
-      "Code": "算法代码使用\\\\n表示换行"
-    }}
-  ]
-}}
-
-设备描述：{device}是一个工业设备，请根据其功能特点生成合理的配置。"""
-
-    async with DeviceConfigurationAssistant(API_KEY) as assistant:
+    async with DeviceConfigurationAssistant() as assistant:
         final_result = []
         try:
             # 第一步：生成设备列表
+            progress_config = config_manager.get("progress.device_list")
             yield {
                 "event": "status",
                 "data": json.dumps(
                     {
                         "message": "开始生成设备配置列表...",
-                        "progress": 10,
-                        "next_progress": 30,
-                        "estimate_time": 30,
+                        "progress": progress_config["start"],
+                        "next_progress": progress_config["end"],
+                        "estimate_time": progress_config["estimate_time"],
                     },
                     ensure_ascii=False,
                 ),
             }
             device_list_response = await assistant.generate_device_list(PROMPT_1)
             '''device_list_response = """```json
-[
+    [
     {
         "device": "sorter",
         "input_signal": "物料到位传感器, 物料类型传感器",        
@@ -735,8 +497,8 @@ async def process_user_input(user_input, API_KEY):
         "output_signal": "电机启停信号, 速度调节信号",
         "description": "用于水平输送物料，根据物料检测和速度反馈 控制输送带运行"
     }
-]
-```"""
+    ]
+    ```"""
             await asyncio.sleep(5)  # 用异步sleep模拟处理时延'''
 
             # 将结果包装为JSON格式的事件
@@ -746,7 +508,7 @@ async def process_user_input(user_input, API_KEY):
                 "data": json.dumps(
                     {
                         "message": "设备列表生成完成 ✅",
-                        "progress": 30,
+                        "progress": progress_config["end"],
                         "replace": True,
                     },
                     ensure_ascii=False,
@@ -764,13 +526,16 @@ async def process_user_input(user_input, API_KEY):
                 else:
                     raise ValueError("设备列表格式不正确")
 
+                parsing_progress = progress_config.get(
+                    "progress.device_parsing.progress"
+                )  # 解析进度增加10%
                 print("send:解析到的设备列表:", devices)
                 yield {
                     "event": "status",
                     "data": json.dumps(
                         {
                             "message": f"解析到设备: {', '.join(devices)} ✅",
-                            "progress": 40,
+                            "progress": parsing_progress,
                         },
                         ensure_ascii=False,
                     ),
@@ -785,29 +550,38 @@ async def process_user_input(user_input, API_KEY):
                 }
 
             # 第二步：为每个设备生成详细配置
+            detail_progress = config_manager.get("progress.device_detail")
             total_devices = len(devices)
             for idx, device in enumerate(devices):
-                progress = 40 + int((idx / total_devices) * 50)  # 40%-90%的进度
+                progress = detail_progress["start"] + int(
+                    (idx / total_devices)
+                    * (detail_progress["end"] - detail_progress["start"])
+                )
+                next_progress = detail_progress["start"] + int(
+                    ((idx + 1) / total_devices)
+                    * (detail_progress["end"] - detail_progress["start"])
+                )
+
                 yield {
                     "event": "status",
                     "data": json.dumps(
                         {
                             "message": f"({idx+1}/{total_devices})  正在生成 {device} 的配置...",
                             "progress": progress,
-                            "next_progress": 40 + int(((idx+1) / total_devices) * 50),
-                            "estimate_time": 60,
+                            "next_progress": next_progress,
+                            "estimate_time": detail_progress["estimate_time"],
                         },
                         ensure_ascii=False,
                     ),
                 }
 
                 detail_response = await assistant.generate_device_detail(
-                    device, PROMPT_2_TEMPLATE
+                    device, device_detail_template
                 )
                 # detail_response = r'''```json
                 # {"name": "Sorter Configuration", "var_input": [{"name": "MaterialPresent", "type": "bool", "description": "检测物料是否到位"}, {"name": "MaterialType", "type": "int", "description": "物料类型编码(1-5)"}], "var_output": [{"name": "ArmPosition", "type": "int", "description": "分拣臂当前位置(1-3)"}, {"name": "DirectionControl", "type": "int", "description": "分拣方向控制(0=左,1=右)"}], "signal_input": [{"name": "MaterialDetection", "description": "物料到位传感器信号"}, {"name": "TypeDetection", "description": "物料类型识别完成信号"}], "signal_output": [{"name": "ArmActuation", "description": "分拣臂动作信号"}, {"name": "SortComplete", "description": "分拣完成信号"}], "InternalVars": [{"name": "IsSorting", "type": "bool", "InitalVaule": "FALSE", "description": "记录分拣机当前工作状态"}, {"name": "CurrentType", "type": "int", "InitalVaule": "0", "description": "当前处理的物料类型"}], "ECC": {"ECStates": [{"name": "Idle", "comment": "等待物料状态", "x": 50, "y": 50}, {"name": "Detecting", "comment": "物料检测状态", "x": 200, "y": 50, "ecAction": {"algorithm": "DetectMaterial", "output": "MaterialDetection"}}, {"name": "Sorting", "comment": "分拣执行状态", "x": 350, "y": 50, "ecAction": {"algorithm": "ExecuteSort", "output": "ArmActuation"}}, {"name": "Completed", "comment": "分拣完成状态", "x": 350, "y": 150, "ecAction": {"algorithm": "FinishSort", "output": "SortComplete"}}], "ECTransitions": [{"source": "Idle", "destination": "Detecting", "condition": "MaterialPresent", "comment": "检测到物料", "x": 125, "y": 30}, {"source": "Detecting", "destination": "Sorting", "condition": "TypeDetection", "comment": "物料类型识别完成", "x": 275, "y": 30}, {"source": "Sorting", "destination": "Completed", "condition": "ArmPosition == TargetPosition", "comment": "分拣到位", "x": 350, "y": 100}, {"source": "Completed", "destination": "Idle", "condition": "TRUE", "comment": "返回初始状态", "x": 200, "y": 150}]}, "Algorithms": [{"Name": "DetectMaterial", "Comment": "物 料检测算法", "Input": "MaterialPresent, MaterialType", "Output": "MaterialDetection, CurrentType", "Code": "IF MaterialPresent THEN\n    MaterialDetection := TRUE;\n    CurrentType := MaterialType;\nELSE\n    MaterialDetection := FALSE;\n    CurrentType := 0;\nEND_IF;"}, {"Name": "ExecuteSort", "Comment": "分拣执行算法", "Input": "CurrentType", "Output": "ArmPosition, DirectionControl", "Code": "CASE CurrentType OF\n    1,2: DirectionControl := 0; ArmPosition := 1;\n    3,4: DirectionControl := 0; ArmPosition := 2;\n    5: DirectionControl := 1; ArmPosition := 3;\n    ELSE: DirectionControl := 0; ArmPosition := 0;\nEND_CASE;"}, {"Name": "FinishSort", "Comment": "分拣完成处理", "Input": "", "Output": "SortComplete", "Code": "SortComplete := TRUE;\nIsSorting := FALSE;"}], "id": 0}
                 # ```'''
-                await asyncio.sleep(5)  # 用异步sleep模拟处理时延
+                # await asyncio.sleep(5)  # 用异步sleep模拟处理时延
                 device_config = extract_and_parse_json(detail_response)
                 device_config["id"] = idx
 
@@ -819,7 +593,7 @@ async def process_user_input(user_input, API_KEY):
                         {
                             "message": f"({idx+1}/{total_devices})  {device} 配置生成完成 ✅",
                             # "progress": progress,
-                            "progress": 40 + int(((idx+1) / total_devices) * 50),
+                            "progress": next_progress,
                             "replace": True,
                         },
                         ensure_ascii=False,
@@ -827,11 +601,15 @@ async def process_user_input(user_input, API_KEY):
                 }
 
             # 完成所有设备配置生成
+            completion_progress = config_manager.get("progress.completion.progress")
             print("send:所有设备配置生成完成")
             yield {
                 "event": "status",
                 "data": json.dumps(
-                    {"message": "所有设备配置生成完成 ✅", "progress": 100},
+                    {
+                        "message": "所有设备配置生成完成 ✅",
+                        "progress": completion_progress,
+                    },
                     ensure_ascii=False,
                 ),
             }
@@ -853,11 +631,11 @@ async def process_user_input(user_input, API_KEY):
 
 
 # 为FastAPI提供的格式化生成器函数
-async def sse_generator(user_input, api_key):
+async def sse_generator(user_input):
     """
     将process_user_input的结果转换为SSE格式的生成器
     """
-    async for event in process_user_input(user_input, api_key):
+    async for event in process_user_input(user_input):
         if isinstance(event, dict):
             event_name = event.get("event", "message")
             event_data = event.get("data", "")
@@ -865,22 +643,3 @@ async def sse_generator(user_input, api_key):
         else:
             # 如果event是字符串，将其作为message事件发送
             yield f"event: message\ndata: {json.dumps({'message': event}, ensure_ascii=False)}\n\n"
-
-    # try:
-    #     async for event in process_user_input(user_input, api_key):
-    #         if isinstance(event, dict):
-    #             event_name = event.get("event", "message")
-    #             event_data = event.get("data", "")
-    #             yield f"event: {event_name}\ndata: {event_data}\n\n"
-    #         else:
-    #             # 如果event是字符串，将其作为message事件发送
-    #             yield f"event: message\ndata: {json.dumps({'message': event}, ensure_ascii=False)}\n\n"
-
-    # except Exception as e:
-    #     # 发送错误事件
-    #     error_message = {"error": str(e)}
-    #     yield f"event: error\ndata: {json.dumps(error_message, ensure_ascii=False)}\n\n"
-
-    # finally:
-    #     # 确保最后发送一个结束事件，通知前端关闭连接
-    #     yield f"event: close\ndata: {json.dumps({'completed': True}, ensure_ascii=False)}\n\n"

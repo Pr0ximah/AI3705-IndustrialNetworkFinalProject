@@ -6,10 +6,9 @@ from typing import Dict, Any
 import asyncio
 from datetime import datetime, timedelta
 
-from .util.LLM_interface import sse_generator
+from .util.LLM_interface import sse_generator, LLM_set_user_config
 
 input_router = APIRouter(prefix="/inputs", tags=["输入相关接口"])
-API_KEY = None
 
 # 存储进行中的任务和SSE连接
 # {connection_id: {"project_conf": {...}, "generator": generator, "created_at": datetime}}
@@ -21,12 +20,11 @@ CLEANUP_INTERVAL = 1800  # 0.5小时
 CONNECTION_TIMEOUT = 600  # 10分钟
 
 
-def set_api_key(api_key: str):
+def set_user_config(user_config):
     """
     设置API密钥
     """
-    global API_KEY
-    API_KEY = api_key
+    LLM_set_user_config(user_config)
 
 
 class ProjectConfig(BaseModel):
@@ -100,7 +98,7 @@ async def sse_connection(connection_id: str):
 
     # 创建SSE流
     return StreamingResponse(
-        sse_generator(project_conf, API_KEY),
+        sse_generator(project_conf),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
