@@ -48,7 +48,6 @@ contextBridge.exposeInMainWorld("ipcApi", {
 
   // 提取错误消息
   extractErrorMessage: (error) => {
-    console.log(error);
     if (error instanceof Error) {
       const errorMessage = error.message.includes("Error:")
         ? error.message.split("Error:").pop().trim()

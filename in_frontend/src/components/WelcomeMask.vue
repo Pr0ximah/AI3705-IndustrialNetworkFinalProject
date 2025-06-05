@@ -91,7 +91,8 @@ import {
   computed,
   defineProps,
 } from "vue";
-import { ElIcon, ElNotification } from "element-plus";
+import { service } from "@/util/ajax_inst.js";
+import { ElIcon, ElNotification, ElLoading } from "element-plus";
 import CreateProject from "./CreateProject.vue";
 const createProjCompRef = ref(null);
 const projectPath = ref("");
@@ -116,25 +117,98 @@ defineExpose({
 });
 
 async function createProject() {
+  const loading = ElLoading.service({
+    lock: true,
+    customClass: "default-loading",
+    text: "正在创建项目...",
+    background: "rgba(255, 255, 255, 0.7)",
+  });
   try {
+    const service_status = await service.get("/status", { timeout: 3000 });
+    if (service_status.data.status !== "ok") {
+      ElNotification({
+        title: "后台服务状态异常",
+        message: "请尝试重启应用",
+        showClose: false,
+        type: "error",
+        duration: 5000,
+        customClass: "default-notification",
+      });
+      loading.close();
+      return;
+    }
     await autoSaveWorkspace();
     const result = await window.ipcApi.createProject();
     if (result) {
       projectPath.value = result;
     }
   } catch (error) {
+    if (error.name === "AxiosError") {
+      ElNotification({
+        title: "后台服务状态异常",
+        message: "请尝试重启应用",
+        showClose: false,
+        type: "error",
+        duration: 5000,
+        customClass: "default-notification",
+      });
+      loading.close();
+      return;
+    }
+    let errorMessage = window.ipcApi.extractErrorMessage(error);
     console.error("Error creating project:", error);
+    ElNotification({
+      title: "创建项目失败",
+      message: errorMessage,
+      showClose: false,
+      type: "error",
+      duration: 3000,
+      customClass: "default-notification",
+    });
   }
+  loading.close();
 }
 
 async function openProject() {
+  const loading = ElLoading.service({
+    lock: true,
+    customClass: "default-loading",
+    text: "正在打开项目...",
+    background: "rgba(255, 255, 255, 0.7)",
+  });
   try {
+    const service_status = await service.get("/status");
+    if (service_status.data.status !== "ok") {
+      ElNotification({
+        title: "后台服务状态异常",
+        message: "请尝试重启应用",
+        showClose: false,
+        type: "error",
+        duration: 5000,
+        customClass: "default-notification",
+      });
+      loading.close();
+      return;
+    }
     await autoSaveWorkspace();
     await window.ipcApi.openProjectDir();
     emit("passCreateProject");
   } catch (error) {
+    if (error.name === "AxiosError") {
+      ElNotification({
+        title: "后台服务状态异常",
+        message: "请尝试重启应用",
+        showClose: false,
+        type: "error",
+        duration: 5000,
+        customClass: "default-notification",
+      });
+      loading.close();
+      return;
+    }
     let errorMessage = window.ipcApi.extractErrorMessage(error);
     if (errorMessage === "CANCEL") {
+      loading.close();
       return;
     }
     ElNotification({
@@ -142,10 +216,11 @@ async function openProject() {
       message: errorMessage,
       showClose: false,
       type: "error",
-      duration: 2500,
+      duration: 3000,
       customClass: "default-notification",
     });
   }
+  loading.close();
 }
 </script>
 
