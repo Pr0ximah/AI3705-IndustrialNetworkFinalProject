@@ -857,7 +857,13 @@ class Line {
   isLineInSelectionBox(selectionBox) {
     if (!selectionBox || this.segments.length === 0) return false;
 
-    const box = selectionBox;
+    // 如果选择框是画布坐标，需要转换为屏幕坐标
+    const screenSelectionBox = {
+      x: selectionBox.x * this.scale + this.offsetX,
+      y: selectionBox.y * this.scale + this.offsetY,
+      width: selectionBox.width * this.scale,
+      height: selectionBox.height * this.scale,
+    };
 
     // 检查任何一个线段是否与选择框相交
     return this.segments.some((segment) => {
@@ -867,7 +873,7 @@ class Line {
         x2: segment.x2,
         y2: segment.y2,
       };
-      return isLineIntersectBox(line, box);
+      return isLineIntersectBox(line, screenSelectionBox);
     });
   }
 }

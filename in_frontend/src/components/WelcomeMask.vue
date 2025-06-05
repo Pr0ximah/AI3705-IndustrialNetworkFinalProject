@@ -124,7 +124,7 @@ async function createProject() {
     background: "rgba(255, 255, 255, 0.7)",
   });
   try {
-    const service_status = await service.get("/status", { timeout: 3000 });
+    const service_status = await service.get("/status", { timeout: 1000 });
     if (service_status.data.status !== "ok") {
       ElNotification({
         title: "后台服务状态异常",
@@ -177,7 +177,7 @@ async function openProject() {
     background: "rgba(255, 255, 255, 0.7)",
   });
   try {
-    const service_status = await service.get("/status");
+    const service_status = await service.get("/status", { timeout: 1000 });
     if (service_status.data.status !== "ok") {
       ElNotification({
         title: "后台服务状态异常",

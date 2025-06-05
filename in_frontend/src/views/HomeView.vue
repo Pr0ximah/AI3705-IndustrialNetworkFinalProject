@@ -240,7 +240,6 @@ async function emitConvertWorkspace() {
     });
     await window.ipcApi.openDirectory(save_dir);
     if (data.data.success) {
-      loading?.close();
       ElNotification({
         title: "代码已生成！",
         showClose: false,
@@ -249,7 +248,7 @@ async function emitConvertWorkspace() {
         duration: 3000,
         customClass: "default-notification",
       });
-      await uploadToFBB(save_dir);
+      await uploadToFBB(save_dir, loading);
     } else {
       ElNotification({
         title: "代码生成失败",
@@ -278,7 +277,17 @@ async function emitConvertWorkspace() {
   }
 }
 
-async function uploadToFBB(folderPath) {
+async function uploadToFBB(folderPath, _loading) {
+  try {
+    const response = await FBB_service.head("/", { timeout: 1000 });
+    if (response.status !== 200) {
+      _loading?.close();
+      return;
+    }
+  } catch (error) {
+    _loading?.close();
+    return;
+  }
   let loading = null;
   try {
     await ElMessageBox.confirm(
@@ -312,14 +321,17 @@ async function uploadToFBB(folderPath) {
         }),
       };
     });
-    let state_code_list = [];
-    for (const file of file_list) {
-      const formData = new FormData();
-      formData.append(file.filename, file.file);
-      const response = await FBB_service.post("/import", formData);
-      state_code_list.push(response.data.code);
+    let success_cnt = 0;
+    for (let i = 0; i < 2; i++) {
+      let state_code_list = [];
+      for (const file of file_list) {
+        const formData = new FormData();
+        formData.append(file.filename, file.file);
+        const response = await FBB_service.post("/import", formData);
+        state_code_list.push(response.data.code);
+      }
+      success_cnt = state_code_list.filter((code) => code === 1).length;
     }
-    const success_cnt = state_code_list.filter((code) => code === 1).length;
     if (success_cnt !== file_list.length) {
       ElNotification({
         title: "上传部分文件失败",
