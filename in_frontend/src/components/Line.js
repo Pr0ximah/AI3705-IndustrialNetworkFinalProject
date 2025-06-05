@@ -61,15 +61,16 @@ class Line {
     offsetY = 0,
     addToManager = true
   ) {
+    // startX, startY, endX, endY are expected to be canvas coordinates
     this.startX = startX;
     this.startY = startY;
     this.endX = endX;
     this.endY = endY;
     this.startBlock = startBlock;
     this.endBlock = endBlock;
-    this.scale = scale;
-    this.offsetX = offsetX;
-    this.offsetY = offsetY;
+    this.scale = scale; // Scale for rendering
+    this.offsetX = offsetX; // Offset for rendering
+    this.offsetY = offsetY; // Offset for rendering
     this.segments = [];
 
     // 添加唯一标识符和创建顺序，用于避让优先级
@@ -94,10 +95,11 @@ class Line {
     startY,
     endX,
     endY,
-    scale = 1,
+    scale = 1, // scale, offsetX, offsetY are for rendering context
     offsetX = 0,
     offsetY = 0
   ) {
+    // startX, startY, endX, endY are expected to be canvas coordinates
     this.startX = startX;
     this.startY = startY;
     this.endX = endX;
@@ -109,13 +111,14 @@ class Line {
   }
 
   calculatePath() {
-    // 转换为屏幕坐标
-    const x1 = this.startX * this.scale + this.offsetX;
-    const y1 = this.startY * this.scale + this.offsetY;
-    const x2 = this.endX * this.scale + this.offsetX;
-    const y2 = this.endY * this.scale + this.offsetY;
+    // 使用画布坐标进行计算
+    const x1 = this.startX;
+    const y1 = this.startY;
+    const x2 = this.endX;
+    const y2 = this.endY;
 
     // 如果没有块信息或输出在输入左边，使用简单路径
+    // Note: x1 < x2 comparison is in canvas coordinates
     if (!this.startBlock || !this.endBlock || x1 < x2) {
       this.segments = this.createSimplePath(x1, y1, x2, y2);
       return;
@@ -126,6 +129,7 @@ class Line {
   }
 
   createSimplePath(x1, y1, x2, y2) {
+    // x1, y1, x2, y2 are canvas coordinates
     const midX = x1 + (x2 - x1) * 0.5;
 
     const basePath = [
@@ -139,43 +143,44 @@ class Line {
   }
 
   calculateAvoidancePath(x1, y1, x2, y2) {
+    // x1, y1, x2, y2 are canvas coordinates
     if (!this.startBlock || !this.endBlock) {
       return this.createSimplePath(x1, y1, x2, y2);
     }
 
-    // 转换块坐标到屏幕坐标系
-    const startBlockScreenX = this.startBlock.x * this.scale + this.offsetX;
-    const startBlockScreenY = this.startBlock.y * this.scale + this.offsetY;
-    const startBlockScreenWidth = this.startBlock.width * this.scale;
-    const startBlockScreenHeight = this.startBlock.height * this.scale;
+    // 块坐标已经是画布坐标
+    const startBlockCanvasX = this.startBlock.x;
+    const startBlockCanvasY = this.startBlock.y;
+    const startBlockCanvasWidth = this.startBlock.width;
+    const startBlockCanvasHeight = this.startBlock.height;
 
-    const endBlockScreenX = this.endBlock.x * this.scale + this.offsetX;
-    const endBlockScreenY = this.endBlock.y * this.scale + this.offsetY;
-    const endBlockScreenWidth = this.endBlock.width * this.scale;
-    const endBlockScreenHeight = this.endBlock.height * this.scale;
+    const endBlockCanvasX = this.endBlock.x;
+    const endBlockCanvasY = this.endBlock.y;
+    const endBlockCanvasWidth = this.endBlock.width;
+    const endBlockCanvasHeight = this.endBlock.height;
 
-    // 计算延伸点
+    // 常量 CONNECTOR_EXTENSION, BLOCK_AVOID_MARGIN 被视为画布单位
     const connExtend = CONNECTOR_EXTENSION;
     const safeDist = BLOCK_AVOID_MARGIN;
-    const startX = x1 + connExtend;
-    const endX = x2 - connExtend;
+    const startX = x1 + connExtend; // Canvas coordinates
+    const endX = x2 - connExtend; // Canvas coordinates
 
-    // 计算两个块的避让区域（包含安全边距）
+    // 计算两个块的避让区域（包含安全边距），使用画布坐标
     const startBlockAvoidArea = {
-      left: startBlockScreenX - safeDist,
-      right: startBlockScreenX + startBlockScreenWidth + safeDist,
-      top: startBlockScreenY - safeDist,
-      bottom: startBlockScreenY + startBlockScreenHeight + safeDist,
+      left: startBlockCanvasX - safeDist,
+      right: startBlockCanvasX + startBlockCanvasWidth + safeDist,
+      top: startBlockCanvasY - safeDist,
+      bottom: startBlockCanvasY + startBlockCanvasHeight + safeDist,
     };
 
     const endBlockAvoidArea = {
-      left: endBlockScreenX - safeDist,
-      right: endBlockScreenX + endBlockScreenWidth + safeDist,
-      top: endBlockScreenY - safeDist,
-      bottom: endBlockScreenY + endBlockScreenHeight + safeDist,
+      left: endBlockCanvasX - safeDist,
+      right: endBlockCanvasX + endBlockCanvasWidth + safeDist,
+      top: endBlockCanvasY - safeDist,
+      bottom: endBlockCanvasY + endBlockCanvasHeight + safeDist,
     };
 
-    // 检查X轴是否需要绕行
+    // 检查X轴是否需要绕行 (画布坐标比较)
     const needXBypass =
       startX > Math.min(startBlockAvoidArea.left, endBlockAvoidArea.left) &&
       endX < Math.max(startBlockAvoidArea.right, endBlockAvoidArea.right);
@@ -194,9 +199,9 @@ class Line {
       const canPassBetween = this.checkCanPassBetween(
         startBlockAvoidArea,
         endBlockAvoidArea,
-        y1,
-        y2,
-        40
+        y1, // canvas y1
+        y2, // canvas y2
+        40 // minPassageHeight in canvas units (assuming 40 is canvas units)
       );
 
       if (canPassBetween.canPass) {
@@ -245,16 +250,16 @@ class Line {
       }
     }
 
-    // 应用连线避让
-    return this.applyLineAvoidance(basePath, x1, y1);
+    // 应用连线避让 (基于画布坐标)
+    return this.applyLineAvoidance(basePath, x1, y1); // Pass canvas startX, startY
   }
 
   checkCanPassBetween(
-    startBlockArea,
-    endBlockArea,
-    startY,
-    endY,
-    minPassageHeight
+    startBlockArea, // canvas coordinates
+    endBlockArea, // canvas coordinates
+    startY, // canvas coordinate
+    endY, // canvas coordinate
+    minPassageHeight // canvas units
   ) {
     const startBlockTop = startBlockArea.top;
     const startBlockBottom = startBlockArea.bottom;
@@ -308,7 +313,7 @@ class Line {
       return 0;
     }
 
-    // 基础偏移量
+    // 基础偏移量 (LINE_SPACING is in canvas units)
     const baseOffset = LINE_SPACING;
 
     // 根据层级计算偏移量，每一层都有不同的偏移
@@ -330,6 +335,8 @@ class Line {
 
   // 应用连线避让算法
   applyLineAvoidance(basePath, startX, startY) {
+    // basePath segments are in canvas coordinates
+    // startX, startY are canvas coordinates of the current line's start
     const existingLines = lineManager.getExistingLines(this);
     if (existingLines.length === 0) {
       return basePath;
@@ -350,10 +357,10 @@ class Line {
 
       // 检查与现有线的冲突
       const conflicts = this.findSegmentConflicts(
-        segment,
-        existingLines,
-        startX,
-        startY
+        segment, // canvas coordinate segment
+        existingLines, // existing lines' segments are also canvas coordinates
+        startX, // canvas startX of current line
+        startY // canvas startY of current line
       );
 
       if (conflicts.length > 0) {
@@ -405,11 +412,11 @@ class Line {
 
   // 简单路径的避让算法，只处理y方向避让
   applySimpleLineAvoidance(
-    basePath,
-    originalStartX,
-    originalStartY,
-    originalEndX,
-    originalEndY
+    basePath, // canvas coordinates
+    originalStartX, // canvas coordinates
+    originalStartY, // canvas coordinates
+    originalEndX, // canvas coordinates
+    originalEndY // canvas coordinates
   ) {
     const existingLines = lineManager.getExistingLines(this);
     if (existingLines.length === 0) {
@@ -424,10 +431,10 @@ class Line {
       const middleSegment = adjustedPath[middleSegmentIndex];
 
       if (middleSegment.isVertical) {
-        // 检查垂直线段与现有线的冲突
+        // 检查垂直线段与现有线的冲突 (canvas coordinates)
         const conflicts = this.findVerticalSegmentConflicts(
-          middleSegment,
-          existingLines
+          middleSegment, // canvas coordinate segment
+          existingLines // existing lines' segments are canvas coordinates
         );
 
         if (conflicts.length > 0) {
@@ -442,12 +449,12 @@ class Line {
             (line) => line.id === this.id
           );
 
-          // 计算层级偏移量，支持左右双向避让
+          // 计算层级偏移量，支持左右双向避让 (LINE_SPACING is canvas units)
           const layeredOffset = this.calculateLayeredOffset(
             currentLineIndex // Pass only currentLineIndex
           );
 
-          // 调整垂直线段的x坐标
+          // 调整垂直线段的x坐标 (canvas coordinates)
           const newX = middleSegment.x1 + layeredOffset;
           middleSegment.x1 = newX;
           middleSegment.x2 = newX;
@@ -474,11 +481,15 @@ class Line {
 
   // 查找垂直线段的冲突
   findVerticalSegmentConflicts(segment, existingLines) {
+    // segment and existingLines.segments are in canvas coordinates
     const conflicts = [];
-    const margin = LINE_SPACING + 0.1; // 增加一个小的epsilon以包含精确间隔的线
+    // margin is in canvas units (LINE_SPACING is canvas units)
+    // 0.1 is a small epsilon, effectively canvas units if LINE_SPACING is small
+    const margin = LINE_SPACING + 0.1;
 
     for (const line of existingLines) {
       for (const existingSegment of line.segments) {
+        // these are canvas segments
         if (existingSegment.isVertical) {
           const xDiff = Math.abs(segment.x1 - existingSegment.x1);
 
@@ -488,7 +499,7 @@ class Line {
             const y2Min = Math.min(existingSegment.y1, existingSegment.y2);
             const y2Max = Math.max(existingSegment.y1, existingSegment.y2);
 
-            const overlapMargin = 5;
+            const overlapMargin = 5; // Assuming 5 is in canvas units
             const hasOverlap = !(
               y1Max < y2Min - overlapMargin || y2Max < y1Min - overlapMargin
             );
@@ -509,20 +520,23 @@ class Line {
 
   // 查找线段与现有线的冲突
   findSegmentConflicts(segment, existingLines, currentStartX, currentStartY) {
+    // segment, currentStartX, currentStartY are in canvas coordinates
+    // existingLines.segments are in canvas coordinates
     const conflicts = [];
 
     for (const line of existingLines) {
-      // 检查是否起始位置相同（允许x轴重叠）
+      // 检查是否起始位置相同（允许x轴重叠）- uses canvas coordinates
       const sameStartPosition = this.hasSameStartPosition(
         line,
-        currentStartX,
-        currentStartY
+        currentStartX, // canvas coord
+        currentStartY // canvas coord
       );
 
       for (const existingSegment of line.segments) {
+        // canvas segments
         const conflict = this.checkSegmentConflict(
-          segment,
-          existingSegment,
+          segment, // canvas segment
+          existingSegment, // canvas segment
           sameStartPosition
         );
         if (conflict) {
@@ -541,20 +555,23 @@ class Line {
 
   // 检查是否有相同起始位置
   hasSameStartPosition(otherLine, currentStartX, currentStartY) {
-    const threshold = 5; // 允许的误差范围
-    const otherStartX = otherLine.startX * otherLine.scale + otherLine.offsetX;
-    const otherStartY = otherLine.startY * otherLine.scale + otherLine.offsetY;
+    // currentStartX, currentStartY are canvas coordinates
+    // otherLine.startX, otherLine.startY are already canvas coordinates
+    const threshold = 5; // Assuming 5 is in canvas units
+    const otherCanvasStartX = otherLine.startX;
+    const otherCanvasStartY = otherLine.startY;
 
     return (
-      Math.abs(otherStartX - currentStartX) < threshold &&
-      Math.abs(otherStartY - currentStartY) < threshold
+      Math.abs(otherCanvasStartX - currentStartX) < threshold &&
+      Math.abs(otherCanvasStartY - currentStartY) < threshold
     );
   }
 
   // 检查两个线段的冲突
   checkSegmentConflict(segment1, segment2, allowYOverlap = false) {
-    // const margin = LINE_SPACING; // 使用更大的检测距离
-    const margin = LINE_SPACING + 0.1; // 增加一个小的epsilon
+    // segment1, segment2 are in canvas coordinates
+    // LINE_SPACING is in canvas units
+    const margin = LINE_SPACING + 0.1;
 
     // 垂直线段之间的冲突检查
     if (segment1.isVertical && segment2.isVertical) {
@@ -568,7 +585,7 @@ class Line {
         const y2Max = Math.max(segment2.y1, segment2.y2);
 
         // 增加容错边距
-        const overlapMargin = 5;
+        const overlapMargin = 5; // Assuming 5 is in canvas units
         if (!(y1Max < y2Min - overlapMargin || y2Max < y1Min - overlapMargin)) {
           return { type: "vertical", distance: xDiff };
         }
@@ -588,11 +605,12 @@ class Line {
 
         // 如果允许Y重叠且当前是水平线且Y值相等，则不视为冲突
         if (allowYOverlap && Math.abs(segment1.y1 - segment2.y1) < 1) {
+          // 1 is a small canvas unit tolerance
           return null;
         }
 
         // 增加容错边距
-        const overlapMargin = 5;
+        const overlapMargin = 5; // Assuming 5 is in canvas units
         if (!(x1Max < x2Min - overlapMargin || x2Max < x1Min - overlapMargin)) {
           return { type: "horizontal", distance: yDiff };
         }
@@ -604,7 +622,7 @@ class Line {
 
   // 解决线段冲突
   resolveSegmentConflicts(
-    segment,
+    segment, // canvas coordinates
     conflicts,
     isFirstSegment = false,
     isLastSegment = false,
@@ -628,20 +646,22 @@ class Line {
 
     if (firstConflict.type === "horizontal") {
       // 水平线冲突，调整y坐标
+      // layeredOffset is based on LINE_SPACING (canvas units)
       const layeredOffset = this.calculateLayeredOffset(
         currentLineIndex // Pass only currentLineIndex
       );
 
-      // 对于中间的水平线段，整体移动
+      // 对于中间的水平线段，整体移动 (canvas coordinates)
       adjustedSegment.y1 += layeredOffset;
       adjustedSegment.y2 += layeredOffset;
     } else if (firstConflict.type === "vertical") {
       // 垂直线冲突，调整x坐标
+      // layeredOffset is based on LINE_SPACING (canvas units)
       const layeredOffset = this.calculateLayeredOffset(
         currentLineIndex // Pass only currentLineIndex
       );
 
-      // 对于中间的垂直线段，整体移动
+      // 对于中间的垂直线段，整体移动 (canvas coordinates)
       adjustedSegment.x1 += layeredOffset;
       adjustedSegment.x2 += layeredOffset;
     }
@@ -651,7 +671,7 @@ class Line {
 
   // 更新相邻线段的连接点
   updateAdjacentSegments(
-    path,
+    path, // segments in canvas coordinates
     changedIndex,
     isFirstSegment = false,
     isLastSegment = false
@@ -694,14 +714,25 @@ class Line {
 
   getSVGPath() {
     if (this.segments.length === 0) {
-      return `M ${this.startX} ${this.startY} L ${this.endX} ${this.endY}`;
+      // Fallback for no segments, convert start/end to screen for SVG
+      const screenStartX = this.startX * this.scale + this.offsetX;
+      const screenStartY = this.startY * this.scale + this.offsetY;
+      const screenEndX = this.endX * this.scale + this.offsetX;
+      const screenEndY = this.endY * this.scale + this.offsetY;
+      return `M ${screenStartX} ${screenStartY} L ${screenEndX} ${screenEndY}`;
     }
 
-    let path = `M ${this.segments[0].x1} ${this.segments[0].y1}`;
+    // Convert first point to screen coordinates
+    let screenX1 = this.segments[0].x1 * this.scale + this.offsetX;
+    let screenY1 = this.segments[0].y1 * this.scale + this.offsetY;
+    let path = `M ${screenX1} ${screenY1}`;
 
     for (let i = 0; i < this.segments.length; i++) {
-      const segment = this.segments[i];
-      path += ` L ${segment.x2} ${segment.y2}`;
+      const segment = this.segments[i]; // Segment has canvas coordinates
+      // Convert segment's end point to screen coordinates
+      const screenX2 = segment.x2 * this.scale + this.offsetX;
+      const screenY2 = segment.y2 * this.scale + this.offsetY;
+      path += ` L ${screenX2} ${screenY2}`;
     }
 
     return path;
@@ -709,55 +740,60 @@ class Line {
 
   // 创建用于正在连接时的临时连接线
   static createConnectingLine(
-    startX,
-    startY,
-    mouseX,
-    mouseY,
+    startX, // canvas coordinate
+    startY, // canvas coordinate
+    mouseX, // canvas coordinate (caller must convert from screen if necessary)
+    mouseY, // canvas coordinate (caller must convert from screen if necessary)
     startBlock = null,
-    scale = 1,
+    scale = 1, // scale, offsetX, offsetY for the new Line's rendering context
     offsetX = 0,
     offsetY = 0
   ) {
-    // 转换鼠标坐标到屏幕坐标
-    const screenMouseX = mouseX * scale + offsetX;
-    const screenMouseY = mouseY * scale + offsetY;
-
+    // startX, startY, mouseX, mouseY are already canvas coordinates.
+    // The Line constructor expects canvas coordinates for its start/end.
     const line = new Line(
       startX,
       startY,
-      mouseX,
-      mouseY,
+      mouseX, // Use canvas mouseX as endX for the line
+      mouseY, // Use canvas mouseY as endY for the line
       startBlock,
-      null,
-      scale,
-      offsetX,
-      offsetY,
-      false
+      null, // endBlock is null for connecting line
+      scale, // Pass scale for rendering context
+      offsetX, // Pass offsetX for rendering context
+      offsetY, // Pass offsetY for rendering context
+      false // Do not add to manager yet
     );
 
-    // 为正在连接的线计算特殊路径
+    // 为正在连接的线计算特殊路径, using canvas coordinates
     line.calculateConnectingPath(
-      startX * scale + offsetX,
-      startY * scale + offsetY,
-      screenMouseX,
-      screenMouseY,
-      startBlock,
-      scale,
-      offsetX,
-      offsetY
+      startX, // canvas coord
+      startY, // canvas coord
+      mouseX, // canvas coord
+      mouseY, // canvas coord
+      startBlock // startBlock has canvas coords
+      // No need to pass scale/offset to calculateConnectingPath if all inputs are canvas
     );
 
     return line;
   }
 
-  calculateConnectingPath(x1, y1, x2, y2, startBlock, scale, offsetX, offsetY) {
+  calculateConnectingPath(x1, y1, x2, y2, startBlock) {
+    // x1, y1, x2, y2 are canvas coordinates
+    // startBlock has canvas coordinates
     if (!startBlock) {
-      this.segments = this.createSimplePath(x1, y1, x2, y2);
+      this.segments = this.createSimplePath(x1, y1, x2, y2); // Uses canvas coords
       return;
     }
 
-    // 如果鼠标在起始块的左边，使用简单连接
+    // 如果鼠标在起始块的左边，使用简单连接 (canvas coordinate comparison)
     if (x1 < x2) {
+      // Corrected: should be x2 < x1 for "mouse to the left of start block output"
+      // Assuming x1 is start (right side of block), x2 is mouse.
+      // If mouse (x2) is to the right of start (x1), then x2 > x1.
+      // If mouse (x2) is to the left of start (x1), then x2 < x1.
+      // The original logic was: if (x1 < x2) - this means start is to the left of end (mouse)
+      // This seems to be for cases where the line naturally goes right-to-left.
+      // Let's keep the original condition meaning: if endX is to the right of startX
       const midX = x1 + (x2 - x1) * 0.5;
       this.segments = [
         new Segment(x1, y1, midX, y1),
@@ -767,37 +803,37 @@ class Line {
       return;
     }
 
-    // 鼠标在起始块的右边，考虑智能路径
+    // Constants are canvas units
     const connExtend = CONNECTOR_EXTENSION;
     const safeDist = BLOCK_AVOID_MARGIN;
 
-    const startX = x1 + connExtend;
-    const endX = x2 - connExtend;
+    const startPathX = x1 + connExtend; // canvas coord
+    const endPathX = x2 - connExtend; // canvas coord, careful if x2 is already to the left
 
-    // 计算起始块的避让区域
-    const startBlockScreenX = startBlock.x * scale + offsetX;
-    const startBlockScreenY = startBlock.y * scale + offsetY;
-    const startBlockScreenWidth = startBlock.width * scale;
-    const startBlockScreenHeight = startBlock.height * scale;
+    // 计算起始块的避让区域 (using canvas coordinates from startBlock)
+    const blockCanvasX = startBlock.x;
+    const blockCanvasY = startBlock.y;
+    const blockCanvasWidth = startBlock.width;
+    const blockCanvasHeight = startBlock.height;
 
     const blockAvoidArea = {
-      left: startBlockScreenX - safeDist,
-      right: startBlockScreenX + startBlockScreenWidth + safeDist,
-      top: startBlockScreenY - safeDist,
-      bottom: startBlockScreenY + startBlockScreenHeight + safeDist,
+      left: blockCanvasX - safeDist,
+      right: blockCanvasX + blockCanvasWidth + safeDist,
+      top: blockCanvasY - safeDist,
+      bottom: blockCanvasY + blockCanvasHeight + safeDist,
     };
 
-    // 检查是否需要绕行
+    // 检查是否需要绕行 (canvas coordinate comparison)
     const needXBypass =
-      startX > blockAvoidArea.left && endX < blockAvoidArea.right;
+      startPathX > blockAvoidArea.left && endPathX < blockAvoidArea.right;
 
     if (!needXBypass) {
       // 不需要绕行
       this.segments = [
-        new Segment(x1, y1, startX, y1),
-        new Segment(startX, y1, startX, y2),
-        new Segment(startX, y2, endX, y2),
-        new Segment(endX, y2, x2, y2),
+        new Segment(x1, y1, startPathX, y1),
+        new Segment(startPathX, y1, startPathX, y2),
+        new Segment(startPathX, y2, endPathX, y2), // endPathX might be to the right of x2
+        new Segment(endPathX, y2, x2, y2),
       ];
       return;
     }
@@ -810,11 +846,11 @@ class Line {
     if (lineMaxY < blockAvoidArea.top) {
       const passageY = (y1 + y2) / 2;
       this.segments = [
-        new Segment(x1, y1, startX, y1),
-        new Segment(startX, y1, startX, passageY),
-        new Segment(startX, passageY, endX, passageY),
-        new Segment(endX, passageY, endX, y2),
-        new Segment(endX, y2, x2, y2),
+        new Segment(x1, y1, startPathX, y1),
+        new Segment(startPathX, y1, startPathX, passageY),
+        new Segment(startPathX, passageY, endPathX, passageY),
+        new Segment(endPathX, passageY, endPathX, y2),
+        new Segment(endPathX, y2, x2, y2),
       ];
       return;
     }
@@ -823,11 +859,11 @@ class Line {
     if (lineMinY > blockAvoidArea.bottom) {
       const passageY = (y1 + y2) / 2;
       this.segments = [
-        new Segment(x1, y1, startX, y1),
-        new Segment(startX, y1, startX, passageY),
-        new Segment(startX, passageY, endX, passageY),
-        new Segment(endX, passageY, endX, y2),
-        new Segment(endX, y2, x2, y2),
+        new Segment(x1, y1, startPathX, y1),
+        new Segment(startPathX, y1, startPathX, passageY),
+        new Segment(startPathX, passageY, endPathX, passageY),
+        new Segment(endPathX, passageY, endPathX, y2),
+        new Segment(endPathX, y2, x2, y2),
       ];
       return;
     }
@@ -846,39 +882,38 @@ class Line {
 
     // 构建绕行路径
     this.segments = [
-      new Segment(x1, y1, startX, y1),
-      new Segment(startX, y1, startX, bypassY),
-      new Segment(startX, bypassY, endX, bypassY),
-      new Segment(endX, bypassY, endX, y2),
-      new Segment(endX, y2, x2, y2),
+      new Segment(x1, y1, startPathX, y1),
+      new Segment(startPathX, y1, startPathX, bypassY),
+      new Segment(startPathX, bypassY, endPathX, bypassY),
+      new Segment(endPathX, bypassY, endPathX, y2),
+      new Segment(endPathX, y2, x2, y2),
     ];
   }
 
   isLineInSelectionBox(selectionBox) {
+    // selectionBox is assumed to be in canvas coordinates
+    // this.segments are in canvas coordinates
     if (!selectionBox || this.segments.length === 0) return false;
 
-    // 如果选择框是画布坐标，需要转换为屏幕坐标
-    const screenSelectionBox = {
-      x: selectionBox.x * this.scale + this.offsetX,
-      y: selectionBox.y * this.scale + this.offsetY,
-      width: selectionBox.width * this.scale,
-      height: selectionBox.height * this.scale,
-    };
+    // No need to convert selectionBox if it's already canvas coords
+    // const screenSelectionBox = { ... } // This conversion is removed
 
-    // 检查任何一个线段是否与选择框相交
+    // 检查任何一个线段是否与选择框相交 (all in canvas coordinates)
     return this.segments.some((segment) => {
       const line = {
+        // segment x1,y1,x2,y2 are canvas coords
         x1: segment.x1,
         y1: segment.y1,
         x2: segment.x2,
         y2: segment.y2,
       };
-      return isLineIntersectBox(line, screenSelectionBox);
+      return isLineIntersectBox(line, selectionBox); // Pass canvas coords
     });
   }
 }
 
 // 检查线段是否与矩形相交
+// line and box are expected to be in the same coordinate system (now canvas)
 function isLineIntersectBox(line, box) {
   const { x1, y1, x2, y2 } = line;
   const { x: boxX, y: boxY, width: boxW, height: boxH } = box;
@@ -900,6 +935,7 @@ function isLineIntersectBox(line, box) {
 }
 
 // 检查点是否在矩形内
+// x, y and box are expected to be in the same coordinate system (now canvas)
 function isPointInBox(x, y, box) {
   return (
     x >= box.x &&
@@ -910,6 +946,7 @@ function isPointInBox(x, y, box) {
 }
 
 // 检查两条线段是否相交
+// line1 and line2 are expected to be in the same coordinate system (now canvas)
 function doLinesIntersect(line1, line2) {
   const { x1: x1, y1: y1, x2: x2, y2: y2 } = line1;
   const { x1: x3, y1: y3, x2: x4, y2: y4 } = line2;
