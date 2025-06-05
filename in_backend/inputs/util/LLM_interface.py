@@ -606,7 +606,120 @@ async def LLM_generate_block_categories(config_manager, user_input):
 
 
 async def LLM_generate_AI_recommend(config_manager, user_input):
-    pass
+    user_input = json.loads(user_input)
+
+    # 构建AI推荐的提示词
+    prompt_parts = [
+        f"系统名称：{user_input['name']}",
+        f"系统描述：{user_input['description']}",
+    ]
+
+    # 添加已有的模块信息
+    for block in user_input.get("blocks", []):
+        block_name = block.get("name", "未命名模块")
+        block_desc = block.get("description", "无描述")
+        prompt_parts.append(f"现有模块：{block_name}，功能：{block_desc}")
+
+    # 添加用户的具体需求或问题
+    if user_input.get("requirements"):
+        prompt_parts.append(f"用户需求：{user_input['requirements']}")
+
+    user_prompt = "\n".join(prompt_parts)
+
+    # 获取AI推荐的提示词模板
+    ai_recommend_template = config_manager.get("prompts.ai_recommend_template", 
+        "基于以下系统信息，请提供AI驱动的优化建议和推荐方案：\n{prompt}\n\n请提供具体的改进建议、技术推荐和实施方案。")
+
+    # 构建完整的提示词
+    PROMPT_AI_RECOMMEND = ai_recommend_template.format(prompt=user_prompt)
+
+    async with DeviceConfigurationAssistant() as assistant:
+        try:
+            # 开始生成AI推荐
+            progress_config = config_manager.get("progress.ai_recommend", {
+                "start": 70,
+                "end": 90,
+                "estimate_time": 15
+            })
+            
+            yield {
+                "event": "status",
+                "data": json.dumps(
+                    {
+                        "message": "开始生成AI智能推荐...",
+                        "progress": progress_config["start"],
+                        "next_progress": progress_config["end"],
+                        "estimate_time": progress_config["estimate_time"],
+                    },
+                    ensure_ascii=False,
+                ),
+            }
+
+            # 生成AI推荐
+            ai_recommend_response = await assistant.client.chat_with_memory(
+                user_message=PROMPT_AI_RECOMMEND,
+                temperature=config_manager.get("device_assistant.temperature.ai_recommend", 0.8),
+                max_tokens=config_manager.get("device_assistant.max_tokens.ai_recommend", 3000)
+            )
+
+            print("send:AI推荐响应内容:", ai_recommend_response)
+            
+            yield {
+                "event": "status",
+                "data": json.dumps(
+                    {
+                        "message": "AI推荐生成完成 ✅",
+                        "progress": progress_config["end"],
+                        "replace": True,
+                    },
+                    ensure_ascii=False,
+                ),
+            }
+
+            # 尝试解析结构化的推荐内容
+            try:
+                # 尝试提取JSON格式的推荐（如果AI返回的是结构化数据）
+                recommendation_data = extract_and_parse_json(ai_recommend_response)
+                final_result = {
+                    "type": "structured",
+                    "recommendations": recommendation_data
+                }
+            except:
+                # 如果不是JSON格式，则作为文本推荐处理
+                final_result = {
+                    "type": "text",
+                    "content": ai_recommend_response,
+                    "recommendations": []
+                }
+
+            # 完成推荐生成
+            completion_progress = config_manager.get("progress.ai_recommend_completion", {
+                "progress": 95
+            })
+            
+            print("send:AI推荐生成完成")
+            yield {
+                "event": "status",
+                "data": json.dumps(
+                    {
+                        "message": "AI智能推荐完成 ✅",
+                        "progress": completion_progress.get("progress", 95),
+                    },
+                    ensure_ascii=False,
+                ),
+            }
+
+            # 发送最终结果
+            print("send:AI推荐结果:", final_result)
+            yield {
+                "event": "complete",
+                "data": json.dumps({"result": final_result}, ensure_ascii=False),
+            }
+
+        except Exception as e:
+            print(f"send:AI推荐生成过程中发生错误: {e}")
+            error_msg = f"AI推荐生成过程中发生错误: {str(e)}"
+            raise Exception(error_msg)
 
 
 async def send_single_message(_, data):
