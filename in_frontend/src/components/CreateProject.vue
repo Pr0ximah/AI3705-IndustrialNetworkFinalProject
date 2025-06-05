@@ -131,7 +131,7 @@ import {
 } from "element-plus";
 import { Files, Close, Back, Right } from "@element-plus/icons-vue";
 import { defineProps, ref, defineEmits, defineExpose } from "vue";
-import service from "@/util/ajax_inst";
+import { service } from "@/util/ajax_inst.js";
 import LLMLoading from "./LLMLoading.vue";
 const props = defineProps({
   projectPath: {
@@ -151,6 +151,7 @@ const showLoading = ref(false);
 const LLM_progress = ref(0);
 const LLM_messages = ref([]);
 const LLMLoadingRef = ref(null);
+const apiConfigStatus = ref(false);
 const blockConfOrigin = {
   name: "",
   description: "",
@@ -193,7 +194,45 @@ function unsetDeleteButtonClicked(index) {
   deleteButtonClickedMap.value[index] = false;
 }
 
+async function checkAndRefreshAPIConfig() {
+  if (!apiConfigStatus.value) {
+    try {
+      await service.get("/inputs/refresh_api_config");
+    } catch (error) {
+      ElNotification({
+        title: "错误",
+        showClose: false,
+        message: error.message,
+        type: "error",
+        duration: 3000,
+        customClass: "default-notification",
+      });
+      return false;
+    }
+  }
+  const res = await service.get("/inputs/check_api_config");
+  if (res.data.status !== "success") {
+    apiConfigStatus.value = false;
+    ElNotification({
+      title: "错误",
+      showClose: false,
+      message: res.data.message,
+      type: "error",
+      duration: 3000,
+      customClass: "default-notification",
+    });
+    return false;
+  }
+  apiConfigStatus.value = true;
+  return true;
+}
+
 async function createProject() {
+  const res = await checkAndRefreshAPIConfig();
+  if (!res) {
+    return; // 如果API配置检查失败，直接返回
+  }
+
   let simulateTimer = null;
   let simulatedProgress = 0;
 
@@ -243,6 +282,7 @@ async function createProject() {
       const cleanup = () => {
         if (!isResolved) {
           isResolved = true;
+          clearInterval(simulateTimer);
           eventSource.close();
         }
       };
@@ -262,7 +302,6 @@ async function createProject() {
         const estimateTime = data.estimate_time || null; // 检测是否需要模拟加载动画，1点1点加载
         LLMLoadingRef.value.updateProgress(progress);
         LLMLoadingRef.value.addMsg(msg, replace);
-        // TODO: 处理进度更新
         if (estimateTime) {
           // 如果已存在模拟定时器，先清除
           if (simulateTimer) {
@@ -272,18 +311,13 @@ async function createProject() {
 
           simulatedProgress = progress;
           const totalSteps = next_progress - simulatedProgress;
-          console.log("totalSteps:", totalSteps);
           // 防止除零错误
           if (totalSteps <= 0) {
             LLMLoadingRef.value.updateProgress(progress);
             return;
           }
           const intervalTime = (estimateTime * 1000) / totalSteps;
-          console.log("intervalTime:", intervalTime);
           simulateTimer = setInterval(() => {
-            console.log(
-              `模拟进度: ${simulatedProgress}, 目标进度: ${next_progress}`
-            );
             if (simulatedProgress < next_progress) {
               simulatedProgress += 1;
               LLMLoadingRef.value.updateProgress(simulatedProgress);
@@ -307,11 +341,6 @@ async function createProject() {
           // 直接更新到真实进度
           LLMLoadingRef.value.updateProgress(progress);
         }
-
-        console.log(simulateTimer);
-        console.log(
-          `进度: ${progress}, 消息: ${msg}, 下一步时间：${next_progress}, 预估时间: ${estimateTime}`
-        );
       });
 
       eventSource.addEventListener("complete", (event) => {
@@ -331,7 +360,7 @@ async function createProject() {
       });
 
       eventSource.onerror = (error) => {
-        console.log("SSE错误 - readyState:", eventSource.readyState);
+        console.log("SSE服务错误:", error);
 
         // 如果项目已完成，忽略后续错误
         if (isCompleted) {
@@ -367,13 +396,22 @@ async function createProject() {
       message: errorMessage,
       showClose: false,
       type: "error",
-      duration: 2500,
+      duration: 3000,
       customClass: "default-notification",
     });
   }
 }
 
 async function sendToLLM() {
+  const res = await checkAndRefreshAPIConfig();
+  console.log("API配置检查结果:", res);
+  if (!res) {
+    return; // 如果API配置检查失败，直接返回
+  }
+
+  let simulateTimer = null;
+  let simulatedProgress = 0;
+
   if (!llmUserInput.value.trim()) {
     ElNotification({
       title: "提示",
@@ -385,14 +423,140 @@ async function sendToLLM() {
     });
     return;
   }
-  const data = { userInput: llmUserInput.value.trim() };
-  console.log(data);
-
+  const userInput = { userInput: llmUserInput.value.trim() };
   showLoading.value = true;
-  setTimeout(() => {
+
+  try {
+    const res = await service.post("/inputs/get_ai_recommend", userInput);
+    if (res.data.status !== "success") {
+      throw new Error(res.data.message || "获取AI推荐失败");
+    }
+    const id = res.data.connection_id;
+    let result = null;
+
+    await new Promise((resolve, reject) => {
+      const eventSource = new EventSource(
+        `${process.env.VUE_APP_API_BASE_URL}/inputs/sse/${id}`
+      );
+
+      let isCompleted = false;
+      let isResolved = false;
+
+      const cleanup = () => {
+        if (!isResolved) {
+          isResolved = true;
+          clearInterval(simulateTimer);
+          eventSource.close();
+        }
+      };
+
+      eventSource.onopen = () => {
+        LLMLoadingRef.value.resetMsg();
+        LLMLoadingRef.value.addMsg("服务器连接成功 ✅");
+        console.log("SSE连接已打开");
+      };
+
+      eventSource.addEventListener("status", (event) => {
+        const data = JSON.parse(event.data);
+        const msg = data.message;
+        const progress = data.progress;
+        const next_progress = data.next_progress || 0;
+        const replace = data.replace || false;
+        const estimateTime = data.estimate_time || null; // 检测是否需要模拟加载动画，1点1点加载
+        LLMLoadingRef.value.updateProgress(progress);
+        LLMLoadingRef.value.addMsg(msg, replace);
+        if (estimateTime) {
+          // 如果已存在模拟定时器，先清除
+          if (simulateTimer) {
+            clearInterval(simulateTimer);
+            simulateTimer = null;
+          }
+
+          simulatedProgress = progress;
+          const totalSteps = next_progress - simulatedProgress;
+          // 防止除零错误
+          if (totalSteps <= 0) {
+            LLMLoadingRef.value.updateProgress(progress);
+            return;
+          }
+          const intervalTime = (estimateTime * 1000) / totalSteps;
+          simulateTimer = setInterval(() => {
+            if (simulatedProgress < next_progress) {
+              simulatedProgress += 1;
+              LLMLoadingRef.value.updateProgress(simulatedProgress);
+            } else {
+              // 到达目标进度，清理定时器
+              clearInterval(simulateTimer);
+              simulateTimer = null;
+            }
+          }, intervalTime);
+        } else {
+          // 如果没有预估时间，说明后端事件已结束
+          // 立即清除模拟定时器并直接更新到真实进度
+          if (simulateTimer) {
+            clearInterval(simulateTimer);
+            simulateTimer = null;
+          }
+
+          // 重置模拟进度变量，为下一个事件做准备
+          simulatedProgress = 0;
+
+          // 直接更新到真实进度
+          LLMLoadingRef.value.updateProgress(progress);
+        }
+      });
+
+      eventSource.addEventListener("complete", (event) => {
+        result = JSON.parse(event.data);
+        LLMLoadingRef.value.addMsg("AI智配已成功生成！正在处理...");
+        console.log("AI智配完成:", result);
+        isCompleted = true;
+      });
+
+      eventSource.addEventListener("close", (event) => {
+        cleanup();
+        if (isCompleted) {
+          resolve();
+        } else {
+          reject(new Error("连接在AI智配生成完成前被关闭"));
+        }
+      });
+
+      eventSource.onerror = (error) => {
+        console.log("SSE服务错误:", error);
+
+        // 如果项目已完成，忽略后续错误
+        if (isCompleted) {
+          cleanup();
+          resolve();
+          return;
+        }
+
+        // 如果是连接状态，不要立即失败
+        if (eventSource.readyState === EventSource.CONNECTING) {
+          console.log("正在重新连接，继续等待...");
+          return;
+        }
+
+        cleanup();
+        reject(new Error("连接发生错误！请再试一次吧"));
+      };
+    });
+
+    setTimeout(() => {
+      showLoading.value = false;
+    }, 2000);
+  } catch (error) {
     showLoading.value = false;
-  }, 2000);
-  return;
+    ElNotification({
+      title: "AI智配失败",
+      message: error.message,
+      showClose: false,
+      type: "error",
+      duration: 3000,
+      customClass: "default-notification",
+    });
+  }
 }
 
 defineExpose({
