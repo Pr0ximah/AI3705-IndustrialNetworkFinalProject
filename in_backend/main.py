@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from inputs import input_router
 from outputs import output_router
 from status import status_router
-from inputs.inputs import set_config_path, start_cleanup_task
+from inputs.inputs import set_config_path, start_cleanup_task, set_user_config
 import sys
 from pathlib import Path
 import uvicorn
@@ -43,6 +43,7 @@ async def lifespan(app: FastAPI):
 
 def main():
     set_config_path(config_filepath())
+    set_user_config()
 
     origins = ["http://localhost:17990", "app://."]
 

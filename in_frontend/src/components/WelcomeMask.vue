@@ -234,7 +234,7 @@ async function openProject() {
   justify-content: center;
   height: 100%;
   width: 100%;
-  background-color: rgba(255, 255, 255, 0.6);
+  background-color: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(10px);
   z-index: 500;
 }

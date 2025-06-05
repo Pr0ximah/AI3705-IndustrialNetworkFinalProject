@@ -7,7 +7,12 @@ import asyncio
 import yaml
 from datetime import datetime, timedelta
 
-from .util.LLM_interface import sse_generator, LLM_set_user_config, check_API_config
+from .util.LLM_interface import (
+    sse_generator,
+    LLM_set_user_config,
+    check_API_config,
+    LLM_get_available_models,
+)
 
 input_router = APIRouter(prefix="/inputs", tags=["输入相关接口"])
 
@@ -67,12 +72,7 @@ async def check_api_config():
     检查API配置是否正确
     """
     # 获取当前的API配置
-    if not check_API_config():
-        return {
-            "status": "error",
-            "message": "API配置不正确，请确保配置文件中包含所有需要设置的项",
-        }
-    return {"status": "success", "message": "API配置正确"}
+    return check_API_config()
 
 
 @input_router.get("/refresh_api_config")
@@ -90,6 +90,19 @@ async def refresh_api_config():
         raise HTTPException(status_code=500, detail=f"刷新API配置失败: {e}")
 
 
+@input_router.get("/get_available_models")
+async def get_available_models():
+    """
+    获取可用的模型列表
+    """
+    try:
+        models = LLM_get_available_models()
+        return {"status": "success", "available_models": models}
+    except Exception as e:
+        print(f"获取可用模型失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取可用模型失败: {e}")
+
+
 @input_router.post("/create_project")
 async def create_project(
     project_conf: Dict[str, Any] = Body(
@@ -98,6 +111,7 @@ async def create_project(
             "name": "transport0531",
             "description": "这是运输系统功能简述",
             "blocks": [{"name": "传送带", "description": "传送货物"}],
+            "model": "deepseek",
         },
     )
 ):
@@ -109,6 +123,8 @@ async def create_project(
 
     active_connections[connection_id] = {
         "project_conf": project_conf["conf"],  # 使用实际提交的配置
+        "model": project_conf["model"],  # 使用实际提交的模型
+        "created_at": datetime.now(),
         "connection_type": "project_creation",
     }
 
@@ -126,6 +142,7 @@ async def get_ai_recommend(
         ...,
         example={
             "userInput": "我想创建一个运输系统，包含传送带、叉车等设备",
+            "model": "deepseek",
         },
     )
 ):
@@ -137,6 +154,8 @@ async def get_ai_recommend(
 
     active_connections[connection_id] = {
         "user_demand": user_demand["userInput"],  # 使用实际提交的配置
+        "model": user_demand["model"],  # 使用实际提交的模型
+        "created_at": datetime.now(),
         "connection_type": "AI_recommend",
     }
 
@@ -161,12 +180,13 @@ async def sse_connection(connection_id: str):
         if conn["connection_type"] == "project_creation":
             # 获取项目配置
             project_conf = conn["project_conf"]
+            model = conn["model"]
             print(
-                f"建立项目SSE连接成功，连接ID: {connection_id}, 项目配置: {project_conf}"
+                f"建立项目SSE连接成功，连接ID: {connection_id}, 项目配置: {project_conf}, 模型: {model}"
             )
             # 创建SSE流
             return StreamingResponse(
-                sse_generator(project_conf, "LLM_generate_block_categories"),
+                sse_generator(project_conf, "LLM_generate_block_categories", model),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
@@ -178,12 +198,13 @@ async def sse_connection(connection_id: str):
         if conn["connection_type"] == "AI_recommend":
             # 获取用户需求
             user_demand = conn["user_demand"]
+            model = conn["model"]
             print(
-                f"建立AI推荐SSE连接成功，连接ID: {connection_id}, 用户需求: {user_demand}"
+                f"建立AI推荐SSE连接成功，连接ID: {connection_id}, 用户需求: {user_demand}, 模型: {model}"
             )
             # 创建SSE流
             return StreamingResponse(
-                sse_generator(user_demand, "LLM_generate_AI_recommend"),
+                sse_generator(user_demand, "LLM_generate_AI_recommend", model),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",

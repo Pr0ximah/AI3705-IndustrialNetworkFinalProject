@@ -1,112 +1,136 @@
 <template>
   <Transition name="main-fade" mode="out-in">
-    <div class="main" v-if="!showLoading">
-      <div class="llm-card">
-        <div class="title">
-          <img src="@/assets/AI.png" />
-        </div>
-        <div class="input-wrapper">
-          <textarea
-            v-model="llmUserInput"
-            placeholder="请详细描述你的需求，AI会帮你创建项目配置"
-          />
-        </div>
-        <button class="custom-button" @click="sendToLLM">发送</button>
-      </div>
-      <div class="user-card">
-        <button class="back-btn custom-button" @click="emit('back')">
-          <ElIcon size="20"><Back /></ElIcon>
+    <div class="wrapper" v-if="!showLoading">
+      <div class="llm-select">
+        <button class="custom-button" @click="checkAndRefreshAPIConfig">
+          <ElIcon
+            size="16"
+            style="margin-right: 5px"
+            :class="{ 'is-loading': isRefreshing }"
+            ><Refresh
+          /></ElIcon>
+          刷新API配置
         </button>
-        <div class="title">创建新项目</div>
-        <div class="inner custom-scrollbar">
-          <div class="input-item">
-            <div class="label">项目名称</div>
-            <ElInput
-              v-model="projectName"
-              placeholder="请输入项目名称"
-              class="input"
+        <ElRadioGroup v-model="activeModel" class="model-select">
+          <ElRadioButton
+            v-for="model in availableModels"
+            :key="model"
+            :label="model"
+            class="model-option"
+          >
+            <img :src="getIconByLLMName(model)" class="model-icon" />
+            {{ model }}
+          </ElRadioButton>
+        </ElRadioGroup>
+      </div>
+      <div class="main">
+        <div class="llm-card">
+          <div class="title">
+            <img src="@/assets/AI.png" />
+          </div>
+          <div class="input-wrapper">
+            <textarea
+              v-model="llmUserInput"
+              placeholder="请详细描述你的需求，AI会帮你创建项目配置"
             />
           </div>
-          <div class="tips">
-            <ElIcon size="14" style="margin-right: 8px"><Files /></ElIcon>
-            <div>
-              你的项目将会储存在 {{ projectPath }} 内的
-              {{ projectName }} 文件夹下
+          <button class="custom-button" @click="AIRecommend">发送</button>
+        </div>
+        <div class="user-card">
+          <button class="back-btn custom-button" @click="emit('back')">
+            <ElIcon size="20"><Back /></ElIcon>
+          </button>
+          <div class="title">创建新项目</div>
+          <div class="inner custom-scrollbar">
+            <div class="input-item">
+              <div class="label">项目名称</div>
+              <ElInput
+                v-model="projectName"
+                placeholder="请输入项目名称"
+                class="input"
+              />
+            </div>
+            <div class="tips">
+              <ElIcon size="14" style="margin-right: 8px"><Files /></ElIcon>
+              <div>
+                你的项目将会储存在 {{ projectPath }} 内的
+                {{ projectName }} 文件夹下
+              </div>
+            </div>
+            <div class="input-item">
+              <div class="label">项目功能简述</div>
+              <ElInput
+                v-model="projectDescription"
+                type="textarea"
+                placeholder="请简要描述项目功能和目标"
+                class="input textarea"
+                style="height: auto"
+                :rows="4"
+              />
+            </div>
+            <div class="input-item">
+              <div class="label">所需功能块</div>
+              <ElCollapse v-model="activeBlocks" class="collapse">
+                <ElCollapseItem
+                  v-for="(item, index) in blocks"
+                  :title="item.name"
+                  :key="index"
+                  :name="`block-${index}`"
+                >
+                  <template #title>
+                    <div class="collapse-title-wrapper">
+                      <button
+                        @click.stop="deleteItem(index)"
+                        class="delete-btn custom-button"
+                        :class="{ clicked: deleteButtonClickedMap[index] }"
+                      >
+                        <div
+                          v-if="deleteButtonClickedMap[index]"
+                          class="delete-btn-text"
+                        >
+                          删除
+                        </div>
+                        <ElIcon v-else size="15"><Close /></ElIcon>
+                      </button>
+                      <span
+                        @click="unsetDeleteButtonClicked('signal_input', index)"
+                        class="collapse-title"
+                        >{{ item.name }}</span
+                      >
+                    </div>
+                  </template>
+
+                  <div class="feature-item">
+                    <span>名称</span>
+                    <ElInput
+                      v-model="item.name"
+                      class="collapse-input"
+                      placeholder="请输入功能块名称"
+                    ></ElInput>
+                  </div>
+                  <div class="feature-item">
+                    <span>描述</span>
+                    <ElInput
+                      v-model="item.description"
+                      type="textarea"
+                      class="collapse-input textarea"
+                      :rows="3"
+                      placeholder="请输入功能块的详细描述"
+                    ></ElInput>
+                  </div>
+                </ElCollapseItem>
+                <button class="add-btn custom-button" @click="addItem">
+                  添加
+                </button>
+              </ElCollapse>
             </div>
           </div>
-          <div class="input-item">
-            <div class="label">项目功能简述</div>
-            <ElInput
-              v-model="projectDescription"
-              type="textarea"
-              placeholder="请简要描述项目功能和目标"
-              class="input textarea"
-              style="height: auto"
-              :rows="4"
-            />
+          <div class="create-btn-wrapper">
+            <button class="custom-button create-btn" @click="createProject">
+              <span class="create-text">创建项目</span>
+              <ElIcon size="35"><Right /></ElIcon>
+            </button>
           </div>
-          <div class="input-item">
-            <div class="label">所需功能块</div>
-            <ElCollapse v-model="activeBlocks" class="collapse">
-              <ElCollapseItem
-                v-for="(item, index) in blocks"
-                :title="item.name"
-                :key="index"
-                :name="`block-${index}`"
-              >
-                <template #title>
-                  <div class="collapse-title-wrapper">
-                    <button
-                      @click.stop="deleteItem(index)"
-                      class="delete-btn custom-button"
-                      :class="{ clicked: deleteButtonClickedMap[index] }"
-                    >
-                      <div
-                        v-if="deleteButtonClickedMap[index]"
-                        class="delete-btn-text"
-                      >
-                        删除
-                      </div>
-                      <ElIcon v-else size="15"><Close /></ElIcon>
-                    </button>
-                    <span
-                      @click="unsetDeleteButtonClicked('signal_input', index)"
-                      class="collapse-title"
-                      >{{ item.name }}</span
-                    >
-                  </div>
-                </template>
-
-                <div class="feature-item">
-                  <span>名称</span>
-                  <ElInput
-                    v-model="item.name"
-                    class="collapse-input"
-                    placeholder="请输入功能块名称"
-                  ></ElInput>
-                </div>
-                <div class="feature-item">
-                  <span>描述</span>
-                  <ElInput
-                    v-model="item.description"
-                    type="textarea"
-                    class="collapse-input textarea"
-                    :rows="3"
-                    placeholder="请输入功能块的详细描述"
-                  ></ElInput>
-                </div>
-              </ElCollapseItem>
-              <button class="add-btn custom-button" @click="addItem">
-                添加
-              </button>
-            </ElCollapse>
-          </div>
-        </div>
-        <div class="create-btn-wrapper">
-          <button class="custom-button create-btn" @click="createProject">
-            <span class="create-text">创建项目</span>
-            <ElIcon size="35"><Right /></ElIcon>
-          </button>
         </div>
       </div>
     </div>
@@ -114,8 +138,10 @@
   <Transition name="loading-fade" mode="out-in">
     <LLMLoading
       ref="LLMLoadingRef"
-      :progress="LLM_progress"
-      :messages="LLM_messages"
+      :LLM_Display="{
+        icon: getIconByLLMName(activeModel),
+        name: activeModel,
+      }"
       v-if="showLoading"
     />
   </Transition>
@@ -128,9 +154,11 @@ import {
   ElInput,
   ElCollapseItem,
   ElNotification,
+  ElRadioButton,
+  ElRadioGroup,
 } from "element-plus";
-import { Files, Close, Back, Right } from "@element-plus/icons-vue";
-import { defineProps, ref, defineEmits, defineExpose } from "vue";
+import { Files, Close, Back, Right, Refresh } from "@element-plus/icons-vue";
+import { defineProps, ref, defineEmits, defineExpose, onMounted } from "vue";
 import { service } from "@/util/ajax_inst.js";
 import LLMLoading from "./LLMLoading.vue";
 const props = defineProps({
@@ -148,14 +176,32 @@ const activeBlocks = ref([]);
 const deleteButtonClickedMap = ref([]);
 const blocks = ref([]);
 const showLoading = ref(false);
-const LLM_progress = ref(0);
-const LLM_messages = ref([]);
 const LLMLoadingRef = ref(null);
 const apiConfigStatus = ref(false);
+const availableModels = ref([]);
+const activeModel = ref("");
+const isRefreshing = ref(false);
+import deepseedIcon from "@/assets/deepseek.svg";
+import qwenIcon from "@/assets/qwen.png";
+import defaultLLMIcon from "@/assets/LLM.svg";
+const modelNameIconMap = ref({
+  deepseek: deepseedIcon,
+  qwen: qwenIcon,
+  default: defaultLLMIcon,
+});
 const blockConfOrigin = {
   name: "",
   description: "",
 };
+
+function getIconByLLMName(llmName) {
+  for (const modelName in modelNameIconMap.value) {
+    if (llmName.toLowerCase().includes(modelName)) {
+      return modelNameIconMap.value[modelName];
+    }
+  }
+  return modelNameIconMap.value.default;
+}
 
 function deleteItem(index) {
   if (deleteButtonClickedMap.value[index]) {
@@ -195,20 +241,22 @@ function unsetDeleteButtonClicked(index) {
 }
 
 async function checkAndRefreshAPIConfig() {
-  if (!apiConfigStatus.value) {
-    try {
-      await service.get("/inputs/refresh_api_config");
-    } catch (error) {
-      ElNotification({
-        title: "错误",
-        showClose: false,
-        message: error.message,
-        type: "error",
-        duration: 3000,
-        customClass: "default-notification",
-      });
-      return false;
-    }
+  isRefreshing.value = true;
+  setTimeout(() => {
+    isRefreshing.value = false;
+  }, 500);
+  try {
+    await service.get("/inputs/refresh_api_config");
+  } catch (error) {
+    ElNotification({
+      title: "错误",
+      showClose: false,
+      message: error.message,
+      type: "error",
+      duration: 3000,
+      customClass: "default-notification",
+    });
+    return false;
   }
   const res = await service.get("/inputs/check_api_config");
   if (res.data.status !== "success") {
@@ -224,15 +272,24 @@ async function checkAndRefreshAPIConfig() {
     return false;
   }
   apiConfigStatus.value = true;
+  const models = await service.get("/inputs/get_available_models");
+  if (models.data.status !== "success") {
+    ElNotification({
+      title: "错误",
+      showClose: false,
+      message: models.data.message,
+      type: "error",
+      duration: 3000,
+      customClass: "default-notification",
+    });
+    return false;
+  }
+  availableModels.value = models.data.available_models || [];
+  activeModel.value = availableModels.value[0] || "";
   return true;
 }
 
 async function createProject() {
-  const res = await checkAndRefreshAPIConfig();
-  if (!res) {
-    return; // 如果API配置检查失败，直接返回
-  }
-
   let simulateTimer = null;
   let simulatedProgress = 0;
 
@@ -262,6 +319,7 @@ async function createProject() {
 
     const res = await service.post("/inputs/create_project", {
       conf: JSON.stringify(projectData),
+      model: activeModel.value,
     });
     if (res.data.status !== "success") {
       throw new Error(res.data.message || "创建项目失败");
@@ -402,13 +460,7 @@ async function createProject() {
   }
 }
 
-async function sendToLLM() {
-  const res = await checkAndRefreshAPIConfig();
-  console.log("API配置检查结果:", res);
-  if (!res) {
-    return; // 如果API配置检查失败，直接返回
-  }
-
+async function AIRecommend() {
   let simulateTimer = null;
   let simulatedProgress = 0;
 
@@ -423,11 +475,14 @@ async function sendToLLM() {
     });
     return;
   }
-  const userInput = { userInput: llmUserInput.value.trim() };
+  let data = {
+    userInput: llmUserInput.value.trim(),
+    model: activeModel.value,
+  };
   showLoading.value = true;
 
   try {
-    const res = await service.post("/inputs/get_ai_recommend", userInput);
+    const res = await service.post("/inputs/get_ai_recommend", data);
     if (res.data.status !== "success") {
       throw new Error(res.data.message || "获取AI推荐失败");
     }
@@ -559,6 +614,10 @@ async function sendToLLM() {
   }
 }
 
+onMounted(async () => {
+  await checkAndRefreshAPIConfig();
+});
+
 defineExpose({
   showLoading,
 });
@@ -568,6 +627,7 @@ defineExpose({
 .main {
   width: 80%;
   height: 80%;
+  margin-bottom: 20px;
   background-color: white;
   border-radius: 10px;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
@@ -947,5 +1007,90 @@ span .collapse-title:hover {
 
 .llm-card button:hover {
   background-color: rgba(255, 255, 255, 0.5);
+}
+
+.wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.llm-select {
+  height: 75px;
+  margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.model-select {
+  height: 100%;
+  transition: all 0.1s;
+}
+
+.model-option:first-child :deep(.el-radio-button__inner) {
+  border-radius: 8px 0 0 8px;
+}
+
+.model-option:last-child :deep(.el-radio-button__inner) {
+  border-radius: 0 8px 8px 0;
+}
+
+.model-option :deep(.el-radio-button__inner) {
+  background-color: rgba(0, 0, 0, 0.1);
+  font-size: large;
+  font-weight: bold;
+  text-align: center;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  border-width: 1px;
+}
+
+.model-option :deep(.el-radio-button__inner):hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.model-option.is-active :deep(.el-radio-button__inner) {
+  background-color: rgba(60, 62, 173, 0.05) !important;
+  color: var(--color-dark-0) !important;
+  border-color: transparent !important;
+  box-shadow: inset 0 0 0 2px var(--color-dark-0) !important;
+}
+
+.model-icon {
+  height: 30px;
+  width: 30px;
+  margin-right: 10px;
+}
+
+.llm-select button {
+  background-color: transparent;
+  margin-bottom: 5px;
+  height: 30px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+}
+
+.is-loading {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 </style>
