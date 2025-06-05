@@ -26,7 +26,7 @@
 
 ### 大模型API配置
 
-在运行项目之前，请确保已配置好大模型API的相关信息。你需要在`in_backend/config.yaml`中填好所有的配置项，包括API密钥、模型名称等（兼容`OpenAI`库的接口）。
+在运行项目之前，请确保已配置好大模型API的相关信息。你需要参考`in_backend/config_example.yaml`中设置，在`in_backend/config.yaml`中填好所有的配置项，包括API密钥、模型名称等（兼容`OpenAI`库的接口）。**你可以配置多个模型，系统会自动识别并提供选择。**
 
 ### 前端
 

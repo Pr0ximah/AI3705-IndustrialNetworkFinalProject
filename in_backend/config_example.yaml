@@ -1,0 +1,25 @@
+# LLM API 配置
+LLM_API:
+  available_models:
+    <Your LLM Model Name>:
+      base_url: <Your API base URL>
+      default_model: <Your default model>
+      API_KEY: <Your API KEY>
+      extra_headers: {}
+      extra_body: {}
+      extra_query: {}
+
+    <Your LLM Model Name 2>:
+      base_url: <Your API base URL>
+      default_model: <Your default model>
+      API_KEY: <Your API KEY>
+      extra_headers: {}
+      extra_body: {}
+      extra_query: {}
+    
+    # 添加更多模型配置...
+
+  default_temperature: 0.7 # 这个参数表示生成文本的随机性，范围是0到2，越高越随机
+  default_max_tokens: 2000 # 这个参数表示生成文本的最大长度，单位是token
+  max_context_tokens: 6000 # 这个参数表示上下文的最大token数
+  max_retries: 3
