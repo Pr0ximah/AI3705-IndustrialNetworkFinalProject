@@ -26,6 +26,14 @@ def check_API_config():
     return config_manager.check_user_config()
 
 
+def LLM_get_available_models():
+    """
+    获取可用的LLM模型列表
+    """
+    global config_manager
+    return config_manager.get_LLM_list()
+
+
 @dataclass
 class ConversationMessage:
     """对话消息结构"""
@@ -49,9 +57,9 @@ class LLMWithMemory:
         global config_manager
         self.config_manager = config_manager
 
-        self.api_key = config_manager.get("LLM_API.API_KEY")
-        self.base_url = self.config_manager.get("LLM_API.base_url")
-        self.default_model = self.config_manager.get("LLM_API.default_model")
+        self.api_key = self.config_manager.get_model_config().get("API_KEY")
+        self.base_url = self.config_manager.get_model_config().get("base_url")
+        self.default_model = self.config_manager.get_model_config().get("default_model")
         self.max_history_length = self.config_manager.get(
             "LLM_API.max_history_length", 15
         )
@@ -67,6 +75,15 @@ class LLMWithMemory:
         self.client = AsyncOpenAI(
             api_key=self.api_key,
             base_url=self.base_url,
+        )
+        self.client_extra_headers = self.config_manager.get_model_config().get(
+            "extra_headers", {}
+        )
+        self.client_extra_body = self.config_manager.get_model_config().get(
+            "extra_body", {}
+        )
+        self.client_extra_query = self.config_manager.get_model_config().get(
+            "extra_query", {}
         )
 
         # 设置日志
@@ -158,7 +175,6 @@ class LLMWithMemory:
         user_message: str,
         temperature: float = None,
         max_tokens: int = None,
-        **kwargs,
     ) -> str:
         """
         带记忆的对话功能
@@ -176,7 +192,7 @@ class LLMWithMemory:
             messages = self._build_messages_for_api(user_message)
 
             # 调用API
-            response = await self._call_api(messages, temperature, max_tokens, **kwargs)
+            response = await self._call_api(messages, temperature, max_tokens)
 
             # 保存用户消息和助手回复到历史
             self.conversation_history.append(
@@ -201,27 +217,9 @@ class LLMWithMemory:
         temperature: float,
         max_tokens: int,
         max_retries: int = None,
-        **kwargs,
     ) -> str:
         """调用LLM API"""
         max_retries = max_retries or self.config_manager.get("LLM_API.max_retries", 3)
-        """url = f"{self.base_url}/chat/completions"
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-        data = {
-            "model": self.default_model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            **kwargs,
-        }
-
-        if not self.session:
-            self.session = aiohttp.ClientSession()"""
 
         for attempt in range(max_retries):
             try:
@@ -230,7 +228,9 @@ class LLMWithMemory:
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
-                    **kwargs,
+                    extra_headers=self.client_extra_headers,
+                    extra_body=self.client_extra_body,
+                    extra_query=self.client_extra_query,
                 )
 
                 content = response.choices[0].message.content.strip()
@@ -308,9 +308,10 @@ class LLMWithMemory:
 class DeviceConfigurationAssistant:
     """设备配置生成助手"""
 
-    def __init__(self):
+    def __init__(self, model: str = None):
         global config_manager
         self.config_manager = config_manager
+        config_manager.set_LLM(model)
 
         self.client = LLMWithMemory()
 
@@ -442,7 +443,7 @@ def extract_and_parse_json(content: str) -> Dict | List:
     return data
 
 
-async def LLM_generate_block_categories(config_manager, user_input):
+async def LLM_generate_block_categories(config_manager, user_input, model):
     user_input = json.loads(user_input)
 
     prompt_parts = [
@@ -464,7 +465,7 @@ async def LLM_generate_block_categories(config_manager, user_input):
     # 你的提示词
     PROMPT_1 = device_list_template.format(prompt=user_prompt)
 
-    async with DeviceConfigurationAssistant() as assistant:
+    async with DeviceConfigurationAssistant(model) as assistant:
         final_result = []
         try:
             # 第一步：生成设备列表
@@ -605,21 +606,21 @@ async def LLM_generate_block_categories(config_manager, user_input):
             raise Exception(error_msg)
 
 
-async def LLM_generate_AI_recommend(config_manager, user_input):
+async def LLM_generate_AI_recommend(config_manager, user_input, model):
     pass
 
 
-async def send_single_message(_, data):
+async def send_single_message(_, data, *args, **kwargs):
     yield {
         "event": "error",
         "data": json.dumps({"message": f"{data}"}, ensure_ascii=False),
     }
 
 
-async def process_user_input(data, function_name):
+async def process_user_input(data, function_name, model):
     global config_manager
     try:
-        async for event in eval(function_name)(config_manager, data):
+        async for event in eval(function_name)(config_manager, data, model):
             yield event
     except TypeError as e:
         print(f"send:处理函数 {function_name} 时发生错误: {e}")
@@ -633,12 +634,12 @@ async def process_user_input(data, function_name):
 
 
 # 为FastAPI提供的格式化生成器函数p
-async def sse_generator(data, function_name):
+async def sse_generator(data, function_name, model=None):
     """
     将处理的结果转换为SSE格式的生成器
     """
     try:
-        async for event in process_user_input(data, function_name):
+        async for event in process_user_input(data, function_name, model):
             if isinstance(event, dict):
                 event_name = event.get("event", "message")
                 event_data = event.get("data", "")

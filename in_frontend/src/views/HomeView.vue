@@ -536,7 +536,7 @@ provide("autoSaveWorkspace", autoSaveWorkspace);
 .background img {
   height: 100%;
   object-fit: cover;
-  filter: opacity(0.1) blur(4px);
+  filter: opacity(0.2) blur(4px);
   position: absolute;
   top: 0;
   left: 0;
