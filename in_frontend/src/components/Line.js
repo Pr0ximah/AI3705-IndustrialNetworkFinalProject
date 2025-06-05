@@ -1,8 +1,9 @@
 const LINE_SPACING = 10; // 连接线间距
-const MIN_SEGMENT_LENGTH = 20; // 最小线段长度
 const CONNECTOR_EXTENSION = 30; // 连接器延伸长度
 const BLOCK_AVOID_MARGIN = 15; // 块避让边距
-const LINE_AVOID_MARGIN = 8; // 连线避让边距
+
+// 全局计数器，用于线的创建顺序
+let globalLineCounter = 0;
 
 // 全局线管理器
 class LineManager {
@@ -26,6 +27,8 @@ class LineManager {
 
   clear() {
     this.lines.clear();
+    // 清空时重置计数器
+    globalLineCounter = 0;
   }
 }
 
@@ -69,9 +72,9 @@ class Line {
     this.offsetY = offsetY;
     this.segments = [];
 
-    // 添加唯一标识符和创建时间，用于避让优先级
+    // 添加唯一标识符和创建顺序，用于避让优先级
     this.id = Math.random().toString(36).substring(2, 11);
-    this.createdAt = Date.now();
+    this.creationOrder = globalLineCounter++;
 
     this.calculatePath();
 
@@ -356,9 +359,9 @@ class Line {
       if (conflicts.length > 0) {
         // 获取所有相关的线（包括当前线和冲突线）
         const allRelevantLines = [this, ...conflicts.map((c) => c.line)];
-        // 按创建时间排序，确定优先级
+        // 按创建顺序排序，确定优先级
         const sortedLines = allRelevantLines.sort(
-          (a, b) => a.createdAt - b.createdAt
+          (a, b) => a.creationOrder - b.creationOrder
         );
         // 找到当前线在排序后的位置
         const currentLineIndex = sortedLines.findIndex(
@@ -430,9 +433,9 @@ class Line {
         if (conflicts.length > 0) {
           // 获取所有相关的线（包括当前线和冲突线）
           const allRelevantLines = [this, ...conflicts.map((c) => c.line)];
-          // 按创建时间排序，确定优先级
+          // 按创建顺序排序，确定优先级
           const sortedLines = allRelevantLines.sort(
-            (a, b) => a.createdAt - b.createdAt
+            (a, b) => a.creationOrder - b.creationOrder
           );
           // 找到当前线在排序后的位置
           const currentLineIndex = sortedLines.findIndex(
