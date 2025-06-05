@@ -3,7 +3,7 @@ import json
 import os
 import re
 import time
-from typing import Optional, Dict, Any, List
+from typing import Dict, List
 import logging
 import openai
 from openai import AsyncOpenAI
@@ -16,6 +16,14 @@ config_manager = ConfigManager()
 def LLM_set_user_config(user_config):
     global config_manager
     config_manager.yaml_config = user_config
+
+
+def check_API_config():
+    """
+    检查API配置是否正确
+    """
+    global config_manager
+    return config_manager.check_user_config()
 
 
 @dataclass
@@ -434,30 +442,27 @@ def extract_and_parse_json(content: str) -> Dict | List:
     return data
 
 
-def read_user_input(data) -> str:
-    """
-    从 data 中读取用户输入，格式化为 prompt 可读字符串。
-    """
-    prompt_parts = [f"系统名称：{data['name']}", f"系统描述：{data['description']}"]
+async def LLM_generate_block_categories(config_manager, user_input):
+    user_input = json.loads(user_input)
 
-    for block in data.get("blocks", []):
+    prompt_parts = [
+        f"系统名称：{user_input['name']}",
+        f"系统描述：{user_input['description']}",
+    ]
+
+    for block in user_input.get("blocks", []):
         block_name = block.get("name", "未命名模块")
         block_desc = block.get("description", "无描述")
         prompt_parts.append(f"模块：{block_name}，功能：{block_desc}")
 
-    return "\n".join(prompt_parts)
-
-
-async def process_user_input(user_input):
-    global config_manager
-    prompt = read_user_input(json.loads(user_input))
+    user_prompt = "\n".join(prompt_parts)
 
     # 生成设备配置列表的提示词
     device_list_template = config_manager.get("prompts.device_list_template")
     device_detail_template = config_manager.get("prompts.device_detail_template")
 
     # 你的提示词
-    PROMPT_1 = device_list_template.format(prompt=prompt)
+    PROMPT_1 = device_list_template.format(prompt=user_prompt)
 
     async with DeviceConfigurationAssistant() as assistant:
         final_result = []
@@ -477,29 +482,6 @@ async def process_user_input(user_input):
                 ),
             }
             device_list_response = await assistant.generate_device_list(PROMPT_1)
-            '''device_list_response = """```json
-    [
-    {
-        "device": "sorter",
-        "input_signal": "物料到位传感器, 物料类型传感器",        
-        "output_signal": "分拣臂动作信号, 分拣方向控制信号",     
-        "description": "用于识别和分拣不同类型物料，根据传感器反 馈控制分拣动作"
-    },
-    {
-        "device": "stacker",
-        "input_signal": "堆垛高度传感器, 物料到位传感器",        
-        "output_signal": "升降电机控制信号, 伸缩叉控制信号",     
-        "description": "用于物料的堆垛和取放，根据高度和位置反馈 控制升降和伸缩动作"
-    },
-    {
-        "device": "conveyor",
-        "input_signal": "物料检测传感器, 速度反馈传感器",        
-        "output_signal": "电机启停信号, 速度调节信号",
-        "description": "用于水平输送物料，根据物料检测和速度反馈 控制输送带运行"
-    }
-    ]
-    ```"""
-            await asyncio.sleep(5)  # 用异步sleep模拟处理时延'''
 
             # 将结果包装为JSON格式的事件
             print("send:设备列表响应内容:", device_list_response)
@@ -578,10 +560,6 @@ async def process_user_input(user_input):
                 detail_response = await assistant.generate_device_detail(
                     device, device_detail_template
                 )
-                # detail_response = r'''```json
-                # {"name": "Sorter Configuration", "var_input": [{"name": "MaterialPresent", "type": "bool", "description": "检测物料是否到位"}, {"name": "MaterialType", "type": "int", "description": "物料类型编码(1-5)"}], "var_output": [{"name": "ArmPosition", "type": "int", "description": "分拣臂当前位置(1-3)"}, {"name": "DirectionControl", "type": "int", "description": "分拣方向控制(0=左,1=右)"}], "signal_input": [{"name": "MaterialDetection", "description": "物料到位传感器信号"}, {"name": "TypeDetection", "description": "物料类型识别完成信号"}], "signal_output": [{"name": "ArmActuation", "description": "分拣臂动作信号"}, {"name": "SortComplete", "description": "分拣完成信号"}], "InternalVars": [{"name": "IsSorting", "type": "bool", "InitalVaule": "FALSE", "description": "记录分拣机当前工作状态"}, {"name": "CurrentType", "type": "int", "InitalVaule": "0", "description": "当前处理的物料类型"}], "ECC": {"ECStates": [{"name": "Idle", "comment": "等待物料状态", "x": 50, "y": 50}, {"name": "Detecting", "comment": "物料检测状态", "x": 200, "y": 50, "ecAction": {"algorithm": "DetectMaterial", "output": "MaterialDetection"}}, {"name": "Sorting", "comment": "分拣执行状态", "x": 350, "y": 50, "ecAction": {"algorithm": "ExecuteSort", "output": "ArmActuation"}}, {"name": "Completed", "comment": "分拣完成状态", "x": 350, "y": 150, "ecAction": {"algorithm": "FinishSort", "output": "SortComplete"}}], "ECTransitions": [{"source": "Idle", "destination": "Detecting", "condition": "MaterialPresent", "comment": "检测到物料", "x": 125, "y": 30}, {"source": "Detecting", "destination": "Sorting", "condition": "TypeDetection", "comment": "物料类型识别完成", "x": 275, "y": 30}, {"source": "Sorting", "destination": "Completed", "condition": "ArmPosition == TargetPosition", "comment": "分拣到位", "x": 350, "y": 100}, {"source": "Completed", "destination": "Idle", "condition": "TRUE", "comment": "返回初始状态", "x": 200, "y": 150}]}, "Algorithms": [{"Name": "DetectMaterial", "Comment": "物 料检测算法", "Input": "MaterialPresent, MaterialType", "Output": "MaterialDetection, CurrentType", "Code": "IF MaterialPresent THEN\n    MaterialDetection := TRUE;\n    CurrentType := MaterialType;\nELSE\n    MaterialDetection := FALSE;\n    CurrentType := 0;\nEND_IF;"}, {"Name": "ExecuteSort", "Comment": "分拣执行算法", "Input": "CurrentType", "Output": "ArmPosition, DirectionControl", "Code": "CASE CurrentType OF\n    1,2: DirectionControl := 0; ArmPosition := 1;\n    3,4: DirectionControl := 0; ArmPosition := 2;\n    5: DirectionControl := 1; ArmPosition := 3;\n    ELSE: DirectionControl := 0; ArmPosition := 0;\nEND_CASE;"}, {"Name": "FinishSort", "Comment": "分拣完成处理", "Input": "", "Output": "SortComplete", "Code": "SortComplete := TRUE;\nIsSorting := FALSE;"}], "id": 0}
-                # ```'''
-                # await asyncio.sleep(5)  # 用异步sleep模拟处理时延
                 device_config = extract_and_parse_json(detail_response)
                 device_config["id"] = idx
 
@@ -624,22 +602,55 @@ async def process_user_input(user_input):
         except Exception as e:
             print(f"send:生成过程中发生错误: {e}")
             error_msg = f"生成过程中发生错误: {str(e)}"
-            yield {
-                "event": "error",
-                "data": json.dumps({"message": error_msg}, ensure_ascii=False),
-            }
+            raise Exception(error_msg)
 
 
-# 为FastAPI提供的格式化生成器函数
-async def sse_generator(user_input):
+async def LLM_generate_AI_recommend(config_manager, user_input):
+    pass
+
+
+async def send_single_message(_, data):
+    yield {
+        "event": "error",
+        "data": json.dumps({"message": f"{data}"}, ensure_ascii=False),
+    }
+
+
+async def process_user_input(data, function_name):
+    global config_manager
+    try:
+        async for event in eval(function_name)(config_manager, data):
+            yield event
+    except TypeError as e:
+        print(f"send:处理函数 {function_name} 时发生错误: {e}")
+        yield {
+            "event": "error",
+            "data": json.dumps(
+                {"message": f"处理函数 {function_name} 时发生错误 {e}"},
+                ensure_ascii=False,
+            ),
+        }
+
+
+# 为FastAPI提供的格式化生成器函数p
+async def sse_generator(data, function_name):
     """
-    将process_user_input的结果转换为SSE格式的生成器
+    将处理的结果转换为SSE格式的生成器
     """
-    async for event in process_user_input(user_input):
-        if isinstance(event, dict):
-            event_name = event.get("event", "message")
-            event_data = event.get("data", "")
-            yield f"event: {event_name}\ndata: {event_data}\n\n"
-        else:
-            # 如果event是字符串，将其作为message事件发送
-            yield f"event: message\ndata: {json.dumps({'message': event}, ensure_ascii=False)}\n\n"
+    try:
+        async for event in process_user_input(data, function_name):
+            if isinstance(event, dict):
+                event_name = event.get("event", "message")
+                event_data = event.get("data", "")
+                yield f"event: {event_name}\ndata: {event_data}\n\n"
+            else:
+                # 如果event是字符串，将其作为message事件发送
+                yield f"event: message\ndata: {json.dumps({'message': event}, ensure_ascii=False)}\n\n"
+
+        # 发送结束信号，让客户端主动断开连接
+        yield f"event: close\ndata: {json.dumps({'message': 'SSE连接结束'}, ensure_ascii=False)}\n\n"
+
+    except Exception as e:
+        # 发生错误时也发送结束信号
+        yield f"event: error\ndata: {json.dumps({'message': f'SSE连接错误: {str(e)}'}, ensure_ascii=False)}\n\n"
+        yield f"event: close\ndata: {json.dumps({'message': 'SSE连接终止'}, ensure_ascii=False)}\n\n"
