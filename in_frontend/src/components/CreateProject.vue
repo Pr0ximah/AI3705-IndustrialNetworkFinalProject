@@ -156,6 +156,7 @@ import {
   ElNotification,
   ElRadioButton,
   ElRadioGroup,
+  ElMessageBox,
 } from "element-plus";
 import { Files, Close, Back, Right, Refresh } from "@element-plus/icons-vue";
 import { defineProps, ref, defineEmits, defineExpose, onMounted } from "vue";
@@ -304,6 +305,17 @@ async function createProject() {
     });
     return;
   }
+  if (!projectDescription.value.trim()) {
+    ElNotification({
+      title: "错误",
+      showClose: false,
+      message: "项目描述不能为空",
+      type: "warning",
+      duration: 3000,
+      customClass: "default-notification",
+    });
+    return;
+  }
   const projectData = {
     name: projectName.value,
     description: projectDescription.value,
@@ -406,6 +418,7 @@ async function createProject() {
         LLMLoadingRef.value.addMsg("项目创建完成！正在处理...");
         console.log("项目创建完成:", result);
         isCompleted = true;
+        resolve();
       });
 
       eventSource.addEventListener("close", (event) => {
@@ -479,6 +492,30 @@ async function AIRecommend() {
     userInput: llmUserInput.value.trim(),
     model: activeModel.value,
   };
+
+  if (projectName.value.trim() || projectDescription.value.trim()) {
+    try {
+      await ElMessageBox.confirm(
+        "AI智配将会清空已有项目配置，是否继续？",
+        "提示",
+        {
+          confirmButtonText: "确定清空",
+          cancelButtonText: "取消",
+          type: "warning",
+          showClose: false,
+          closeOnClickModal: false,
+          closeOnPressEscape: false,
+          cancelButtonClass: "cancel-btn",
+          confirmButtonClass: "confirm-btn",
+          customClass: "clear-workspace-dialog",
+        }
+      );
+    } catch (error) {
+      if (error === "cancel") {
+        return;
+      }
+    }
+  }
   showLoading.value = true;
 
   try {
@@ -566,6 +603,7 @@ async function AIRecommend() {
         LLMLoadingRef.value.addMsg("AI智配已成功生成！正在处理...");
         console.log("AI智配完成:", result);
         isCompleted = true;
+        resolve();
       });
 
       eventSource.addEventListener("close", (event) => {
@@ -598,6 +636,26 @@ async function AIRecommend() {
       };
     });
 
+    // 清空现有的功能块配置
+    blocks.value = [];
+    deleteButtonClickedMap.value = [];
+    activeBlocks.value = [];
+
+    // 将AI推荐的功能块配置添加到blocks中
+    result.result.blocks.forEach((block, index) => {
+      blocks.value.push({
+        name: block.name,
+        description: block.description,
+      });
+      deleteButtonClickedMap.value.push(false);
+      activeBlocks.value.push(`block-${index}`);
+    });
+
+    // 更新项目名称和描述
+    projectName.value = result.result.name || "";
+    projectDescription.value = result.result.description || "";
+
+    // 触发AI智配成功事件
     setTimeout(() => {
       showLoading.value = false;
     }, 2000);
