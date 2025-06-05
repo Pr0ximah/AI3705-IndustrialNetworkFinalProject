@@ -5,3 +5,4 @@ build/
 *.spec
 config.yaml
 !sys_config/config.yaml
+qwen.py
